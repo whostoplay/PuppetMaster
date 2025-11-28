@@ -23,6 +23,9 @@ kotlin {
             api(libs.kotlinx.serialization.json)
             api(libs.ktor.client.contentnegotiation)
         }
+        androidMain.dependencies {
+            implementation(libs.androidx.core)
+        }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }

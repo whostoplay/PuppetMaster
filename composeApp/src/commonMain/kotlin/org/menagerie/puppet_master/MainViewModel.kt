@@ -3,64 +3,87 @@ package org.menagerie.puppet_master
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
-import io.ktor.client.*
+import io.ktor.client.* 
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
+import io.ktor.websocket.*
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
 
-class MainViewModel : ViewModel() {
+enum class OperatingMode {
+    ONLINE, OFFLINE
+}
 
+class MainViewModel(context: Any) : ViewModel() {
+
+    val uploadsDir = getUploadsDir(context)
     private val uploader = Uploader()
+    private val audioProcessor = AudioProcessor(context)
     private val client = HttpClient {
-        install(ContentNegotiation) {
-            json(Json { 
-                ignoreUnknownKeys = true 
-            })
-        }
+        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        install(WebSockets)
     }
     private val gson = Gson()
-    private val localConfigFile = File("local_avatar_config.json")
+    private val localConfigFile = File(uploadsDir, "local_avatar_config.json")
 
     private val _localAvatarConfig = MutableStateFlow<AvatarConfiguration?>(null)
     val localAvatarConfig: StateFlow<AvatarConfiguration?> = _localAvatarConfig
+
+    private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
+    val operatingMode: StateFlow<OperatingMode> = _operatingMode
+
+    private val _activeState = MutableStateFlow<AvatarStateInfo?>(null)
+    val activeState: StateFlow<AvatarStateInfo?> = _activeState
+
+    private var serverStateJob: Job? = null
+    private var audioWsJob: Job? = null
 
     init {
         smartLoad()
     }
 
+    fun setOperatingMode(mode: OperatingMode) {
+        _operatingMode.value = mode
+        if (mode == OperatingMode.ONLINE) {
+            observeServerState()
+        } else {
+            serverStateJob?.cancel()
+            // In offline mode, default to idle
+            _activeState.value = _localAvatarConfig.value?.states?.find { it.name == "idle" }
+        }
+    }
+
     private fun smartLoad() {
         viewModelScope.launch {
             val localConfig = loadLocalConfig()
+            _localAvatarConfig.value = localConfig
+            _activeState.value = localConfig?.states?.find { it.name == "idle" }
+            
             try {
                 val serverConfig = client.get("http://127.0.0.1:$SERVER_PORT/config").body<AvatarConfiguration>()
-
-                if (localConfig != null && localConfig.lastUpdated > serverConfig.lastUpdated) {
-                    _localAvatarConfig.value = localConfig
-                } else {
+                if (localConfig == null || serverConfig.lastUpdated > localConfig.lastUpdated) {
                     _localAvatarConfig.value = serverConfig
-                    saveLocalConfig(serverConfig) // Sync local with server
+                    saveLocalConfig(serverConfig)
+                    _activeState.value = serverConfig.states.find { it.name == "idle" }
                 }
             } catch (e: Exception) {
-                _localAvatarConfig.value = localConfig
+                // Could not reach server, remain in offline mode
             }
         }
     }
 
-    private fun loadLocalConfig(): AvatarConfiguration? {
-        if (!localConfigFile.exists()) return null
-        return try {
-            gson.fromJson(localConfigFile.readText(), AvatarConfiguration::class.java)
-        } catch (e: Exception) {
-            null
-        }
-    }
+    private fun loadLocalConfig(): AvatarConfiguration? = try {
+        if (!localConfigFile.exists()) null
+        else gson.fromJson(localConfigFile.readText(), AvatarConfiguration::class.java)
+    } catch (e: Exception) { null }
 
     private fun saveLocalConfig(config: AvatarConfiguration) {
         localConfigFile.writeText(gson.toJson(config))
@@ -68,38 +91,62 @@ class MainViewModel : ViewModel() {
 
     fun publishConfiguration() {
         viewModelScope.launch {
-            _localAvatarConfig.value?.let {
-                try {
-                    client.post("http://127.0.0.1:$SERVER_PORT/config") {
-                        contentType(ContentType.Application.Json)
-                        setBody(it)
-                    }
-                } catch (e: Exception) {
-                    // Handle error
-                }
-            }
+            _localAvatarConfig.value?.let { client.post("http://127.0.0.1:$SERVER_PORT/config") { contentType(ContentType.Application.Json); setBody(it) } }
         }
     }
 
     fun createNewState(stateName: String, imageBytes: ByteArray, localImageName: String) {
         viewModelScope.launch {
-            try {
-                val serverImageName = uploader.upload(imageBytes, localImageName)
-                val newState = AvatarStateInfo(name = stateName, imageName = serverImageName)
-                
-                val currentConfig = _localAvatarConfig.value
-                val newStates = currentConfig?.states.orEmpty() + newState
-                val newConfig = AvatarConfiguration(
-                    lastUpdated = System.currentTimeMillis(),
-                    states = newStates
-                )
-                
-                _localAvatarConfig.value = newConfig
-                saveLocalConfig(newConfig)
+            val serverImageName = uploader.upload(imageBytes, localImageName)
+            
+            // Save the image locally for offline use
+            val localFile = File(uploadsDir, serverImageName)
+            localFile.writeBytes(imageBytes)
 
-            } catch (e: Exception) {
-                // Handle error
+            val newState = AvatarStateInfo(name = stateName, imageName = serverImageName)
+            val currentConfig = _localAvatarConfig.value
+            val newStates = currentConfig?.states.orEmpty() + newState
+            val newConfig = AvatarConfiguration(System.currentTimeMillis(), newStates)
+            _localAvatarConfig.value = newConfig
+            saveLocalConfig(newConfig)
+
+            if (_activeState.value == null) {
+                _activeState.value = newState
             }
+        }
+    }
+    
+    fun startListening() {
+        audioProcessor.start { isSpeaking ->
+            if (_operatingMode.value == OperatingMode.ONLINE) {
+                // Send to server
+                viewModelScope.launch { audioWsJob?.let { it1 -> client.webSocket("ws://127.0.0.1:$SERVER_PORT/audio-input") { send(Frame.Text(isSpeaking.toString())) } } }
+            } else {
+                // Update local state directly
+                val targetStateName = if (isSpeaking) "talking" else "idle"
+                _activeState.value = _localAvatarConfig.value?.states?.find { it.name == targetStateName }
+            }
+        }
+    }
+    
+    fun stopListening() {
+        audioProcessor.stop()
+        audioWsJob?.cancel()
+    }
+
+    private fun observeServerState() {
+        serverStateJob = viewModelScope.launch {
+            try {
+                client.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = SERVER_PORT, path = "/obs") {
+                    for (frame in incoming) {
+                        if (frame is Frame.Text) {
+                            val imageUrl = frame.readText()
+                            val imageName = imageUrl.substringAfterLast("/")
+                            _activeState.value = _localAvatarConfig.value?.states?.find { it.imageName == imageName }
+                        }
+                    }
+                }
+            } catch (e: Exception) { /* Handle error */ }
         }
     }
 }
