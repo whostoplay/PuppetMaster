@@ -2,7 +2,6 @@ package org.menagerie.puppet_master
 
 import io.ktor.client.*
 import io.ktor.client.plugins.websocket.*
-import io.ktor.client.request.*
 import io.ktor.http.HttpMethod
 import io.ktor.websocket.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,8 +31,8 @@ class WebsocketClient {
         }
     }
 
-    suspend fun send(state: AvatarState) {
-        val json = Json.encodeToString(AvatarState.serializer(), state)
+    suspend fun send(state: PuppetState) {
+        val json = Json.encodeToString(PuppetState.serializer(), state)
         session?.send(json)
     }
 

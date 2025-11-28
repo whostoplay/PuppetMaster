@@ -32,7 +32,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun App() {
     val context = getContext()
     val viewModel = remember { MainViewModel(context) }
-    val localAvatarConfig by viewModel.localAvatarConfig.collectAsState()
+    val localPuppetConfig by viewModel.localPuppetConfig.collectAsState()
     val activeState by viewModel.activeState.collectAsState()
     val operatingMode by viewModel.operatingMode.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
@@ -148,8 +148,8 @@ fun App() {
                 VerticalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
 
                 LazyColumn(modifier = Modifier.weight(1f).padding(8.dp)) {
-                    item { Text("Local Avatar States", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp)) }
-                    localAvatarConfig?.states?.let {
+                    item { Text("Local Puppet States", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp)) }
+                    localPuppetConfig?.states?.let {
                         items(it) { state ->
                             Text("State: ${state.name} -> ${state.imageName}", modifier = Modifier.padding(4.dp))
                         }

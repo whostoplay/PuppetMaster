@@ -17,8 +17,6 @@ import io.ktor.utils.io.readRemaining
 import io.ktor.websocket.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
@@ -30,32 +28,32 @@ val json = Json {
     isLenient = true
     ignoreUnknownKeys = true
 }
-val configFile = File("avatar_config.json")
+val configFile = File("puppet_config.json")
 
-fun saveConfiguration(config: AvatarConfiguration) {
+fun saveConfiguration(config: PuppetConfiguration) {
     configFile.writeText(json.encodeToString(config))
 }
 
-fun loadConfiguration(): AvatarConfiguration {
+fun loadConfiguration(): PuppetConfiguration {
     if (!configFile.exists() || configFile.readText().isBlank()) {
         // Create a default config if one doesn't exist
-        return AvatarConfiguration(
+        return PuppetConfiguration(
             lastUpdated = System.currentTimeMillis(),
             states = listOf(
-                AvatarStateInfo("idle", "idle.png"),
-                AvatarStateInfo("talking", "talking.png")
+                PuppetStateInfo("idle", "idle.png"),
+                PuppetStateInfo("talking", "talking.png")
             )
         )
     }
     return try {
-        json.decodeFromString<AvatarConfiguration>(configFile.readText())
+        json.decodeFromString<PuppetConfiguration>(configFile.readText())
     } catch (e: Exception) {
         // If file is corrupt, create a default config.
-        AvatarConfiguration(
+        PuppetConfiguration(
             lastUpdated = System.currentTimeMillis(),
             states = listOf(
-                AvatarStateInfo("idle", "idle.png"),
-                AvatarStateInfo("talking", "talking.png")
+                PuppetStateInfo("idle", "idle.png"),
+                PuppetStateInfo("talking", "talking.png")
             )
         )
     }
@@ -72,8 +70,8 @@ fun main() {
 
 fun Application.module() {
     val uploadsDir = File("uploads").apply { mkdirs() }
-    var avatarConfig = loadConfiguration()
-    val activeState = MutableStateFlow(avatarConfig.states.find { it.name == "idle" } ?: avatarConfig.states.first())
+    var puppetConfiguration = loadConfiguration()
+    val activeState = MutableStateFlow(puppetConfiguration.states.find { it.name == "idle" } ?: puppetConfiguration.states.first())
 
     var manualControlActive = false
     fun isHeadless() = obsConnectionCount > 0 && !manualControlActive
@@ -94,15 +92,15 @@ fun Application.module() {
         // --- Configuration API for the Client ---
 
         get("/config") {
-            call.respond(avatarConfig)
+            call.respond(puppetConfiguration)
         }
 
         post("/config") {
-            val newConfig = call.receive<AvatarConfiguration>()
-            avatarConfig = newConfig
-            saveConfiguration(avatarConfig)
+            val newConfig = call.receive<PuppetConfiguration>()
+            puppetConfiguration = newConfig
+            saveConfiguration(puppetConfiguration)
             if (!isHeadless()) {
-                activeState.value = avatarConfig.states.find { it.name == "idle" } ?: avatarConfig.states.first()
+                activeState.value = puppetConfiguration.states.find { it.name == "idle" } ?: puppetConfiguration.states.first()
             }
             call.respond(HttpStatusCode.OK)
         }
@@ -139,7 +137,7 @@ fun Application.module() {
                     if (frame is Frame.Text) {
                         val isSpeaking = frame.readText().toBoolean()
                         val targetStateName = if (isSpeaking) "talking" else "idle"
-                        avatarConfig.states.find { it.name == targetStateName }?.let {
+                        puppetConfiguration.states.find { it.name == targetStateName }?.let {
                             activeState.value = it
                         }
                     }
@@ -154,8 +152,8 @@ fun Application.module() {
             try {
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
-                        val state = json.decodeFromString<AvatarStateInfo>(frame.readText())
-                        val validState = avatarConfig.states.find { it.imageName == state.imageName }
+                        val state = json.decodeFromString<PuppetStateInfo>(frame.readText())
+                        val validState = puppetConfiguration.states.find { it.imageName == state.imageName }
                         if (validState != null) {
                             activeState.value = validState
                         }
@@ -164,7 +162,7 @@ fun Application.module() {
             } finally {
                 manualControlActive = false
                 if (obsConnectionCount == 0) {
-                    activeState.value = avatarConfig.states.find { it.name == "idle" } ?: avatarConfig.states.first()
+                    activeState.value = puppetConfiguration.states.find { it.name == "idle" } ?: puppetConfiguration.states.first()
                 }
             }
         }

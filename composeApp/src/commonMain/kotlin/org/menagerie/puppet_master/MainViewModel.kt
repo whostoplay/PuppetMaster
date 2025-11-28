@@ -14,9 +14,7 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -34,16 +32,16 @@ class MainViewModel(context: Any) : ViewModel() {
         install(WebSockets)
     }
     private val gson = Gson()
-    private val localConfigFile = File(uploadsDir, "local_avatar_config.json")
+    private val localConfigFile = File(uploadsDir, "local_puppet_config.json")
 
-    private val _localAvatarConfig = MutableStateFlow<AvatarConfiguration?>(null)
-    val localAvatarConfig: StateFlow<AvatarConfiguration?> = _localAvatarConfig
+    private val _localPuppetConfig = MutableStateFlow<PuppetConfiguration?>(null)
+    val localPuppetConfig: StateFlow<PuppetConfiguration?> = _localPuppetConfig
 
     private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
     val operatingMode: StateFlow<OperatingMode> = _operatingMode
 
-    private val _activeState = MutableStateFlow<AvatarStateInfo?>(null)
-    val activeState: StateFlow<AvatarStateInfo?> = _activeState
+    private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
+    val activeState: StateFlow<PuppetStateInfo?> = _activeState
 
     private val _isPublishing = MutableStateFlow(false)
     val isPublishing: StateFlow<Boolean> = _isPublishing
@@ -85,7 +83,7 @@ class MainViewModel(context: Any) : ViewModel() {
                 togglePublishing()
             }
             // In offline mode, default to idle
-            _activeState.value = _localAvatarConfig.value?.states?.find { it.name == "idle" }
+            _activeState.value = _localPuppetConfig.value?.states?.find { it.name == "idle" }
         }
     }
 
@@ -109,13 +107,13 @@ class MainViewModel(context: Any) : ViewModel() {
     private fun smartLoad() {
         viewModelScope.launch {
             val localConfig = loadLocalConfig()
-            _localAvatarConfig.value = localConfig
+            _localPuppetConfig.value = localConfig
             _activeState.value = localConfig?.states?.find { it.name == "idle" }
             
             try {
-                val serverConfig = client.get("http://127.0.0.1:$SERVER_PORT/config").body<AvatarConfiguration>()
+                val serverConfig = client.get("http://127.0.0.1:$SERVER_PORT/config").body<PuppetConfiguration>()
                 if (localConfig == null || serverConfig.lastUpdated > localConfig.lastUpdated) {
-                    _localAvatarConfig.value = serverConfig
+                    _localPuppetConfig.value = serverConfig
                     saveLocalConfig(serverConfig)
                     _activeState.value = serverConfig.states.find { it.name == "idle" }
                 }
@@ -125,18 +123,18 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
-    private fun loadLocalConfig(): AvatarConfiguration? = try {
+    private fun loadLocalConfig(): PuppetConfiguration? = try {
         if (!localConfigFile.exists()) null
-        else gson.fromJson(localConfigFile.readText(), AvatarConfiguration::class.java)
+        else gson.fromJson(localConfigFile.readText(), PuppetConfiguration::class.java)
     } catch (e: Exception) { null }
 
-    private fun saveLocalConfig(config: AvatarConfiguration) {
+    private fun saveLocalConfig(config: PuppetConfiguration) {
         localConfigFile.writeText(gson.toJson(config))
     }
 
     fun publishConfiguration() {
         viewModelScope.launch {
-            _localAvatarConfig.value?.let { client.post("http://127.0.0.1:$SERVER_PORT/config") { contentType(ContentType.Application.Json); setBody(it) } }
+            _localPuppetConfig.value?.let { client.post("http://127.0.0.1:$SERVER_PORT/config") { contentType(ContentType.Application.Json); setBody(it) } }
         }
     }
 
@@ -148,11 +146,11 @@ class MainViewModel(context: Any) : ViewModel() {
             val localFile = File(uploadsDir, serverImageName)
             localFile.writeBytes(imageBytes)
 
-            val newState = AvatarStateInfo(name = stateName, imageName = serverImageName)
-            val currentConfig = _localAvatarConfig.value
+            val newState = PuppetStateInfo(name = stateName, imageName = serverImageName)
+            val currentConfig = _localPuppetConfig.value
             val newStates = currentConfig?.states.orEmpty() + newState
-            val newConfig = AvatarConfiguration(System.currentTimeMillis(), newStates)
-            _localAvatarConfig.value = newConfig
+            val newConfig = PuppetConfiguration(System.currentTimeMillis(), newStates)
+            _localPuppetConfig.value = newConfig
             saveLocalConfig(newConfig)
 
             if (_activeState.value == null) {
@@ -179,7 +177,7 @@ class MainViewModel(context: Any) : ViewModel() {
             if (isControlling) {
                 // Update local state directly. If publishing, the collector will send it to the server.
                 val targetStateName = if (isSpeaking) "talking" else "idle"
-                _activeState.value = _localAvatarConfig.value?.states?.find { it.name == targetStateName }
+                _activeState.value = _localPuppetConfig.value?.states?.find { it.name == targetStateName }
             }
             // If ONLINE and not PUBLISHING, we are in viewer mode, so local audio input does nothing.
         }
@@ -198,7 +196,7 @@ class MainViewModel(context: Any) : ViewModel() {
                         if (frame is Frame.Text) {
                             val imageUrl = frame.readText()
                             val imageName = imageUrl.substringAfterLast("/")
-                            _activeState.value = _localAvatarConfig.value?.states?.find { it.imageName == imageName }
+                            _activeState.value = _localPuppetConfig.value?.states?.find { it.imageName == imageName }
                         }
                     }
                 }

@@ -3,7 +3,7 @@ package org.menagerie.puppet_master
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class AvatarConfiguration(
+data class PuppetConfiguration(
     val lastUpdated: Long,
-    val states: List<AvatarStateInfo>
+    val states: List<PuppetStateInfo>
 )

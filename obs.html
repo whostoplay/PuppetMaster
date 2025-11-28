@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Puppet Master Avatar</title>
+    <title>Puppet Master</title>
     <style>
         body, html {
             margin: 0;
@@ -19,9 +19,9 @@
     </style>
 </head>
 <body>
-    <img id="avatar" src="" />
+    <img id="puppet" src="" />
     <script>
-        const img = document.getElementById('avatar');
+        const img = document.getElementById('puppet');
         const socket = new WebSocket('ws://127.0.0.1:8080/obs');
 
         socket.onmessage = function(event) {

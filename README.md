@@ -59,7 +59,7 @@ in your IDE’s toolbar or run it directly from the terminal:
 
 New Architecture: The Hybrid Model
 1.
-Client as the "Configuration Center": The frontend applications (desktop/Android) are where the user designs their avatar. This includes:
+Client as the "Configuration Center": The frontend applications (desktop/Android) are where the user designs their puppet. This includes:
 ◦
 Creating states (e.g., "idle", "talking", "shocked").
 ◦
@@ -67,13 +67,13 @@ Uploading the image for each state to the server.
 ◦
 Defining behavior rules (e.g., "When my microphone volume is over 20%, switch to the 'talking' state").
 ◦
-Saving/loading these complete avatar configurations locally on the client device.
+Saving/loading these complete puppet configurations locally on the client device.
 ◦
 A "Go Live" or "Publish" button that sends the entire configuration (the list of states, their associated images, and the behavior rules) to the server.
 2.
 Server as the "Autonomous Host": The server's role is now much smarter.
 ◦
-It receives and persists the complete avatar configuration from the client.
+It receives and persists the complete puppet configuration from the client.
 ◦
 It independently listens for real-time input, like audio from OBS.
 ◦
