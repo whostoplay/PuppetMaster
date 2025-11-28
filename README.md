@@ -56,4 +56,27 @@ in your IDE’s toolbar or run it directly from the terminal:
 
 ---
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html)…
+
+New Architecture: The Hybrid Model
+1.
+Client as the "Configuration Center": The frontend applications (desktop/Android) are where the user designs their avatar. This includes:
+◦
+Creating states (e.g., "idle", "talking", "shocked").
+◦
+Uploading the image for each state to the server.
+◦
+Defining behavior rules (e.g., "When my microphone volume is over 20%, switch to the 'talking' state").
+◦
+Saving/loading these complete avatar configurations locally on the client device.
+◦
+A "Go Live" or "Publish" button that sends the entire configuration (the list of states, their associated images, and the behavior rules) to the server.
+2.
+Server as the "Autonomous Host": The server's role is now much smarter.
+◦
+It receives and persists the complete avatar configuration from the client.
+◦
+It independently listens for real-time input, like audio from OBS.
+◦
+It runs its own logic (based on the configuration it received) to decide which state should be active. For example, it will analyze the audio stream and switch between "idle" and "talking" states automatically.
+◦
+It continues to broadcast the URL of the currently active image to OBS via the /obs websocket.

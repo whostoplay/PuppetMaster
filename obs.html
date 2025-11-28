@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Puppet Master Avatar</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: transparent; /* Makes the background transparent */
+        }
+        img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+    </style>
+</head>
+<body>
+    <img id="avatar" src="" />
+    <script>
+        const img = document.getElementById('avatar');
+        const socket = new WebSocket('ws://127.0.0.1:8080/obs');
+
+        socket.onmessage = function(event) {
+            // The server sends the URL of the image
+            // To prevent flickering, we can preload the image
+            const newImg = new Image();
+            newImg.onload = () => {
+                img.src = newImg.src;
+            }
+            newImg.src = event.data;
+        };
+
+        socket.onopen = function(event) {
+            console.log("Connected to Puppet Master server.");
+        };
+
+        socket.onclose = function(event) {
+            console.log("Disconnected from Puppet Master server. Reconnecting in 1 second...");
+            setTimeout(() => {
+                // You might want more sophisticated reconnect logic here
+                location.reload(); 
+            }, 1000);
+        };
+
+        socket.onerror = function(error) {
+            console.error("WebSocket Error: ", error);
+        };
+    </script>
+</body>
+</html>
