@@ -64,7 +64,6 @@ fun loadConfiguration(): AvatarConfiguration {
 // --- Main Application ---
 
 var obsConnectionCount = 0
-fun isHeadless() = obsConnectionCount > 0
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -74,8 +73,10 @@ fun main() {
 fun Application.module() {
     val uploadsDir = File("uploads").apply { mkdirs() }
     var avatarConfig = loadConfiguration()
-
     val activeState = MutableStateFlow(avatarConfig.states.find { it.name == "idle" } ?: avatarConfig.states.first())
+
+    var manualControlActive = false
+    fun isHeadless() = obsConnectionCount > 0 && !manualControlActive
 
     install(ContentNegotiation) {
         json()
@@ -121,18 +122,7 @@ fun Application.module() {
         }
 
         post("/state") {
-            if (!isHeadless()) {
-                val newState = call.receive<AvatarStateInfo>()
-                val validState = avatarConfig.states.find { it.imageName == newState.imageName }
-                if (validState != null) {
-                    activeState.value = validState
-                    call.respond(HttpStatusCode.OK)
-                } else {
-                    call.respond(HttpStatusCode.BadRequest, "Invalid state")
-                }
-            } else {
-                call.respond(HttpStatusCode.Conflict, "Server is in headless mode, cannot accept state changes.")
-            }
+            call.respond(HttpStatusCode.Forbidden, "State updates must be sent via the /client-control WebSocket.")
         }
 
         // --- Real-time Endpoints ---
@@ -140,6 +130,12 @@ fun Application.module() {
         webSocket("/audio-input") {
             if (isHeadless()) {
                 for (frame in incoming) {
+                    // If manual control takes over, stop processing audio input.
+                    if (!isHeadless()) {
+                        close(CloseReason(CloseReason.Codes.NORMAL, "Client took control"))
+                        break
+                    }
+
                     if (frame is Frame.Text) {
                         val isSpeaking = frame.readText().toBoolean()
                         val targetStateName = if (isSpeaking) "talking" else "idle"
@@ -150,6 +146,26 @@ fun Application.module() {
                 }
             } else {
                 close(CloseReason(CloseReason.Codes.NORMAL, "Server not in headless mode"))
+            }
+        }
+        
+        webSocket("/client-control") {
+            manualControlActive = true
+            try {
+                for (frame in incoming) {
+                    if (frame is Frame.Text) {
+                        val state = json.decodeFromString<AvatarStateInfo>(frame.readText())
+                        val validState = avatarConfig.states.find { it.imageName == state.imageName }
+                        if (validState != null) {
+                            activeState.value = validState
+                        }
+                    }
+                }
+            } finally {
+                manualControlActive = false
+                if (obsConnectionCount == 0) {
+                    activeState.value = avatarConfig.states.find { it.name == "idle" } ?: avatarConfig.states.first()
+                }
             }
         }
 

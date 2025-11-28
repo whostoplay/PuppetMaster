@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 
@@ -51,18 +52,17 @@ class MainViewModel(context: Any) : ViewModel() {
     val isListening: StateFlow<Boolean> = _isListening
 
     private var serverStateJob: Job? = null
+    private var clientControlSocketJob: Job? = null
+    private var clientControlSocket: ClientWebSocketSession? = null
 
     init {
         smartLoad()
         // This collector will handle publishing the state to the server
         viewModelScope.launch {
             activeState.collect { state ->
-                if (_isPublishing.value && _operatingMode.value == OperatingMode.ONLINE && state != null) {
+                if (clientControlSocket != null && state != null) {
                     try {
-                        client.post("http://127.0.0.1:$SERVER_PORT/state") {
-                            contentType(ContentType.Application.Json)
-                            setBody(state)
-                        }
+                        clientControlSocket?.send(Json.encodeToString(state))
                     } catch (e: Exception) {
                         println("Failed to publish state: ${e.message}")
                     }
@@ -76,12 +76,14 @@ class MainViewModel(context: Any) : ViewModel() {
         if (mode == OperatingMode.ONLINE) {
             // When going online, default to observing the server, not publishing.
             if (_isPublishing.value) {
-                _isPublishing.value = false
+                togglePublishing() // This will also handle stopping the control socket
             }
             observeServerState()
         } else { // OFFLINE
             serverStateJob?.cancel()
-            _isPublishing.value = false
+            if (_isPublishing.value) {
+                togglePublishing()
+            }
             // In offline mode, default to idle
             _activeState.value = _localAvatarConfig.value?.states?.find { it.name == "idle" }
         }
@@ -96,9 +98,10 @@ class MainViewModel(context: Any) : ViewModel() {
         if (newPublishingState) {
             // Start publishing, so stop observing
             serverStateJob?.cancel()
-            // The activeState collector will now start POSTing
+            startClientControl() 
         } else {
             // Stop publishing, so start observing
+            stopClientControl()
             observeServerState()
         }
     }
@@ -200,6 +203,30 @@ class MainViewModel(context: Any) : ViewModel() {
                     }
                 }
             } catch (e: Exception) { /* Handle error */ }
+        }
+    }
+
+    private fun startClientControl() {
+        clientControlSocketJob = viewModelScope.launch {
+            try {
+                client.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = SERVER_PORT, path = "/client-control") {
+                    clientControlSocket = this
+                    // Keep the socket open, the state collector will send messages
+                    incoming.receive() // This will suspend until the socket is closed
+                }
+            } catch (e: Exception) {
+                println("Client control socket error: ${e.message}")
+            } finally {
+                clientControlSocket = null
+            }
+        }
+    }
+
+    private fun stopClientControl() {
+        viewModelScope.launch {
+            clientControlSocket?.close()
+            clientControlSocketJob?.cancel()
+            clientControlSocket = null
         }
     }
 }
