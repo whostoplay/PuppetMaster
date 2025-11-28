@@ -14,6 +14,7 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.VerticalDivider
@@ -34,6 +35,8 @@ fun App() {
     val localAvatarConfig by viewModel.localAvatarConfig.collectAsState()
     val activeState by viewModel.activeState.collectAsState()
     val operatingMode by viewModel.operatingMode.collectAsState()
+    val isPublishing by viewModel.isPublishing.collectAsState()
+    val isListening by viewModel.isListening.collectAsState()
 
     var selectedImage by remember { mutableStateOf<ByteArray?>(null) }
     var selectedImageName by remember { mutableStateOf("") }
@@ -79,10 +82,25 @@ fun App() {
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             // --- Server & Audio Controls ---
-            Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                Button(onClick = { viewModel.publishConfiguration() }, enabled = operatingMode == OperatingMode.ONLINE) { Text("Publish to Server") }
-                Button(onClick = { viewModel.startListening() }) { Text("Start Listening") }
-                Button(onClick = { viewModel.stopListening() }) { Text("Stop Listening") }
+            Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = { viewModel.publishConfiguration() }, enabled = operatingMode == OperatingMode.ONLINE) { Text("Upload Config") }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Publishing")
+                    Switch(
+                        checked = isPublishing,
+                        onCheckedChange = { viewModel.togglePublishing() },
+                        enabled = operatingMode == OperatingMode.ONLINE
+                    )
+                }
+
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Listening")
+                    Switch(
+                        checked = isListening,
+                        onCheckedChange = { viewModel.toggleListening() }
+                    )
+                }
             }
             HorizontalDivider()
 

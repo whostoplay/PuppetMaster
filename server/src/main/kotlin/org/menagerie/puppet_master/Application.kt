@@ -1,7 +1,5 @@
 package org.menagerie.puppet_master
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.serialization.kotlinx.json.json
@@ -19,21 +17,27 @@ import io.ktor.utils.io.readRemaining
 import io.ktor.websocket.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
 // --- Data Models & Persistence ---
 
-val gson = Gson()
+val json = Json {
+    prettyPrint = true
+    isLenient = true
+    ignoreUnknownKeys = true
+}
 val configFile = File("avatar_config.json")
 
 fun saveConfiguration(config: AvatarConfiguration) {
-    configFile.writeText(gson.toJson(config))
+    configFile.writeText(json.encodeToString(config))
 }
 
 fun loadConfiguration(): AvatarConfiguration {
-    if (!configFile.exists()) {
+    if (!configFile.exists() || configFile.readText().isBlank()) {
         // Create a default config if one doesn't exist
         return AvatarConfiguration(
             lastUpdated = System.currentTimeMillis(),
@@ -43,11 +47,24 @@ fun loadConfiguration(): AvatarConfiguration {
             )
         )
     }
-    val type = object : TypeToken<AvatarConfiguration>() {}.type
-    return gson.fromJson(configFile.readText(), type)
+    return try {
+        json.decodeFromString<AvatarConfiguration>(configFile.readText())
+    } catch (e: Exception) {
+        // If file is corrupt, create a default config.
+        AvatarConfiguration(
+            lastUpdated = System.currentTimeMillis(),
+            states = listOf(
+                AvatarStateInfo("idle", "idle.png"),
+                AvatarStateInfo("talking", "talking.png")
+            )
+        )
+    }
 }
 
 // --- Main Application ---
+
+var obsConnectionCount = 0
+fun isHeadless() = obsConnectionCount > 0
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -83,7 +100,9 @@ fun Application.module() {
             val newConfig = call.receive<AvatarConfiguration>()
             avatarConfig = newConfig
             saveConfiguration(avatarConfig)
-            activeState.value = avatarConfig.states.find { it.name == "idle" } ?: avatarConfig.states.first()
+            if (!isHeadless()) {
+                activeState.value = avatarConfig.states.find { it.name == "idle" } ?: avatarConfig.states.first()
+            }
             call.respond(HttpStatusCode.OK)
         }
 
@@ -101,30 +120,54 @@ fun Application.module() {
             call.respondText(fileName)
         }
 
+        post("/state") {
+            if (!isHeadless()) {
+                val newState = call.receive<AvatarStateInfo>()
+                val validState = avatarConfig.states.find { it.imageName == newState.imageName }
+                if (validState != null) {
+                    activeState.value = validState
+                    call.respond(HttpStatusCode.OK)
+                } else {
+                    call.respond(HttpStatusCode.BadRequest, "Invalid state")
+                }
+            } else {
+                call.respond(HttpStatusCode.Conflict, "Server is in headless mode, cannot accept state changes.")
+            }
+        }
+
         // --- Real-time Endpoints ---
 
         webSocket("/audio-input") {
-            for (frame in incoming) {
-                if (frame is Frame.Text) {
-                    val isSpeaking = frame.readText().toBoolean()
-                    val targetStateName = if (isSpeaking) "talking" else "idle"
-                    avatarConfig.states.find { it.name == targetStateName }?.let {
-                        activeState.value = it
+            if (isHeadless()) {
+                for (frame in incoming) {
+                    if (frame is Frame.Text) {
+                        val isSpeaking = frame.readText().toBoolean()
+                        val targetStateName = if (isSpeaking) "talking" else "idle"
+                        avatarConfig.states.find { it.name == targetStateName }?.let {
+                            activeState.value = it
+                        }
                     }
                 }
+            } else {
+                close(CloseReason(CloseReason.Codes.NORMAL, "Server not in headless mode"))
             }
         }
 
         webSocket("/obs") {
-            activeState.asStateFlow().collect { state ->
-                val imageFile = File(uploadsDir, state.imageName)
-                if (imageFile.exists()) {
-                    val imageUrl = "http://127.0.0.1:$SERVER_PORT/uploads/${state.imageName}"
-                    outgoing.send(Frame.Text(imageUrl))
-                } else {
-                    // If file doesn't exist, clear the image in OBS
-                    outgoing.send(Frame.Text(""))
+            obsConnectionCount++
+            try {
+                activeState.asStateFlow().collect { state ->
+                    val imageFile = File(uploadsDir, state.imageName)
+                    if (imageFile.exists()) {
+                        val imageUrl = "http://127.0.0.1:$SERVER_PORT/uploads/${state.imageName}"
+                        outgoing.send(Frame.Text(imageUrl))
+                    } else {
+                        // If file doesn't exist, clear the image in OBS
+                        outgoing.send(Frame.Text(""))
+                    }
                 }
+            } finally {
+                obsConnectionCount--
             }
         }
     }

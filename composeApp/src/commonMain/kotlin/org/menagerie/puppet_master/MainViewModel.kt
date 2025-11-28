@@ -14,6 +14,7 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -43,21 +44,62 @@ class MainViewModel(context: Any) : ViewModel() {
     private val _activeState = MutableStateFlow<AvatarStateInfo?>(null)
     val activeState: StateFlow<AvatarStateInfo?> = _activeState
 
+    private val _isPublishing = MutableStateFlow(false)
+    val isPublishing: StateFlow<Boolean> = _isPublishing
+
+    private val _isListening = MutableStateFlow(false)
+    val isListening: StateFlow<Boolean> = _isListening
+
     private var serverStateJob: Job? = null
-    private var audioWsJob: Job? = null
 
     init {
         smartLoad()
+        // This collector will handle publishing the state to the server
+        viewModelScope.launch {
+            activeState.collect { state ->
+                if (_isPublishing.value && _operatingMode.value == OperatingMode.ONLINE && state != null) {
+                    try {
+                        client.post("http://127.0.0.1:$SERVER_PORT/state") {
+                            contentType(ContentType.Application.Json)
+                            setBody(state)
+                        }
+                    } catch (e: Exception) {
+                        println("Failed to publish state: ${e.message}")
+                    }
+                }
+            }
+        }
     }
 
     fun setOperatingMode(mode: OperatingMode) {
         _operatingMode.value = mode
         if (mode == OperatingMode.ONLINE) {
+            // When going online, default to observing the server, not publishing.
+            if (_isPublishing.value) {
+                _isPublishing.value = false
+            }
             observeServerState()
-        } else {
+        } else { // OFFLINE
             serverStateJob?.cancel()
+            _isPublishing.value = false
             // In offline mode, default to idle
             _activeState.value = _localAvatarConfig.value?.states?.find { it.name == "idle" }
+        }
+    }
+
+    fun togglePublishing() {
+        if (_operatingMode.value == OperatingMode.OFFLINE) return // Can't publish in offline mode
+
+        val newPublishingState = !_isPublishing.value
+        _isPublishing.value = newPublishingState
+
+        if (newPublishingState) {
+            // Start publishing, so stop observing
+            serverStateJob?.cancel()
+            // The activeState collector will now start POSTing
+        } else {
+            // Stop publishing, so start observing
+            observeServerState()
         }
     }
 
@@ -116,22 +158,33 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
     
-    fun startListening() {
+    fun toggleListening() {
+        val newListeningState = !_isListening.value
+        if (newListeningState) {
+            startListening()
+        } else {
+            stopListening()
+        }
+    }
+
+    private fun startListening() {
+        _isListening.value = true
         audioProcessor.start { isSpeaking ->
-            if (_operatingMode.value == OperatingMode.ONLINE) {
-                // Send to server
-                viewModelScope.launch { audioWsJob?.let { it1 -> client.webSocket("ws://127.0.0.1:$SERVER_PORT/audio-input") { send(Frame.Text(isSpeaking.toString())) } } }
-            } else {
-                // Update local state directly
+            val isControlling = (_operatingMode.value == OperatingMode.OFFLINE) ||
+                                (_operatingMode.value == OperatingMode.ONLINE && _isPublishing.value)
+
+            if (isControlling) {
+                // Update local state directly. If publishing, the collector will send it to the server.
                 val targetStateName = if (isSpeaking) "talking" else "idle"
                 _activeState.value = _localAvatarConfig.value?.states?.find { it.name == targetStateName }
             }
+            // If ONLINE and not PUBLISHING, we are in viewer mode, so local audio input does nothing.
         }
     }
     
-    fun stopListening() {
+    private fun stopListening() {
+        _isListening.value = false
         audioProcessor.stop()
-        audioWsJob?.cancel()
     }
 
     private fun observeServerState() {
