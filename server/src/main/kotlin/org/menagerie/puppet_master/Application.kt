@@ -15,10 +15,14 @@ import io.ktor.server.websocket.*
 import io.ktor.utils.io.core.readBytes
 import io.ktor.utils.io.readRemaining
 import io.ktor.websocket.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
+import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
 
 // --- Data Models & Persistence ---
@@ -86,6 +90,31 @@ fun Application.module() {
         masking = false
     }
 
+    val stateToSend = MutableStateFlow(activeState.value)
+    var blinkingJob: Job? = null
+
+    // This collector now ONLY handles blinking for headless mode.
+    launch {
+        activeState.collect { state ->
+            blinkingJob?.cancel()
+            stateToSend.value = state // Immediately update the display state.
+            if (state.blinkImageName != null) {
+                blinkingJob = launch {
+                    while (true) {
+                        delay(Random.nextLong(2000, 8000))
+                        // This is the key condition: ONLY blink if in headless mode.
+                        if (isHeadless() && activeState.value == state) {
+                            val blinkState = state.copy(imageName = state.blinkImageName!!)
+                            stateToSend.value = blinkState
+                            delay(150)
+                            stateToSend.value = state
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     routing {
         staticFiles("/uploads", uploadsDir)
 
@@ -128,7 +157,6 @@ fun Application.module() {
         webSocket("/audio-input") {
             if (isHeadless()) {
                 for (frame in incoming) {
-                    // If manual control takes over, stop processing audio input.
                     if (!isHeadless()) {
                         close(CloseReason(CloseReason.Codes.NORMAL, "Client took control"))
                         break
@@ -146,39 +174,52 @@ fun Application.module() {
                 close(CloseReason(CloseReason.Codes.NORMAL, "Server not in headless mode"))
             }
         }
-        
+
         webSocket("/client-control") {
             manualControlActive = true
             try {
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
-                        val state = json.decodeFromString<PuppetStateInfo>(frame.readText())
-                        val validState = puppetConfiguration.states.find { it.imageName == state.imageName }
-                        if (validState != null) {
-                            activeState.value = validState
+                        val receivedImageName = frame.readText()
+                        // Find the base state this image belongs to, so we know the logical state.
+                        val baseState = puppetConfiguration.states.find { it.imageName == receivedImageName || it.blinkImageName == receivedImageName }
+                        if (baseState != null) {
+                            // Update the logical active state IF it's different
+                            if (activeState.value != baseState) {
+                                activeState.value = baseState
+                            }
+                            // CRITICAL: Pass the client's exact image name (including blinks) to the state that OBS sees.
+                            if (stateToSend.value.imageName != receivedImageName) {
+                                // Create a temporary state with the exact image name for OBS
+                                stateToSend.value = baseState.copy(imageName = receivedImageName)
+                            }
                         }
                     }
                 }
             } finally {
                 manualControlActive = false
-                if (obsConnectionCount == 0) {
-                    activeState.value = puppetConfiguration.states.find { it.name == "idle" } ?: puppetConfiguration.states.first()
-                }
+                // When client disconnects, revert to idle. The collector will pick this up and handle blinking if needed.
+                activeState.value = puppetConfiguration.states.find { it.name == "idle" } ?: puppetConfiguration.states.first()
             }
         }
 
         webSocket("/obs") {
             obsConnectionCount++
             try {
-                activeState.asStateFlow().collect { state ->
+                var lastSentImage: String? = null
+                while(true) {
+                    val state = stateToSend.value
                     val imageFile = File(uploadsDir, state.imageName)
-                    if (imageFile.exists()) {
-                        val imageUrl = "http://127.0.0.1:$SERVER_PORT/uploads/${state.imageName}"
-                        outgoing.send(Frame.Text(imageUrl))
+                    val imageUrl = if (imageFile.exists()) {
+                        "http://127.0.0.1:$SERVER_PORT/uploads/${state.imageName}"
                     } else {
-                        // If file doesn't exist, clear the image in OBS
-                        outgoing.send(Frame.Text(""))
+                        ""
                     }
+                    if (imageUrl != lastSentImage) {
+                        outgoing.send(Frame.Text(imageUrl))
+                        lastSentImage = imageUrl
+                    }
+                    delay(16) // ~60fps
                 }
             } finally {
                 obsConnectionCount--

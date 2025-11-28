@@ -33,13 +33,15 @@ fun App() {
     val context = getContext()
     val viewModel = remember { MainViewModel(context) }
     val localPuppetConfig by viewModel.localPuppetConfig.collectAsState()
-    val activeState by viewModel.activeState.collectAsState()
+    val displayedImageName by viewModel.displayedImageName.collectAsState()
     val operatingMode by viewModel.operatingMode.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
 
     var selectedImage by remember { mutableStateOf<ByteArray?>(null) }
     var selectedImageName by remember { mutableStateOf("") }
+    var selectedBlinkImage by remember { mutableStateOf<ByteArray?>(null) }
+    var selectedBlinkImageName by remember { mutableStateOf("") }
     var newStateName by remember { mutableStateOf("") }
 
     MaterialTheme {
@@ -56,10 +58,9 @@ fun App() {
                 contentAlignment = Alignment.Center
             ) {
                 val imageUrl = if (operatingMode == OperatingMode.ONLINE) {
-                    "http://127.0.0.1:$SERVER_PORT/uploads/${activeState?.imageName ?: ""}"
+                    "http://127.0.0.1:$SERVER_PORT/uploads/${displayedImageName ?: ""}"
                 } else {
-                    val imageName = activeState?.imageName ?: ""
-                    if (imageName.isNotBlank()) "file://${viewModel.uploadsDir}/$imageName" else ""
+                    if (displayedImageName?.isNotBlank() == true) "file://${viewModel.uploadsDir}/$displayedImageName" else ""
                 }
                 val image = rememberImageFromUrl(imageUrl)
 
@@ -108,13 +109,30 @@ fun App() {
             Row(modifier = Modifier.fillMaxSize()) {
                 Column(modifier = Modifier.weight(1f).padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Create New State", style = MaterialTheme.typography.titleMedium)
-                    selectedImage?.let {
-                        Image(bitmap = it.toImageBitmap(), contentDescription = "Selected Image", modifier = Modifier.size(100.dp).padding(vertical = 8.dp))
+                    Row(modifier = Modifier.padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        selectedImage?.let {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Main Image")
+                                Image(bitmap = it.toImageBitmap(), contentDescription = "Selected Image", modifier = Modifier.size(100.dp))
+                            }
+                        }
+                        selectedBlinkImage?.let {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("Blink Image")
+                                Image(bitmap = it.toImageBitmap(), contentDescription = "Selected Blink Image", modifier = Modifier.size(100.dp))
+                            }
+                        }
                     }
 
-                    ImageFilePicker { bytes, fileName ->
-                        selectedImage = bytes
-                        selectedImageName = fileName
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ImageFilePicker("Main Image") { bytes, fileName ->
+                            selectedImage = bytes
+                            selectedImageName = fileName
+                        }
+                        ImageFilePicker("Blink Image") { bytes, fileName ->
+                            selectedBlinkImage = bytes
+                            selectedBlinkImageName = fileName
+                        }
                     }
 
                     var expanded by remember { mutableStateOf(false) }
@@ -137,10 +155,12 @@ fun App() {
 
                     Button(onClick = {
                         if (selectedImage != null && newStateName.isNotBlank()) {
-                            viewModel.createNewState(newStateName, selectedImage!!, selectedImageName)
+                            viewModel.createNewState(newStateName, selectedImage!!, selectedImageName, selectedBlinkImage, selectedBlinkImageName)
                             newStateName = ""
                             selectedImage = null
                             selectedImageName = ""
+                            selectedBlinkImage = null
+                            selectedBlinkImageName = ""
                         }
                     }, modifier = Modifier.padding(top = 8.dp)) { Text("Save Local State") }
                 }
@@ -151,7 +171,8 @@ fun App() {
                     item { Text("Local Puppet States", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp)) }
                     localPuppetConfig?.states?.let {
                         items(it) { state ->
-                            Text("State: ${state.name} -> ${state.imageName}", modifier = Modifier.padding(4.dp))
+                            val blinkText = if (state.blinkImageName != null) " (has blink)" else ""
+                            Text("State: ${state.name} -> ${state.imageName}$blinkText", modifier = Modifier.padding(4.dp))
                         }
                     }
                 }

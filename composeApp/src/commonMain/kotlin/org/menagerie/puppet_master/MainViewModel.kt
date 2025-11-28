@@ -3,7 +3,7 @@ package org.menagerie.puppet_master
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
-import io.ktor.client.* 
+import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
@@ -12,11 +12,15 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import kotlin.random.Random
 
 enum class OperatingMode {
     ONLINE, OFFLINE
@@ -40,8 +44,13 @@ class MainViewModel(context: Any) : ViewModel() {
     private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
     val operatingMode: StateFlow<OperatingMode> = _operatingMode
 
+    // The base state ("idle", "talking"), without blinking
     private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
     val activeState: StateFlow<PuppetStateInfo?> = _activeState
+    
+    // The final image name to be shown in the UI, including blinks
+    private val _displayedImageName = MutableStateFlow<String?>(null)
+    val displayedImageName: StateFlow<String?> = _displayedImageName
 
     private val _isPublishing = MutableStateFlow(false)
     val isPublishing: StateFlow<Boolean> = _isPublishing
@@ -52,17 +61,43 @@ class MainViewModel(context: Any) : ViewModel() {
     private var serverStateJob: Job? = null
     private var clientControlSocketJob: Job? = null
     private var clientControlSocket: ClientWebSocketSession? = null
+    private var clientBlinkingJob: Job? = null
 
     init {
         smartLoad()
-        // This collector will handle publishing the state to the server
+
+        // Collector to publish the final displayed image name to the server when publishing
         viewModelScope.launch {
-            activeState.collect { state ->
-                if (clientControlSocket != null && state != null) {
+            displayedImageName.collect { imageName ->
+                if (_isPublishing.value && clientControlSocket != null && imageName != null) {
                     try {
-                        clientControlSocket?.send(Json.encodeToString(state))
+                        clientControlSocket?.send(imageName)
                     } catch (e: Exception) {
                         println("Failed to publish state: ${e.message}")
+                    }
+                }
+            }
+        }
+        
+        // Collector to manage the display image and blinking
+        viewModelScope.launch {
+            activeState.collect { state ->
+                clientBlinkingJob?.cancel()
+                _displayedImageName.value = state?.imageName
+                
+                if (state?.blinkImageName != null) {
+                    clientBlinkingJob = launch {
+                        while (true) {
+                            delay(Random.nextLong(2000, 8000))
+                            
+                            val isClientInControl = _operatingMode.value == OperatingMode.OFFLINE || _isPublishing.value
+                            
+                            if (isClientInControl && activeState.value == state) {
+                                _displayedImageName.value = state.blinkImageName
+                                delay(150)
+                                _displayedImageName.value = state.imageName
+                            }
+                        }
                     }
                 }
             }
@@ -72,33 +107,26 @@ class MainViewModel(context: Any) : ViewModel() {
     fun setOperatingMode(mode: OperatingMode) {
         _operatingMode.value = mode
         if (mode == OperatingMode.ONLINE) {
-            // When going online, default to observing the server, not publishing.
             if (_isPublishing.value) {
-                togglePublishing() // This will also handle stopping the control socket
+                togglePublishing() 
             }
             observeServerState()
         } else { // OFFLINE
             serverStateJob?.cancel()
-            if (_isPublishing.value) {
-                togglePublishing()
-            }
-            // In offline mode, default to idle
             _activeState.value = _localPuppetConfig.value?.states?.find { it.name == "idle" }
         }
     }
 
     fun togglePublishing() {
-        if (_operatingMode.value == OperatingMode.OFFLINE) return // Can't publish in offline mode
+        if (_operatingMode.value == OperatingMode.OFFLINE) return
 
         val newPublishingState = !_isPublishing.value
         _isPublishing.value = newPublishingState
 
         if (newPublishingState) {
-            // Start publishing, so stop observing
             serverStateJob?.cancel()
             startClientControl() 
         } else {
-            // Stop publishing, so start observing
             stopClientControl()
             observeServerState()
         }
@@ -115,7 +143,9 @@ class MainViewModel(context: Any) : ViewModel() {
                 if (localConfig == null || serverConfig.lastUpdated > localConfig.lastUpdated) {
                     _localPuppetConfig.value = serverConfig
                     saveLocalConfig(serverConfig)
-                    _activeState.value = serverConfig.states.find { it.name == "idle" }
+                    if (_operatingMode.value == OperatingMode.OFFLINE) {
+                        _activeState.value = serverConfig.states.find { it.name == "idle" }
+                    }
                 }
             } catch (e: Exception) {
                 // Could not reach server, remain in offline mode
@@ -138,15 +168,20 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
-    fun createNewState(stateName: String, imageBytes: ByteArray, localImageName: String) {
+    fun createNewState(stateName: String, imageBytes: ByteArray, localImageName: String, blinkImageBytes: ByteArray?, localBlinkImageName: String?) {
         viewModelScope.launch {
             val serverImageName = uploader.upload(imageBytes, localImageName)
-            
-            // Save the image locally for offline use
             val localFile = File(uploadsDir, serverImageName)
             localFile.writeBytes(imageBytes)
+            
+            var serverBlinkImageName: String? = null
+            if (blinkImageBytes != null && localBlinkImageName != null) {
+                serverBlinkImageName = uploader.upload(blinkImageBytes, localBlinkImageName)
+                val localBlinkFile = File(uploadsDir, serverBlinkImageName)
+                localBlinkFile.writeBytes(blinkImageBytes)
+            }
 
-            val newState = PuppetStateInfo(name = stateName, imageName = serverImageName)
+            val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
             val currentConfig = _localPuppetConfig.value
             val newStates = currentConfig?.states.orEmpty() + newState
             val newConfig = PuppetConfiguration(System.currentTimeMillis(), newStates)
@@ -171,15 +206,12 @@ class MainViewModel(context: Any) : ViewModel() {
     private fun startListening() {
         _isListening.value = true
         audioProcessor.start { isSpeaking ->
-            val isControlling = (_operatingMode.value == OperatingMode.OFFLINE) ||
-                                (_operatingMode.value == OperatingMode.ONLINE && _isPublishing.value)
+            val isControlling = _operatingMode.value == OperatingMode.OFFLINE || _isPublishing.value
 
             if (isControlling) {
-                // Update local state directly. If publishing, the collector will send it to the server.
                 val targetStateName = if (isSpeaking) "talking" else "idle"
                 _activeState.value = _localPuppetConfig.value?.states?.find { it.name == targetStateName }
             }
-            // If ONLINE and not PUBLISHING, we are in viewer mode, so local audio input does nothing.
         }
     }
     
@@ -189,6 +221,7 @@ class MainViewModel(context: Any) : ViewModel() {
     }
 
     private fun observeServerState() {
+        clientBlinkingJob?.cancel() // When observing server, server is the source of truth for blinks.
         serverStateJob = viewModelScope.launch {
             try {
                 client.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = SERVER_PORT, path = "/obs") {
@@ -196,7 +229,12 @@ class MainViewModel(context: Any) : ViewModel() {
                         if (frame is Frame.Text) {
                             val imageUrl = frame.readText()
                             val imageName = imageUrl.substringAfterLast("/")
-                            _activeState.value = _localPuppetConfig.value?.states?.find { it.imageName == imageName }
+                            _displayedImageName.value = imageName
+                            
+                            val newActiveState = _localPuppetConfig.value?.states?.find { it.imageName == imageName || it.blinkImageName == imageName }
+                            if (newActiveState != null && _activeState.value != newActiveState) {
+                                _activeState.value = newActiveState
+                            }
                         }
                     }
                 }
@@ -209,8 +247,12 @@ class MainViewModel(context: Any) : ViewModel() {
             try {
                 client.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = SERVER_PORT, path = "/client-control") {
                     clientControlSocket = this
-                    // Keep the socket open, the state collector will send messages
-                    incoming.receive() // This will suspend until the socket is closed
+                    // Resend current state upon connection
+                     _displayedImageName.value?.let {
+                         send(it)
+                     }
+                    // Suspend to keep the socket open
+                    incoming.receive() 
                 }
             } catch (e: Exception) {
                 println("Client control socket error: ${e.message}")

@@ -7,7 +7,7 @@ import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
 @Composable
-actual fun ImageFilePicker(onImageSelected: (ByteArray, String) -> Unit) {
+actual fun ImageFilePicker(buttonText: String, onImageSelected: (ByteArray, String) -> Unit) {
     Button(onClick = { 
         val chooser = JFileChooser()
         chooser.fileFilter = FileNameExtensionFilter("PNG Images", "png")
@@ -17,6 +17,6 @@ actual fun ImageFilePicker(onImageSelected: (ByteArray, String) -> Unit) {
             onImageSelected(file.readBytes(), file.name)
         }
     }) {
-        Text("Select Image")
+        Text(buttonText)
     }
 }

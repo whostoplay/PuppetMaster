@@ -10,7 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
-actual fun ImageFilePicker(onImageSelected: (ByteArray, String) -> Unit) {
+actual fun ImageFilePicker(buttonText: String, onImageSelected: (ByteArray, String) -> Unit) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (it.resultCode == Activity.RESULT_OK) {
@@ -31,6 +31,6 @@ actual fun ImageFilePicker(onImageSelected: (ByteArray, String) -> Unit) {
         }
         launcher.launch(intent)
     }) {
-        Text("Select Image")
+        Text(buttonText)
     }
 }
