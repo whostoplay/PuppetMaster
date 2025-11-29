@@ -1,36 +1,43 @@
 package org.menagerie.puppet_master
 
-import androidx.compose.foundation.Image
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MaterialTheme.colorScheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.menagerie.puppet_master.controls.ColorPicker
+import org.menagerie.puppet_master.controls.ModeControls
+import org.menagerie.puppet_master.controls.PuppetControls
+import org.menagerie.puppet_master.controls.ServerControls
+import org.menagerie.puppet_master.previews.LivePreview
+import org.menagerie.puppet_master.states.StateCreation
+import org.menagerie.puppet_master.states.StateListing
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 @Preview
 fun App() {
@@ -48,243 +55,95 @@ fun App() {
     var selectedBlinkImage by remember { mutableStateOf<ByteArray?>(null) }
     var selectedBlinkImageName by remember { mutableStateOf("") }
     var newStateName by remember { mutableStateOf("") }
-    var newPuppetName by remember { mutableStateOf("") }
+    var backgroundColor by remember { mutableStateOf(Color.Green) }
+
+    var showControls by remember { mutableStateOf(true) }
+    val isHoveringOn = remember { mutableStateMapOf<String, Boolean>() }
+    val isHoveringOnControls = isHoveringOn.values.any { it }
+    val controlsAlpha by animateFloatAsState(if (showControls) 1f else 0f)
+
+    LaunchedEffect(showControls, isHoveringOnControls) {
+        if (showControls && !isHoveringOnControls) {
+            delay(3000) // 3 seconds
+            if (!isHoveringOnControls) {
+                showControls = false
+            }
+        }
+    }
 
     MaterialTheme {
-        BoxWithConstraints {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().onPointerEvent(PointerEventType.Move) { showControls = true }) {
             val isLandscape = maxWidth > maxHeight
+
+            LivePreview(operatingMode, displayedImageName, viewModel.uploadsDir, backgroundColor)
 
             Column(
                 modifier = Modifier
-                    .background(colorScheme.background)
+                    .graphicsLayer(alpha = controlsAlpha)
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
                     .fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
-                // --- Live Preview ---
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(200.dp).padding(8.dp).border(1.dp, Color.Gray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val imageUrl = if (operatingMode == OperatingMode.ONLINE) {
-                        "http://127.0.0.1:$SERVER_PORT/uploads/${displayedImageName ?: ""}"
-                    } else {
-                        if (displayedImageName?.isNotBlank() == true) "file://${viewModel.uploadsDir}/$displayedImageName" else ""
-                    }
-                    val image = rememberImageFromUrl(imageUrl)
-
-                    if (image != null) {
-                        Image(bitmap = image, contentDescription = "Live Preview")
-                    } else {
-                        Text("No Active Image")
-                    }
-                }
-
-                // --- Puppet Selection ---
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    var puppetExpanded by remember { mutableStateOf(false) }
-                    ExposedDropdownMenuBox(expanded = puppetExpanded, onExpandedChange = { puppetExpanded = !puppetExpanded }, modifier = Modifier.weight(1f)) {
-                        TextField(
-                            modifier = Modifier.menuAnchor().fillMaxWidth(),
-                            value = activePuppet?.name ?: "", onValueChange = {},
-                            label = { Text("Active Puppet") },
-                            readOnly = true,
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = puppetExpanded) },
-                            colors = ExposedDropdownMenuDefaults.textFieldColors(),
-                        )
-                        ExposedDropdownMenu(expanded = puppetExpanded, onDismissRequest = { puppetExpanded = false }) {
-                            troupe?.puppets?.forEach { puppet ->
-                                DropdownMenuItem(text = { Text(puppet.name) }, onClick = { viewModel.setActivePuppet(puppet.name); puppetExpanded = false }, contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding)
-                            }
-                        }
-                    }
-                    TextField(
-                        value = newPuppetName, 
-                        onValueChange = {newPuppetName = it}, 
-                        placeholder = {Text("New Puppet Name")}, 
-                        modifier = Modifier.weight(1f).padding(start = 8.dp),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                if (newPuppetName.isNotBlank()) { 
-                                    viewModel.createNewPuppet(newPuppetName)
-                                    newPuppetName = "" 
-                                }
-                            }
-                        )
-                    )
-                    Button(onClick = { if (newPuppetName.isNotBlank()) { viewModel.createNewPuppet(newPuppetName); newPuppetName = "" } }, modifier = Modifier.padding(start = 8.dp)) { Text("Create") }
-                }
+                PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet) { isHoveringOn["puppet"] = it }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                
-                // --- Mode Controls ---
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.Center) {
-                    val onlineColors = if(operatingMode == OperatingMode.ONLINE) ButtonDefaults.buttonColors(containerColor = colorScheme.primary) else ButtonDefaults.outlinedButtonColors()
-                    val offlineColors = if(operatingMode == OperatingMode.OFFLINE) ButtonDefaults.buttonColors(containerColor = colorScheme.primary) else ButtonDefaults.outlinedButtonColors()
-
-                    Button(onClick = { viewModel.setOperatingMode(OperatingMode.ONLINE) }, colors = onlineColors) { Text("Online") }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { viewModel.setOperatingMode(OperatingMode.OFFLINE) }, colors = offlineColors) { Text("Offline") }
-                }
+                ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-                // --- Server & Audio Controls ---
-                Row(modifier = Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = { viewModel.publishTroupe() }, enabled = operatingMode == OperatingMode.ONLINE) { Text("Upload Troupe") }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Publishing")
-                        Switch(
-                            checked = isPublishing,
-                            onCheckedChange = { viewModel.togglePublishing() },
-                            enabled = operatingMode == OperatingMode.ONLINE
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Listening")
-                        Switch(
-                            checked = isListening,
-                            onCheckedChange = { viewModel.toggleListening() }
-                        )
-                    }
-                }
+                ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                ColorPicker(onColorSelected = { backgroundColor = it }) { isHoveringOn["color"] = it }
                 HorizontalDivider()
 
-                // --- State Creation & Listing ---
                 if (activePuppet != null) {
-                     if (isLandscape) {
+                    if (isLandscape) {
                         Row(modifier = Modifier.fillMaxSize()) {
-                            StateCreation(modifier = Modifier.weight(1f), viewModel, selectedImage, selectedImageName, selectedBlinkImage, selectedBlinkImageName, newStateName) { si, sin, sbi, sbin, nsn ->
-                                selectedImage = si
-                                selectedImageName = sin
-                                selectedBlinkImage = sbi
-                                selectedBlinkImageName = sbin
-                                newStateName = nsn
-                            }
+                            StateCreation(
+                                modifier = Modifier.weight(1f),
+                                viewModel = viewModel,
+                                selectedImage = selectedImage,
+                                selectedImageName = selectedImageName,
+                                selectedBlinkImage = selectedBlinkImage,
+                                selectedBlinkImageName = selectedBlinkImageName,
+                                newStateName = newStateName,
+                                onStateChange = { si, sin, sbi, sbin, nsn ->
+                                    selectedImage = si
+                                    selectedImageName = sin
+                                    selectedBlinkImage = sbi
+                                    selectedBlinkImageName = sbin
+                                    newStateName = nsn
+                                },
+                                onHover = { isHoveringOn["stateCreation"] = it }
+                            )
                             VerticalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
-                            StateListing(modifier = Modifier.weight(1f), activePuppet)
+                            StateListing(modifier = Modifier.weight(1f), activePuppet = activePuppet) { isHoveringOn["stateListing"] = it }
                         }
                     } else {
                         Column(modifier = Modifier.fillMaxSize()) {
-                            StateCreation(modifier = Modifier.weight(1f), viewModel, selectedImage, selectedImageName, selectedBlinkImage, selectedBlinkImageName, newStateName) { si, sin, sbi, sbin, nsn ->
-                                selectedImage = si
-                                selectedImageName = sin
-                                selectedBlinkImage = sbi
-                                selectedBlinkImageName = sbin
-                                newStateName = nsn
-                            }
+                            StateCreation(
+                                modifier = Modifier.weight(1f),
+                                viewModel = viewModel,
+                                selectedImage = selectedImage,
+                                selectedImageName = selectedImageName,
+                                selectedBlinkImage = selectedBlinkImage,
+                                selectedBlinkImageName = selectedBlinkImageName,
+                                newStateName = newStateName,
+                                onStateChange = { si, sin, sbi, sbin, nsn ->
+                                    selectedImage = si
+                                    selectedImageName = sin
+                                    selectedBlinkImage = sbi
+                                    selectedBlinkImageName = sbin
+                                    newStateName = nsn
+                                },
+                                onHover = { isHoveringOn["stateCreation"] = it }
+                            )
                             HorizontalDivider(modifier = Modifier.fillMaxWidth().height(1.dp))
-                            StateListing(modifier = Modifier.weight(1f), activePuppet)
+                            StateListing(modifier = Modifier.weight(1f), activePuppet = activePuppet) { isHoveringOn["stateListing"] = it }
                         }
                     }
+                } else {
+                    Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                        Text("Create or select a puppet to get started.")
+                    }
                 }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun StateCreation(modifier: Modifier, viewModel: MainViewModel, selectedImage: ByteArray?, selectedImageName: String, selectedBlinkImage: ByteArray?, selectedBlinkImageName: String, newStateName: String, onStateChange: (ByteArray?, String, ByteArray?, String, String) -> Unit) {
-    var localSelectedImage by remember { mutableStateOf(selectedImage) }
-    var localSelectedImageName by remember { mutableStateOf(selectedImageName) }
-    var localSelectedBlinkImage by remember { mutableStateOf(selectedBlinkImage) }
-    var localSelectedBlinkImageName by remember { mutableStateOf(selectedBlinkImageName) }
-    var localNewStateName by remember { mutableStateOf(newStateName) }
-
-    Column(modifier = modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Create New State", style = MaterialTheme.typography.titleMedium)
-        Row(
-            modifier = Modifier.padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            localSelectedImage?.let {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Main Image")
-                    Image(bitmap = it.toImageBitmap(), contentDescription = "Selected Image", modifier = Modifier.size(100.dp))
-                }
-            }
-
-            if (localSelectedImage != null && localSelectedBlinkImage != null) {
-                Button(onClick = {
-                    val tempImg = localSelectedImage
-                    localSelectedImage = localSelectedBlinkImage
-                    localSelectedBlinkImage = tempImg
-
-                    val tempName = localSelectedImageName
-                    localSelectedImageName = localSelectedBlinkImageName
-                    localSelectedBlinkImageName = tempName
-                    onStateChange(localSelectedImage, localSelectedImageName, localSelectedBlinkImage, localSelectedBlinkImageName, localNewStateName)
-                }) {
-                    Text("<->")
-                }
-            }
-
-            localSelectedBlinkImage?.let {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Blink Image")
-                    Image(bitmap = it.toImageBitmap(), contentDescription = "Selected Blink Image", modifier = Modifier.size(100.dp))
-                }
-            }
-        }
-
-        ImageFilePicker("Select Image(s)") { images ->
-            if (images.isNotEmpty()) {
-                localSelectedImage = images[0].first
-                localSelectedImageName = images[0].second
-            }
-            if (images.size > 1) {
-                localSelectedBlinkImage = images[1].first
-                localSelectedBlinkImageName = images[1].second
-            } else {
-                localSelectedBlinkImage = null
-                localSelectedBlinkImageName = ""
-            }
-            onStateChange(localSelectedImage, localSelectedImageName, localSelectedBlinkImage, localSelectedBlinkImageName, localNewStateName)
-        }
-
-        var expanded by remember { mutableStateOf(false) }
-        val predefinedStates = remember { listOf("idle", "talking", "listening", "shocked", "crying") }
-
-        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
-            TextField(
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
-                value = localNewStateName, onValueChange = { localNewStateName = it; onStateChange(localSelectedImage, localSelectedImageName, localSelectedBlinkImage, localSelectedBlinkImageName, it) },
-                label = { Text("State Name") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-                colors = ExposedDropdownMenuDefaults.textFieldColors(),
-            )
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                predefinedStates.forEach { selectionOption ->
-                    DropdownMenuItem(text = { Text(selectionOption) }, onClick = { localNewStateName = selectionOption; onStateChange(localSelectedImage, localSelectedImageName, localSelectedBlinkImage, localSelectedBlinkImageName, selectionOption); expanded = false }, contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding)
-                }
-            }
-        }
-
-        Button(onClick = {
-            if (localSelectedImage != null && localNewStateName.isNotBlank()) {
-                viewModel.createNewState(localNewStateName, localSelectedImage!!, localSelectedImageName, localSelectedBlinkImage, localSelectedBlinkImageName)
-                onStateChange(null, "", null, "", "")
-                localSelectedImage = null
-                localSelectedImageName = ""
-                localSelectedBlinkImage = null
-                localSelectedBlinkImageName = ""
-                localNewStateName = ""
-            }
-        }, modifier = Modifier.padding(top = 8.dp)) { Text("Save Local State") }
-    }
-}
-
-@Composable
-private fun StateListing(modifier: Modifier, activePuppet: Puppet?) {
-    LazyColumn(modifier = modifier.padding(8.dp)) {
-        item { Text("Puppet States", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp)) }
-        activePuppet?.states?.let {
-            items(it) { state ->
-                val blinkText = if (state.blinkImageName != null) " (has blink)" else ""
-                Text("State: ${state.name} -> ${state.imageName}$blinkText", modifier = Modifier.padding(4.dp))
             }
         }
     }

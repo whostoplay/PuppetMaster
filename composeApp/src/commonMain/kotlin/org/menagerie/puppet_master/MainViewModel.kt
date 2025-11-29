@@ -107,7 +107,7 @@ class MainViewModel(context: Any) : ViewModel() {
         _operatingMode.value = mode
         if (mode == OperatingMode.ONLINE) {
             if (_isPublishing.value) {
-                togglePublishing() 
+                setPublishing(false) 
             }
             observeServerState()
         } else { // OFFLINE
@@ -146,15 +146,17 @@ class MainViewModel(context: Any) : ViewModel() {
         saveLocalTroupe(newTroupe)
     }
 
-    fun togglePublishing() {
+    fun setPublishing(isPublishing: Boolean) {
         if (_operatingMode.value == OperatingMode.OFFLINE) return
 
-        val newPublishingState = !_isPublishing.value
-        _isPublishing.value = newPublishingState
+        _isPublishing.value = isPublishing
 
-        if (newPublishingState) {
+        if (isPublishing) {
+            viewModelScope.launch {
+                _troupe.value?.let { client.post("http://127.0.0.1:$SERVER_PORT/troupe") { contentType(ContentType.Application.Json); setBody(it) } }
+            }
             serverStateJob?.cancel()
-            startClientControl() 
+            startClientControl()
         } else {
             stopClientControl()
             observeServerState()
@@ -180,6 +182,11 @@ class MainViewModel(context: Any) : ViewModel() {
                 }
             } catch (e: Exception) {
                 // Could not reach server, remain in offline mode
+                if (localTroupe == null) {
+                    _troupe.value = null
+                    _activePuppet.value = null
+                    _activeState.value = null
+                }
             }
         }
     }
@@ -191,12 +198,6 @@ class MainViewModel(context: Any) : ViewModel() {
 
     private fun saveLocalTroupe(troupe: Troupe) {
         localTroupeFile.writeText(gson.toJson(troupe))
-    }
-
-    fun publishTroupe() {
-        viewModelScope.launch {
-            _troupe.value?.let { client.post("http://127.0.0.1:$SERVER_PORT/troupe") { contentType(ContentType.Application.Json); setBody(it) } }
-        }
     }
 
     fun createNewState(stateName: String, imageBytes: ByteArray, localImageName: String, blinkImageBytes: ByteArray?, localBlinkImageName: String?) {

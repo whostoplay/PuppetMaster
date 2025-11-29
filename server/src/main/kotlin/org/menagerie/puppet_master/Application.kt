@@ -39,16 +39,16 @@ fun saveTroupe(troupe: Troupe) {
     troupeFile.writeText(json.encodeToString(troupe))
 }
 
-fun loadTroupe(): Troupe {
+fun loadTroupe(): Troupe? {
     if (troupeFile.exists()) {
         return try {
             json.decodeFromString<Troupe>(troupeFile.readText())
         } catch (e: Exception) {
-            // If troupe file is corrupt, create a default one
-            createDefaultTroupe()
+            // If troupe file is corrupt, treat as non-existent
+            null
         }
     }
-    
+
     // If the new file doesn't exist, try to migrate from the old format
     if (legacyConfigFile.exists()) {
         return try {
@@ -59,25 +59,11 @@ fun loadTroupe(): Troupe {
             legacyConfigFile.delete() // remove old file after successful migration
             troupe
         } catch (e: Exception) {
-            createDefaultTroupe()
+            null
         }
     }
 
-    return createDefaultTroupe()
-}
-
-fun createDefaultTroupe(): Troupe {
-    val defaultPuppet = Puppet(
-        name = "Default",
-        lastUpdated = System.currentTimeMillis(),
-        states = listOf(
-            PuppetStateInfo("idle", "idle.png"),
-            PuppetStateInfo("talking", "talking.png")
-        )
-    )
-    val troupe = Troupe("Default", listOf(defaultPuppet))
-    saveTroupe(troupe)
-    return troupe
+    return null
 }
 
 // --- Main Application ---
@@ -91,9 +77,9 @@ fun main() {
 
 fun Application.module() {
     val uploadsDir = File("uploads").apply { mkdirs() }
-    var troupe = loadTroupe()
-    var activePuppet = troupe.puppets.find { it.name == troupe.activePuppetName }!!
-    val activeState = MutableStateFlow(activePuppet.states.find { it.name == "idle" } ?: activePuppet.states.first())
+    var troupe: Troupe? = loadTroupe()
+    var activePuppet: Puppet? = troupe?.puppets?.find { it.name == troupe?.activePuppetName }
+    val activeState = MutableStateFlow<PuppetStateInfo?>(activePuppet?.states?.find { it.name == "idle" } ?: activePuppet?.states?.firstOrNull())
 
     var manualControlActive = false
     fun isHeadless() = obsConnectionCount > 0 && !manualControlActive
@@ -116,7 +102,7 @@ fun Application.module() {
         activeState.collect { state ->
             blinkingJob?.cancel()
             stateToSend.value = state // Immediately update the display state.
-            if (state.blinkImageName != null) {
+            if (state?.blinkImageName != null) {
                 blinkingJob = launch {
                     while (true) {
                         delay(Random.nextLong(2000, 8000))
@@ -139,16 +125,16 @@ fun Application.module() {
         // --- Configuration API for the Client ---
 
         get("/troupe") {
-            call.respond(troupe)
+            troupe?.let { call.respond(it) } ?: call.respond(HttpStatusCode.NotFound)
         }
 
         post("/troupe") {
             val newTroupe = call.receive<Troupe>()
             troupe = newTroupe
-            saveTroupe(troupe)
-            activePuppet = troupe.puppets.find { it.name == troupe.activePuppetName }!!
+            saveTroupe(newTroupe)
+            activePuppet = troupe?.puppets?.find { it.name == newTroupe.activePuppetName }
             if (!isHeadless()) {
-                activeState.value = activePuppet.states.find { it.name == "idle" } ?: activePuppet.states.first()
+                activeState.value = activePuppet?.states?.find { it.name == "idle" } ?: activePuppet?.states?.firstOrNull()
             }
             call.respond(HttpStatusCode.OK)
         }
@@ -174,7 +160,7 @@ fun Application.module() {
         // --- Real-time Endpoints ---
 
         webSocket("/audio-input") {
-            if (isHeadless()) {
+            if (isHeadless() && activePuppet != null) {
                 for (frame in incoming) {
                     if (!isHeadless()) {
                         close(CloseReason(CloseReason.Codes.NORMAL, "Client took control"))
@@ -184,36 +170,42 @@ fun Application.module() {
                     if (frame is Frame.Text) {
                         val isSpeaking = frame.readText().toBoolean()
                         val targetStateName = if (isSpeaking) "talking" else "idle"
-                        activePuppet.states.find { it.name == targetStateName }?.let {
+                        activePuppet?.states?.find { it.name == targetStateName }?.let {
                             activeState.value = it
                         }
                     }
                 }
             } else {
-                close(CloseReason(CloseReason.Codes.NORMAL, "Server not in headless mode"))
+                close(CloseReason(CloseReason.Codes.NORMAL, "Server not in headless mode or no active puppet"))
             }
         }
 
         webSocket("/client-control") {
+            if (activePuppet == null) {
+                close(CloseReason(CloseReason.Codes.NORMAL, "No active puppet configured on server"))
+                return@webSocket
+            }
             manualControlActive = true
             try {
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
                         val receivedImageName = frame.readText()
-                        val baseState = activePuppet.states.find { it.imageName == receivedImageName || it.blinkImageName == receivedImageName }
+                        val baseState = activePuppet?.states?.find { it.imageName == receivedImageName || it.blinkImageName == receivedImageName }
                         if (baseState != null) {
                             if (activeState.value != baseState) {
                                 activeState.value = baseState
                             }
-                            if (stateToSend.value.imageName != receivedImageName) {
-                                stateToSend.value = baseState.copy(imageName = receivedImageName)
+                            if (stateToSend.value?.imageName != receivedImageName) {
+                                // Create a temporary state with the correct image name (for blinks)
+                                val tempState = baseState.copy(imageName = receivedImageName)
+                                stateToSend.value = tempState
                             }
                         }
                     }
                 }
             } finally {
                 manualControlActive = false
-                activeState.value = activePuppet.states.find { it.name == "idle" } ?: activePuppet.states.first()
+                activeState.value = activePuppet?.states?.find { it.name == "idle" } ?: activePuppet?.states?.firstOrNull()
             }
         }
 
@@ -223,12 +215,17 @@ fun Application.module() {
                 var lastSentImage: String? = null
                 while(true) {
                     val state = stateToSend.value
-                    val imageFile = File(uploadsDir, state.imageName)
-                    val imageUrl = if (imageFile.exists()) {
-                        "http://127.0.0.1:$SERVER_PORT/uploads/${state.imageName}"
+                    val imageUrl = if (state != null) {
+                        val imageFile = File(uploadsDir, state.imageName)
+                        if (imageFile.exists()) {
+                            "http://127.0.0.1:$SERVER_PORT/uploads/${state.imageName}"
+                        } else {
+                            ""
+                        }
                     } else {
                         ""
                     }
+
                     if (imageUrl != lastSentImage) {
                         outgoing.send(Frame.Text(imageUrl))
                         lastSentImage = imageUrl
