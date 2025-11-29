@@ -40,13 +40,16 @@ class MainViewModel(context: Any) : ViewModel() {
 
     private val _troupe = MutableStateFlow<Troupe?>(null)
     val troupe: StateFlow<Troupe?> = _troupe
-    
+
     private val _activePuppet = MutableStateFlow<Puppet?>(null)
     val activePuppet: StateFlow<Puppet?> = _activePuppet
 
     private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
     val activeState: StateFlow<PuppetStateInfo?> = _activeState
-    
+
+    private val _selectedState = MutableStateFlow<PuppetStateInfo?>(null)
+    val selectedState: StateFlow<PuppetStateInfo?> = _selectedState
+
     private val _displayedImageName = MutableStateFlow<String?>(null)
     val displayedImageName: StateFlow<String?> = _displayedImageName
 
@@ -78,19 +81,24 @@ class MainViewModel(context: Any) : ViewModel() {
                 }
             }
         }
-        
+
         viewModelScope.launch {
             activeState.collect { state ->
                 clientBlinkingJob?.cancel()
                 _displayedImageName.value = state?.imageName
-                
+
                 if (state?.blinkImageName != null) {
                     clientBlinkingJob = launch {
                         while (true) {
-                            delay(Random.nextLong(2000, 8000))
-                            
+                            val delayTime = if (state.minBlinkRate >= state.maxBlinkRate) {
+                                state.maxBlinkRate
+                            } else {
+                                Random.nextLong(state.minBlinkRate, state.maxBlinkRate)
+                            }
+                            delay(delayTime)
+
                             val isClientInControl = _operatingMode.value == OperatingMode.OFFLINE || _isPublishing.value
-                            
+
                             if (isClientInControl && activeState.value == state) {
                                 _displayedImageName.value = state.blinkImageName
                                 delay(150)
@@ -107,7 +115,7 @@ class MainViewModel(context: Any) : ViewModel() {
         _operatingMode.value = mode
         if (mode == OperatingMode.ONLINE) {
             if (_isPublishing.value) {
-                setPublishing(false) 
+                setPublishing(false)
             }
             observeServerState()
         } else { // OFFLINE
@@ -115,7 +123,7 @@ class MainViewModel(context: Any) : ViewModel() {
             _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
         }
     }
-    
+
     fun setActivePuppet(name: String) {
         _troupe.value?.let { currentTroupe ->
             val newTroupe = currentTroupe.copy(activePuppetName = name)
@@ -163,6 +171,42 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
+    fun selectState(state: PuppetStateInfo) {
+        _selectedState.value = state
+    }
+
+    fun updateBlinkRate(state: PuppetStateInfo, blinkRate: LongRange) {
+        _activePuppet.value?.let { puppet ->
+            val newStates = puppet.states.orEmpty().map {
+                if (it.name == state.name) {
+                    it.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last)
+                } else {
+                    it
+                }
+            }
+            val newPuppet = puppet.copy(states = newStates)
+            _troupe.value?.let { troupe ->
+                val newPuppets = troupe.puppets.map {
+                    if (it.name == newPuppet.name) {
+                        newPuppet
+                    } else {
+                        it
+                    }
+                }
+                val newTroupe = troupe.copy(puppets = newPuppets)
+                _troupe.value = newTroupe
+                _activePuppet.value = newPuppet
+                _selectedState.value = newPuppet.states.find { it.name == state.name }
+
+                if (_activeState.value?.name == state.name) {
+                    _activeState.value = newPuppet.states.find { it.name == state.name }
+                }
+
+                saveLocalTroupe(newTroupe)
+            }
+        }
+    }
+
     private fun smartLoad() {
         viewModelScope.launch {
             val localTroupe = loadLocalTroupe()
@@ -205,7 +249,7 @@ class MainViewModel(context: Any) : ViewModel() {
             val serverImageName = uploader.upload(imageBytes, localImageName)
             val localFile = File(uploadsDir, serverImageName)
             localFile.writeBytes(imageBytes)
-            
+
             var serverBlinkImageName: String? = null
             if (blinkImageBytes != null && localBlinkImageName != null) {
                 serverBlinkImageName = uploader.upload(blinkImageBytes, localBlinkImageName)
@@ -214,8 +258,8 @@ class MainViewModel(context: Any) : ViewModel() {
             }
 
             val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
-            
-            _activePuppet.value?.let { currentPuppet -> 
+
+            _activePuppet.value?.let { currentPuppet ->
                 val newStates = currentPuppet.states.orEmpty() + newState
                 val updatedPuppet = currentPuppet.copy(states = newStates, lastUpdated = System.currentTimeMillis())
                 _troupe.value?.let { currentTroupe ->
@@ -231,7 +275,7 @@ class MainViewModel(context: Any) : ViewModel() {
             }
         }
     }
-    
+
     fun toggleListening() {
         val newListeningState = !_isListening.value
         if (newListeningState) {
@@ -252,7 +296,7 @@ class MainViewModel(context: Any) : ViewModel() {
             }
         }
     }
-    
+
     private fun stopListening() {
         _isListening.value = false
         audioProcessor.stop()
@@ -268,7 +312,7 @@ class MainViewModel(context: Any) : ViewModel() {
                             val imageUrl = frame.readText()
                             val imageName = imageUrl.substringAfterLast("/")
                             _displayedImageName.value = imageName
-                            
+
                             val newActiveState = _activePuppet.value?.states?.find { it.imageName == imageName || it.blinkImageName == imageName }
                             if (newActiveState != null && _activeState.value != newActiveState) {
                                 _activeState.value = newActiveState
@@ -283,14 +327,14 @@ class MainViewModel(context: Any) : ViewModel() {
     private fun startClientControl() {
         clientControlSocketJob = viewModelScope.launch {
             try {
-                client.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = SERVER_PORT, path = "/client-control") {
+                client.webSocket(method = HttpMethod.Get, host = "1227.0.0.1", port = SERVER_PORT, path = "/client-control") {
                     clientControlSocket = this
                     // Resend current state upon connection
-                     _displayedImageName.value?.let {
-                         send(it)
-                     }
+                    _displayedImageName.value?.let {
+                        send(it)
+                    }
                     // Suspend to keep the socket open
-                    incoming.receive() 
+                    incoming.receive()
                 }
             } catch (e: Exception) {
                 println("Client control socket error: ${e.message}")

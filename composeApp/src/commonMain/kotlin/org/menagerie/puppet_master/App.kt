@@ -2,21 +2,22 @@ package org.menagerie.puppet_master
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -35,6 +36,7 @@ import org.menagerie.puppet_master.controls.PuppetControls
 import org.menagerie.puppet_master.controls.ServerControls
 import org.menagerie.puppet_master.previews.LivePreview
 import org.menagerie.puppet_master.states.StateCreation
+import org.menagerie.puppet_master.states.StateEditor
 import org.menagerie.puppet_master.states.StateListing
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
@@ -49,6 +51,7 @@ fun App() {
     val operatingMode by viewModel.operatingMode.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
+    val selectedState by viewModel.selectedState.collectAsState()
 
     var selectedImage by remember { mutableStateOf<ByteArray?>(null) }
     var selectedImageName by remember { mutableStateOf("") }
@@ -64,7 +67,7 @@ fun App() {
 
     LaunchedEffect(showControls, isHoveringOnControls) {
         if (showControls && !isHoveringOnControls) {
-            delay(3000) // 3 seconds
+            delay(1500)
             if (!isHoveringOnControls) {
                 showControls = false
             }
@@ -77,71 +80,122 @@ fun App() {
 
             LivePreview(operatingMode, displayedImageName, viewModel.uploadsDir, backgroundColor)
 
-            Column(
-                modifier = Modifier
-                    .graphicsLayer(alpha = controlsAlpha)
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
-                    .fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet) { isHoveringOn["puppet"] = it }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                ColorPicker(onColorSelected = { backgroundColor = it }) { isHoveringOn["color"] = it }
-                HorizontalDivider()
-
-                if (activePuppet != null) {
-                    if (isLandscape) {
-                        Row(modifier = Modifier.fillMaxSize()) {
-                            StateCreation(
-                                modifier = Modifier.weight(1f),
-                                viewModel = viewModel,
-                                selectedImage = selectedImage,
-                                selectedImageName = selectedImageName,
-                                selectedBlinkImage = selectedBlinkImage,
-                                selectedBlinkImageName = selectedBlinkImageName,
-                                newStateName = newStateName,
-                                onStateChange = { si, sin, sbi, sbin, nsn ->
-                                    selectedImage = si
-                                    selectedImageName = sin
-                                    selectedBlinkImage = sbi
-                                    selectedBlinkImageName = sbin
-                                    newStateName = nsn
-                                },
-                                onHover = { isHoveringOn["stateCreation"] = it }
-                            )
-                            VerticalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
-                            StateListing(modifier = Modifier.weight(1f), activePuppet = activePuppet) { isHoveringOn["stateListing"] = it }
+            Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {
+                if (isLandscape) {
+                    Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(
+                            modifier = Modifier.fillMaxHeight().weight(0.25f)
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet) { isHoveringOn["puppet"] = it }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            ColorPicker(onColorSelected = { backgroundColor = it }) { isHoveringOn["color"] = it }
                         }
-                    } else {
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            StateCreation(
-                                modifier = Modifier.weight(1f),
-                                viewModel = viewModel,
-                                selectedImage = selectedImage,
-                                selectedImageName = selectedImageName,
-                                selectedBlinkImage = selectedBlinkImage,
-                                selectedBlinkImageName = selectedBlinkImageName,
-                                newStateName = newStateName,
-                                onStateChange = { si, sin, sbi, sbin, nsn ->
-                                    selectedImage = si
-                                    selectedImageName = sin
-                                    selectedBlinkImage = sbi
-                                    selectedBlinkImageName = sbin
-                                    newStateName = nsn
-                                },
-                                onHover = { isHoveringOn["stateCreation"] = it }
-                            )
-                            HorizontalDivider(modifier = Modifier.fillMaxWidth().height(1.dp))
-                            StateListing(modifier = Modifier.weight(1f), activePuppet = activePuppet) { isHoveringOn["stateListing"] = it }
+
+                        Spacer(modifier = Modifier.fillMaxHeight().weight(0.5f))
+
+                        Column(
+                            modifier = Modifier.fillMaxHeight().weight(0.25f)
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                        ) {
+                            if (activePuppet != null) {
+                                StateCreation(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    viewModel = viewModel,
+                                    selectedImage = selectedImage,
+                                    selectedImageName = selectedImageName,
+                                    selectedBlinkImage = selectedBlinkImage,
+                                    selectedBlinkImageName = selectedBlinkImageName,
+                                    newStateName = newStateName,
+                                    onStateChange = { si, sin, sbi, sbin, nsn ->
+                                        selectedImage = si
+                                        selectedImageName = sin
+                                        selectedBlinkImage = sbi
+                                        selectedBlinkImageName = sbin
+                                        newStateName = nsn
+                                    },
+                                    onHover = { isHoveringOn["stateCreation"] = it }
+                                )
+                                HorizontalDivider()
+                                StateListing(modifier = Modifier.fillMaxWidth().weight(1f), activePuppet = activePuppet, selectedState = selectedState, onStateSelected = viewModel::selectState) { isHoveringOn["stateListing"] = it }
+                                HorizontalDivider()
+                                selectedState?.let {
+                                    StateEditor(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        selectedState = it,
+                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(it, newBlinkRate) },
+                                        onHover = { isHoveringOn["stateEditor"] = it }
+                                    )
+                                }
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text("Create or select a puppet to get started.")
+                                }
+                            }
                         }
                     }
                 } else {
-                    Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                        Text("Create or select a puppet to get started.")
+                    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().weight(0.25f)
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet) { isHoveringOn["puppet"] = it }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            ColorPicker(onColorSelected = { backgroundColor = it }) { isHoveringOn["color"] = it }
+                        }
+
+                        Spacer(modifier = Modifier.fillMaxWidth().weight(0.5f))
+
+                        Column(
+                            modifier = Modifier.fillMaxWidth().weight(0.25f)
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                        ) {
+                            if (activePuppet != null) {
+                                StateCreation(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    viewModel = viewModel,
+                                    selectedImage = selectedImage,
+                                    selectedImageName = selectedImageName,
+                                    selectedBlinkImage = selectedBlinkImage,
+                                    selectedBlinkImageName = selectedBlinkImageName,
+                                    newStateName = newStateName,
+                                    onStateChange = { si, sin, sbi, sbin, nsn ->
+                                        selectedImage = si
+                                        selectedImageName = sin
+                                        selectedBlinkImage = sbi
+                                        selectedBlinkImageName = sbin
+                                        newStateName = nsn
+                                    },
+                                    onHover = { isHoveringOn["stateCreation"] = it }
+                                )
+                                HorizontalDivider()
+                                StateListing(modifier = Modifier.fillMaxWidth().weight(1f), activePuppet = activePuppet, selectedState = selectedState, onStateSelected = viewModel::selectState) { isHoveringOn["stateListing"] = it }
+                                HorizontalDivider()
+                                selectedState?.let {
+                                    StateEditor(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        selectedState = it,
+                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(it, newBlinkRate) },
+                                        onHover = { isHoveringOn["stateEditor"] = it }
+                                    )
+                                }
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text("Create or select a puppet to get started.")
+                                }
+                            }
+                        }
                     }
                 }
             }

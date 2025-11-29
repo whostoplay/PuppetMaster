@@ -105,7 +105,12 @@ fun Application.module() {
             if (state?.blinkImageName != null) {
                 blinkingJob = launch {
                     while (true) {
-                        delay(Random.nextLong(2000, 8000))
+                        val delayTime = if (state.minBlinkRate >= state.maxBlinkRate) {
+                            state.maxBlinkRate
+                        } else {
+                            Random.nextLong(state.minBlinkRate, state.maxBlinkRate)
+                        }
+                        delay(delayTime)
                         // This is the key condition: ONLY blink if in headless mode.
                         if (isHeadless() && activeState.value == state) {
                             val blinkState = state.copy(imageName = state.blinkImageName!!)
@@ -153,7 +158,7 @@ fun Application.module() {
             call.respondText(fileName)
         }
 
-        post("/state") {
+        post("state") {
             call.respond(HttpStatusCode.Forbidden, "State updates must be sent via the /client-control WebSocket.")
         }
 

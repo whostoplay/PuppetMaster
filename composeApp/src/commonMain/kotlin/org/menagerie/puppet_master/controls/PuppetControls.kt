@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.controls
 
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
@@ -47,11 +48,12 @@ fun PuppetControls(
         onHover(isHovering)
     }
 
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ExposedDropdownMenuBox(expanded = puppetExpanded, onExpandedChange = { puppetExpanded = !puppetExpanded }, modifier = Modifier.weight(1f)) {
+        ExposedDropdownMenuBox(expanded = puppetExpanded, onExpandedChange = { puppetExpanded = !puppetExpanded }, modifier = Modifier.fillMaxWidth()) {
             TextField(
                 modifier = Modifier.menuAnchor().fillMaxWidth()
                     .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["puppetDropdown"] = true }
@@ -76,26 +78,26 @@ fun PuppetControls(
             }
         }
         TextField(
-            value = newPuppetName, 
-            onValueChange = {newPuppetName = it}, 
-            placeholder = {Text("New Puppet Name")}, 
-            modifier = Modifier.weight(1f).padding(start = 8.dp)
+            value = newPuppetName,
+            onValueChange = {newPuppetName = it},
+            placeholder = {Text("New Puppet Name")},
+            modifier = Modifier.fillMaxWidth()
                 .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["newPuppetName"] = true }
                 .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["newPuppetName"] = false },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(
                 onDone = {
-                    if (newPuppetName.isNotBlank()) { 
+                    if (newPuppetName.isNotBlank()) {
                         onPuppetCreated(newPuppetName)
-                        newPuppetName = "" 
+                        newPuppetName = ""
                     }
                 }
             )
         )
         Button(
             onClick = { if (newPuppetName.isNotBlank()) { onPuppetCreated(newPuppetName); newPuppetName = "" } },
-            modifier = Modifier.padding(start = 8.dp)
+            modifier = Modifier
                 .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["createPuppet"] = true }
                 .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["createPuppet"] = false },
         ){
