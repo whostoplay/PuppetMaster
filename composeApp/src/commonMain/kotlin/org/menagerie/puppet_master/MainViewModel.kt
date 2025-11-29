@@ -36,24 +36,25 @@ class MainViewModel(context: Any) : ViewModel() {
         install(WebSockets)
     }
     private val gson = Gson()
-    private val localConfigFile = File(uploadsDir, "local_puppet_config.json")
+    private val localTroupeFile = File(uploadsDir, "local_troupe.json")
 
-    private val _localPuppetConfig = MutableStateFlow<PuppetConfiguration?>(null)
-    val localPuppetConfig: StateFlow<PuppetConfiguration?> = _localPuppetConfig
+    private val _troupe = MutableStateFlow<Troupe?>(null)
+    val troupe: StateFlow<Troupe?> = _troupe
+    
+    private val _activePuppet = MutableStateFlow<Puppet?>(null)
+    val activePuppet: StateFlow<Puppet?> = _activePuppet
 
-    private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
-    val operatingMode: StateFlow<OperatingMode> = _operatingMode
-
-    // The base state ("idle", "talking"), without blinking
     private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
     val activeState: StateFlow<PuppetStateInfo?> = _activeState
     
-    // The final image name to be shown in the UI, including blinks
     private val _displayedImageName = MutableStateFlow<String?>(null)
     val displayedImageName: StateFlow<String?> = _displayedImageName
 
     private val _isPublishing = MutableStateFlow(false)
     val isPublishing: StateFlow<Boolean> = _isPublishing
+
+    private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
+    val operatingMode: StateFlow<OperatingMode> = _operatingMode
 
     private val _isListening = MutableStateFlow(false)
     val isListening: StateFlow<Boolean> = _isListening
@@ -66,7 +67,6 @@ class MainViewModel(context: Any) : ViewModel() {
     init {
         smartLoad()
 
-        // Collector to publish the final displayed image name to the server when publishing
         viewModelScope.launch {
             displayedImageName.collect { imageName ->
                 if (_isPublishing.value && clientControlSocket != null && imageName != null) {
@@ -79,7 +79,6 @@ class MainViewModel(context: Any) : ViewModel() {
             }
         }
         
-        // Collector to manage the display image and blinking
         viewModelScope.launch {
             activeState.collect { state ->
                 clientBlinkingJob?.cancel()
@@ -113,8 +112,38 @@ class MainViewModel(context: Any) : ViewModel() {
             observeServerState()
         } else { // OFFLINE
             serverStateJob?.cancel()
-            _activeState.value = _localPuppetConfig.value?.states?.find { it.name == "idle" }
+            _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
         }
+    }
+    
+    fun setActivePuppet(name: String) {
+        _troupe.value?.let { currentTroupe ->
+            val newTroupe = currentTroupe.copy(activePuppetName = name)
+            _troupe.value = newTroupe
+            _activePuppet.value = newTroupe.puppets.find { it.name == name }
+            _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+            saveLocalTroupe(newTroupe)
+        }
+    }
+
+    fun createNewPuppet(name: String) {
+        // Prevent creating puppet with duplicate name
+        if (_troupe.value?.puppets?.any { it.name == name } == true) {
+            return
+        }
+
+        val newPuppet = Puppet(name, System.currentTimeMillis(), emptyList())
+        val currentTroupe = _troupe.value ?: Troupe(activePuppetName = "", puppets = emptyList())
+
+        val newTroupe = currentTroupe.copy(
+            puppets = currentTroupe.puppets + newPuppet,
+            activePuppetName = name
+        )
+
+        _troupe.value = newTroupe
+        _activePuppet.value = newPuppet
+        _activeState.value = null // A new puppet starts with no states
+        saveLocalTroupe(newTroupe)
     }
 
     fun togglePublishing() {
@@ -134,18 +163,20 @@ class MainViewModel(context: Any) : ViewModel() {
 
     private fun smartLoad() {
         viewModelScope.launch {
-            val localConfig = loadLocalConfig()
-            _localPuppetConfig.value = localConfig
-            _activeState.value = localConfig?.states?.find { it.name == "idle" }
-            
+            val localTroupe = loadLocalTroupe()
+            if (localTroupe != null) {
+                _troupe.value = localTroupe
+                _activePuppet.value = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
+                _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+            }
+
             try {
-                val serverConfig = client.get("http://127.0.0.1:$SERVER_PORT/config").body<PuppetConfiguration>()
-                if (localConfig == null || serverConfig.lastUpdated > localConfig.lastUpdated) {
-                    _localPuppetConfig.value = serverConfig
-                    saveLocalConfig(serverConfig)
-                    if (_operatingMode.value == OperatingMode.OFFLINE) {
-                        _activeState.value = serverConfig.states.find { it.name == "idle" }
-                    }
+                val serverTroupe = client.get("http://127.0.0.1:$SERVER_PORT/troupe").body<Troupe>()
+                if (localTroupe == null || serverTroupe.puppets.any { sp -> localTroupe.puppets.find { lp -> lp.name == sp.name }?.lastUpdated ?: 0 < sp.lastUpdated }) {
+                    _troupe.value = serverTroupe
+                    _activePuppet.value = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
+                    _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+                    saveLocalTroupe(serverTroupe)
                 }
             } catch (e: Exception) {
                 // Could not reach server, remain in offline mode
@@ -153,18 +184,18 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
-    private fun loadLocalConfig(): PuppetConfiguration? = try {
-        if (!localConfigFile.exists()) null
-        else gson.fromJson(localConfigFile.readText(), PuppetConfiguration::class.java)
+    private fun loadLocalTroupe(): Troupe? = try {
+        if (!localTroupeFile.exists()) null
+        else gson.fromJson(localTroupeFile.readText(), Troupe::class.java)
     } catch (e: Exception) { null }
 
-    private fun saveLocalConfig(config: PuppetConfiguration) {
-        localConfigFile.writeText(gson.toJson(config))
+    private fun saveLocalTroupe(troupe: Troupe) {
+        localTroupeFile.writeText(gson.toJson(troupe))
     }
 
-    fun publishConfiguration() {
+    fun publishTroupe() {
         viewModelScope.launch {
-            _localPuppetConfig.value?.let { client.post("http://127.0.0.1:$SERVER_PORT/config") { contentType(ContentType.Application.Json); setBody(it) } }
+            _troupe.value?.let { client.post("http://127.0.0.1:$SERVER_PORT/troupe") { contentType(ContentType.Application.Json); setBody(it) } }
         }
     }
 
@@ -182,14 +213,20 @@ class MainViewModel(context: Any) : ViewModel() {
             }
 
             val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
-            val currentConfig = _localPuppetConfig.value
-            val newStates = currentConfig?.states.orEmpty() + newState
-            val newConfig = PuppetConfiguration(System.currentTimeMillis(), newStates)
-            _localPuppetConfig.value = newConfig
-            saveLocalConfig(newConfig)
-
-            if (_activeState.value == null) {
-                _activeState.value = newState
+            
+            _activePuppet.value?.let { currentPuppet -> 
+                val newStates = currentPuppet.states.orEmpty() + newState
+                val updatedPuppet = currentPuppet.copy(states = newStates, lastUpdated = System.currentTimeMillis())
+                _troupe.value?.let { currentTroupe ->
+                    val newPuppets = currentTroupe.puppets.filter { it.name != currentPuppet.name } + updatedPuppet
+                    val newTroupe = currentTroupe.copy(puppets = newPuppets)
+                    _troupe.value = newTroupe
+                    _activePuppet.value = updatedPuppet
+                    saveLocalTroupe(newTroupe)
+                    if (_activeState.value == null) {
+                        _activeState.value = newState
+                    }
+                }
             }
         }
     }
@@ -210,7 +247,7 @@ class MainViewModel(context: Any) : ViewModel() {
 
             if (isControlling) {
                 val targetStateName = if (isSpeaking) "talking" else "idle"
-                _activeState.value = _localPuppetConfig.value?.states?.find { it.name == targetStateName }
+                _activeState.value = _activePuppet.value?.states?.find { it.name == targetStateName }
             }
         }
     }
@@ -231,7 +268,7 @@ class MainViewModel(context: Any) : ViewModel() {
                             val imageName = imageUrl.substringAfterLast("/")
                             _displayedImageName.value = imageName
                             
-                            val newActiveState = _localPuppetConfig.value?.states?.find { it.imageName == imageName || it.blinkImageName == imageName }
+                            val newActiveState = _activePuppet.value?.states?.find { it.imageName == imageName || it.blinkImageName == imageName }
                             if (newActiveState != null && _activeState.value != newActiveState) {
                                 _activeState.value = newActiveState
                             }

@@ -32,35 +32,52 @@ val json = Json {
     isLenient = true
     ignoreUnknownKeys = true
 }
-val configFile = File("puppet_config.json")
+val troupeFile = File("troupe.json")
+val legacyConfigFile = File("puppet_config.json")
 
-fun saveConfiguration(config: PuppetConfiguration) {
-    configFile.writeText(json.encodeToString(config))
+fun saveTroupe(troupe: Troupe) {
+    troupeFile.writeText(json.encodeToString(troupe))
 }
 
-fun loadConfiguration(): PuppetConfiguration {
-    if (!configFile.exists() || configFile.readText().isBlank()) {
-        // Create a default config if one doesn't exist
-        return PuppetConfiguration(
-            lastUpdated = System.currentTimeMillis(),
-            states = listOf(
-                PuppetStateInfo("idle", "idle.png"),
-                PuppetStateInfo("talking", "talking.png")
-            )
-        )
+fun loadTroupe(): Troupe {
+    if (troupeFile.exists()) {
+        return try {
+            json.decodeFromString<Troupe>(troupeFile.readText())
+        } catch (e: Exception) {
+            // If troupe file is corrupt, create a default one
+            createDefaultTroupe()
+        }
     }
-    return try {
-        json.decodeFromString<PuppetConfiguration>(configFile.readText())
-    } catch (e: Exception) {
-        // If file is corrupt, create a default config.
-        PuppetConfiguration(
-            lastUpdated = System.currentTimeMillis(),
-            states = listOf(
-                PuppetStateInfo("idle", "idle.png"),
-                PuppetStateInfo("talking", "talking.png")
-            )
-        )
+    
+    // If the new file doesn't exist, try to migrate from the old format
+    if (legacyConfigFile.exists()) {
+        return try {
+            val legacyConfig = json.decodeFromString<PuppetConfiguration>(legacyConfigFile.readText())
+            val defaultPuppet = Puppet("Default", legacyConfig.lastUpdated, legacyConfig.states)
+            val troupe = Troupe("Default", listOf(defaultPuppet))
+            saveTroupe(troupe)
+            legacyConfigFile.delete() // remove old file after successful migration
+            troupe
+        } catch (e: Exception) {
+            createDefaultTroupe()
+        }
     }
+
+    return createDefaultTroupe()
+}
+
+fun createDefaultTroupe(): Troupe {
+    val defaultPuppet = Puppet(
+        name = "Default",
+        lastUpdated = System.currentTimeMillis(),
+        states = listOf(
+            PuppetStateInfo("idle", "idle.png"),
+            PuppetStateInfo("talking", "talking.png")
+        )
+    )
+    val troupe = Troupe("Default", listOf(defaultPuppet))
+    saveTroupe(troupe)
+    return troupe
 }
 
 // --- Main Application ---
@@ -74,8 +91,9 @@ fun main() {
 
 fun Application.module() {
     val uploadsDir = File("uploads").apply { mkdirs() }
-    var puppetConfiguration = loadConfiguration()
-    val activeState = MutableStateFlow(puppetConfiguration.states.find { it.name == "idle" } ?: puppetConfiguration.states.first())
+    var troupe = loadTroupe()
+    var activePuppet = troupe.puppets.find { it.name == troupe.activePuppetName }!!
+    val activeState = MutableStateFlow(activePuppet.states.find { it.name == "idle" } ?: activePuppet.states.first())
 
     var manualControlActive = false
     fun isHeadless() = obsConnectionCount > 0 && !manualControlActive
@@ -120,16 +138,17 @@ fun Application.module() {
 
         // --- Configuration API for the Client ---
 
-        get("/config") {
-            call.respond(puppetConfiguration)
+        get("/troupe") {
+            call.respond(troupe)
         }
 
-        post("/config") {
-            val newConfig = call.receive<PuppetConfiguration>()
-            puppetConfiguration = newConfig
-            saveConfiguration(puppetConfiguration)
+        post("/troupe") {
+            val newTroupe = call.receive<Troupe>()
+            troupe = newTroupe
+            saveTroupe(troupe)
+            activePuppet = troupe.puppets.find { it.name == troupe.activePuppetName }!!
             if (!isHeadless()) {
-                activeState.value = puppetConfiguration.states.find { it.name == "idle" } ?: puppetConfiguration.states.first()
+                activeState.value = activePuppet.states.find { it.name == "idle" } ?: activePuppet.states.first()
             }
             call.respond(HttpStatusCode.OK)
         }
@@ -165,7 +184,7 @@ fun Application.module() {
                     if (frame is Frame.Text) {
                         val isSpeaking = frame.readText().toBoolean()
                         val targetStateName = if (isSpeaking) "talking" else "idle"
-                        puppetConfiguration.states.find { it.name == targetStateName }?.let {
+                        activePuppet.states.find { it.name == targetStateName }?.let {
                             activeState.value = it
                         }
                     }
@@ -181,16 +200,12 @@ fun Application.module() {
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
                         val receivedImageName = frame.readText()
-                        // Find the base state this image belongs to, so we know the logical state.
-                        val baseState = puppetConfiguration.states.find { it.imageName == receivedImageName || it.blinkImageName == receivedImageName }
+                        val baseState = activePuppet.states.find { it.imageName == receivedImageName || it.blinkImageName == receivedImageName }
                         if (baseState != null) {
-                            // Update the logical active state IF it's different
                             if (activeState.value != baseState) {
                                 activeState.value = baseState
                             }
-                            // CRITICAL: Pass the client's exact image name (including blinks) to the state that OBS sees.
                             if (stateToSend.value.imageName != receivedImageName) {
-                                // Create a temporary state with the exact image name for OBS
                                 stateToSend.value = baseState.copy(imageName = receivedImageName)
                             }
                         }
@@ -198,8 +213,7 @@ fun Application.module() {
                 }
             } finally {
                 manualControlActive = false
-                // When client disconnects, revert to idle. The collector will pick this up and handle blinking if needed.
-                activeState.value = puppetConfiguration.states.find { it.name == "idle" } ?: puppetConfiguration.states.first()
+                activeState.value = activePuppet.states.find { it.name == "idle" } ?: activePuppet.states.first()
             }
         }
 

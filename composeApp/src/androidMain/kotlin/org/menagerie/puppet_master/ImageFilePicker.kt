@@ -10,17 +10,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 @Composable
-actual fun ImageFilePicker(buttonText: String, onImageSelected: (ByteArray, String) -> Unit) {
+actual fun ImageFilePicker(buttonText: String, onImagesSelected: (List<Pair<ByteArray, String>>) -> Unit) {
     val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (it.resultCode == Activity.RESULT_OK) {
-            it.data?.data?.let { uri ->
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val uris = result.data?.clipData?.let { clipData ->
+                (0 until clipData.itemCount).map { clipData.getItemAt(it).uri }
+            } ?: listOfNotNull(result.data?.data)
+
+            val images = uris.mapNotNull { uri ->
                 context.contentResolver.openInputStream(uri)?.use { inputStream ->
                     val bytes = inputStream.readBytes()
                     val fileName = uri.lastPathSegment ?: "image.png"
-                    onImageSelected(bytes, fileName)
+                    bytes to fileName
                 }
             }
+            onImagesSelected(images)
         }
     }
 
@@ -28,6 +33,7 @@ actual fun ImageFilePicker(buttonText: String, onImageSelected: (ByteArray, Stri
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "image/png"
+            putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
         }
         launcher.launch(intent)
     }) {

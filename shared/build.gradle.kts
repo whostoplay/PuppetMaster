@@ -25,6 +25,7 @@ kotlin {
         }
         androidMain.dependencies {
             implementation(libs.androidx.core)
+            implementation(libs.ktor.client.okhttp)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

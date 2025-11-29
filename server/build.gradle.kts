@@ -22,6 +22,7 @@ dependencies {
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.server.contentnegotiation)
     implementation(libs.gson)
+    implementation(libs.ktor.client.cio)
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
 }
