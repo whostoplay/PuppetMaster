@@ -27,6 +27,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.times
+import kotlin.math.pow
 
 enum class Orientation {
     Vertical,
@@ -39,11 +40,15 @@ fun VolumeIndicator(
     orientation: Orientation,
     modifier: Modifier = Modifier,
     color: Color = Color.Green,
+    sensitivity: Float = 1.0f, // New sensitivity/gain parameter
     thresholds: Map<Float, PuppetStateInfo?> = emptyMap(),
     onAddThreshold: (Float) -> Unit = {},
     onUpdateThreshold: (oldValue: Float, newValue: Float) -> Unit = { _, _ -> },
     onThresholdSelected: (Float) -> Unit = {}
 ) {
+    // Apply the sensitivity curve to the raw level
+    val boostedLevel = (level.pow(0.5f) * sensitivity).coerceIn(0f, 1f)
+
     BoxWithConstraints(
         modifier = modifier
             .border(width = 1.dp, color = Color.Gray)
@@ -70,7 +75,7 @@ fun VolumeIndicator(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .fillMaxWidth()
-                            .fillMaxHeight(level.coerceIn(0f, 1f))
+                            .fillMaxHeight(boostedLevel) // Use the boosted level
                             .background(color)
                     )
                 }
@@ -79,7 +84,7 @@ fun VolumeIndicator(
                         modifier = Modifier
                             .align(Alignment.CenterStart)
                             .fillMaxHeight()
-                            .fillMaxWidth(level.coerceIn(0f, 1f))
+                            .fillMaxWidth(boostedLevel) // Use the boosted level
                             .background(color)
                     )
                 }
@@ -88,30 +93,29 @@ fun VolumeIndicator(
 
         // Threshold markers
         thresholds.entries.forEach { (thresholdValue, stateInfo) ->
-            var currentThreshold by remember(thresholdValue) { mutableStateOf(thresholdValue) }
+            var dragPosition by remember(thresholdValue) { mutableStateOf(thresholdValue) }
 
             when (orientation) {
                 Orientation.Vertical -> {
-                    val yOffsetDp = (1f - thresholdValue) * maxHeight
+                    val yOffsetDp = (1f - dragPosition) * maxHeight
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(20.dp) // Increased touch target
                             .align(Alignment.TopStart)
                             .offset(y = yOffsetDp - 10.dp) // Center the touch target
-                            .pointerInput(currentThreshold) {
+                            .pointerInput(dragPosition) {
                                 detectTapGestures(
-                                    onTap = { onThresholdSelected(currentThreshold) }
+                                    onTap = { onThresholdSelected(dragPosition) }
                                 )
                             }
                             .draggable(
                                 orientation = androidx.compose.foundation.gestures.Orientation.Vertical,
                                 state = rememberDraggableState { delta ->
-                                    currentThreshold = (currentThreshold - delta / this@BoxWithConstraints.constraints.maxHeight).coerceIn(0f, 1f)
+                                    dragPosition = (dragPosition - delta / this@BoxWithConstraints.constraints.maxHeight).coerceIn(0f, 1f)
                                 },
                                 onDragStopped = {
-                                    // When the drag is finished, call onUpdateThreshold to persist the change
-                                    onUpdateThreshold(thresholdValue, currentThreshold)
+                                    onUpdateThreshold(thresholdValue, dragPosition)
                                 }
                             )
                     ) {
@@ -136,25 +140,25 @@ fun VolumeIndicator(
                     }
                 }
                 Orientation.Horizontal -> {
-                    val xOffsetDp = thresholdValue * maxWidth
+                    val xOffsetDp = dragPosition * maxWidth
                     Box(
                         modifier = Modifier
                             .width(20.dp) // Increased touch target
                             .fillMaxHeight()
                             .align(Alignment.TopStart)
                             .offset(x = xOffsetDp - 10.dp) // Center the touch target
-                            .pointerInput(currentThreshold) {
+                            .pointerInput(dragPosition) {
                                 detectTapGestures(
-                                    onTap = { onThresholdSelected(currentThreshold) }
+                                    onTap = { onThresholdSelected(dragPosition) }
                                 )
                             }
                             .draggable(
                                 orientation = androidx.compose.foundation.gestures.Orientation.Horizontal,
                                 state = rememberDraggableState { delta ->
-                                    currentThreshold = (currentThreshold + delta / this@BoxWithConstraints.constraints.maxWidth).coerceIn(0f, 1f)
+                                    dragPosition = (dragPosition + delta / this@BoxWithConstraints.constraints.maxWidth).coerceIn(0f, 1f)
                                 },
                                 onDragStopped = {
-                                    onUpdateThreshold(thresholdValue, currentThreshold)
+                                    onUpdateThreshold(thresholdValue, dragPosition)
                                 }
                             )
                     ) {

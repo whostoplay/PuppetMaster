@@ -17,9 +17,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import kotlin.math.pow
 import kotlin.random.Random
 
 enum class OperatingMode {
@@ -72,6 +72,7 @@ class MainViewModel(context: Any) : ViewModel() {
     private var clientControlSocketJob: Job? = null
     private var clientControlSocket: ClientWebSocketSession? = null
     private var clientBlinkingJob: Job? = null
+    private var returnToIdleJob: Job? = null
 
     init {
         smartLoad()
@@ -320,14 +321,37 @@ class MainViewModel(context: Any) : ViewModel() {
             val isControlling = _operatingMode.value == OperatingMode.OFFLINE || _isPublishing.value
 
             if (isControlling) {
-                val sortedThresholds = _thresholds.value.entries.sortedByDescending { it.key }
-                val activeStateFromThreshold = sortedThresholds.firstOrNull { level >= it.key }?.value
+                val scaledLevel = level.pow(0.5f)
+                val sortedThresholds = _thresholds.value.entries.sortedBy { it.key }
+                val activeThresholdIndex = sortedThresholds.indexOfLast { scaledLevel >= it.key }
 
-                if (activeStateFromThreshold != null) {
-                    _activeState.value = activeStateFromThreshold
+                if (activeThresholdIndex != -1) {
+                    returnToIdleJob?.cancel()
+                    var state: PuppetStateInfo? = null
+                    for (i in activeThresholdIndex downTo 0) {
+                        if (sortedThresholds[i].value != null) {
+                            state = sortedThresholds[i].value
+                            break
+                        }
+                    }
+                    if (state != null) {
+                        _activeState.value = state
+                    } else {
+                        if (_activeState.value?.name != "idle") {
+                            returnToIdleJob = viewModelScope.launch {
+                                delay(100)
+                                _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+                            }
+                        }
+                    }
                 } else {
-                    // Fallback to idle if no threshold is met
-                    _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+                    if (_activeState.value?.name != "idle") {
+                        returnToIdleJob?.cancel()
+                        returnToIdleJob = viewModelScope.launch {
+                            delay(100)
+                            _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+                        }
+                    }
                 }
             }
         }
@@ -364,7 +388,7 @@ class MainViewModel(context: Any) : ViewModel() {
     private fun startClientControl() {
         clientControlSocketJob = viewModelScope.launch {
             try {
-                client.webSocket(method = HttpMethod.Get, host = "1227.0.0.1", port = SERVER_PORT, path = "/client-control") {
+                client.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = SERVER_PORT, path = "/client-control") {
                     clientControlSocket = this
                     // Resend current state upon connection
                     _displayedImageName.value?.let {
