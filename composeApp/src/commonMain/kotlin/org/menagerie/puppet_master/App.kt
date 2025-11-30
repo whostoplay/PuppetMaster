@@ -2,6 +2,7 @@ package org.menagerie.puppet_master
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -12,12 +13,17 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -51,7 +57,9 @@ fun App() {
     val operatingMode by viewModel.operatingMode.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
+    val audioLevel by viewModel.audioLevel.collectAsState()
     val selectedState by viewModel.selectedState.collectAsState()
+    val thresholds by viewModel.thresholds.collectAsState()
 
     var selectedImage by remember { mutableStateOf<ByteArray?>(null) }
     var selectedImageName by remember { mutableStateOf("") }
@@ -65,6 +73,9 @@ fun App() {
     val isHoveringOnControls = isHoveringOn.values.any { it }
     val controlsAlpha by animateFloatAsState(if (showControls) 1f else 0f)
 
+    var showStateAssignmentDialog by remember { mutableStateOf(false) }
+    var selectedThreshold by remember { mutableStateOf<Float?>(null) }
+
     LaunchedEffect(showControls, isHoveringOnControls) {
         if (showControls && !isHoveringOnControls) {
             delay(1500)
@@ -72,6 +83,31 @@ fun App() {
                 showControls = false
             }
         }
+    }
+
+    if (showStateAssignmentDialog && selectedThreshold != null) {
+        AlertDialog(
+            onDismissRequest = { showStateAssignmentDialog = false },
+            title = { Text("Assign State to Threshold") },
+            text = {
+                LazyColumn {
+                    items(activePuppet?.states.orEmpty()) { state ->
+                        Text(
+                            text = state.name,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { viewModel.assignStateToThreshold(selectedThreshold!!, state); showStateAssignmentDialog = false }
+                                .padding(8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showStateAssignmentDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 
     MaterialTheme {
@@ -93,6 +129,24 @@ fun App() {
                             ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
+                            if (isListening) {
+                                VolumeIndicator(
+                                    level = audioLevel,
+                                    orientation = Orientation.Horizontal,
+                                    modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
+                                    thresholds = thresholds,
+                                    onAddThreshold = { newThreshold ->
+                                        viewModel.addThreshold(newThreshold)
+                                        selectedThreshold = newThreshold
+                                        showStateAssignmentDialog = true
+                                    },
+                                    onUpdateThreshold = viewModel::updateThreshold,
+                                    onThresholdSelected = { threshold ->
+                                        selectedThreshold = threshold
+                                        showStateAssignmentDialog = true
+                                    }
+                                )
+                            }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ColorPicker(onColorSelected = { backgroundColor = it }) { isHoveringOn["color"] = it }
                         }
@@ -151,6 +205,24 @@ fun App() {
                             ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
+                            if (isListening) {
+                                VolumeIndicator(
+                                    level = audioLevel,
+                                    orientation = Orientation.Vertical,
+                                    modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
+                                    thresholds = thresholds,
+                                    onAddThreshold = { newThreshold ->
+                                        viewModel.addThreshold(newThreshold)
+                                        selectedThreshold = newThreshold
+                                        showStateAssignmentDialog = true
+                                    },
+                                    onUpdateThreshold = viewModel::updateThreshold,
+                                    onThresholdSelected = { threshold ->
+                                        selectedThreshold = threshold
+                                        showStateAssignmentDialog = true
+                                    }
+                                )
+                            }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ColorPicker(onColorSelected = { backgroundColor = it }) { isHoveringOn["color"] = it }
                         }

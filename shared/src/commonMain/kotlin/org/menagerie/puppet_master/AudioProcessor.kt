@@ -7,10 +7,9 @@ expect class AudioProcessor(context: Any) {
 
     /**
      * Starts listening to the microphone.
-     * @param onVoiceActivity A callback that will be invoked with `true` when the user is speaking
-     * and `false` when they are not.
+     * @param onLevelChange A callback that will be invoked with the audio level (a value between 0.0 and 1.0).
      */
-    fun start(onVoiceActivity: (Boolean) -> Unit)
+    fun start(onLevelChange: (Float) -> Unit)
 
     /**
      * Stops listening to the microphone.

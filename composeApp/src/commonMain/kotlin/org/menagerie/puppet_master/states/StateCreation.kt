@@ -59,6 +59,14 @@ fun StateCreation(
         onHover(isHovering)
     }
 
+    LaunchedEffect(selectedImage, selectedImageName, selectedBlinkImage, selectedBlinkImageName, newStateName) {
+        localSelectedImage = selectedImage
+        localSelectedImageName = selectedImageName
+        localSelectedBlinkImage = selectedBlinkImage
+        localSelectedBlinkImageName = selectedBlinkImageName
+        localNewStateName = newStateName
+    }
+
     Column(modifier = modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Create New State", style = MaterialTheme.typography.titleMedium)
         Row(
@@ -148,18 +156,30 @@ fun StateCreation(
             }
         }
 
+        val isSaveEnabled = localSelectedImage != null && localNewStateName.isNotBlank()
+
+        if (!isSaveEnabled) {
+            val missingParts = mutableListOf<String>()
+            if (localSelectedImage == null) {
+                missingParts.add("an image")
+            }
+            if (localNewStateName.isBlank()) {
+                missingParts.add("a state name")
+            }
+            Text(
+                "Please select ${missingParts.joinToString(" and ")}.",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
         Button(
             onClick = {
-                if (localSelectedImage != null && localNewStateName.isNotBlank()) {
-                    viewModel.createNewState(localNewStateName, localSelectedImage!!, localSelectedImageName, localSelectedBlinkImage, localSelectedBlinkImageName)
-                    onStateChange(null, "", null, "", "")
-                    localSelectedImage = null
-                    localSelectedImageName = ""
-                    localSelectedBlinkImage = null
-                    localSelectedBlinkImageName = ""
-                    localNewStateName = ""
-                }
+                viewModel.createNewState(localNewStateName, localSelectedImage!!, localSelectedImageName, localSelectedBlinkImage, localSelectedBlinkImageName)
+                onStateChange(null, "", null, "", "")
             },
+            enabled = isSaveEnabled,
             modifier = Modifier.padding(top = 8.dp)
                 .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["save"] = true }
                 .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["save"] = false }

@@ -62,6 +62,12 @@ class MainViewModel(context: Any) : ViewModel() {
     private val _isListening = MutableStateFlow(false)
     val isListening: StateFlow<Boolean> = _isListening
 
+    private val _audioLevel = MutableStateFlow(0f)
+    val audioLevel: StateFlow<Float> = _audioLevel.asStateFlow()
+
+    private val _thresholds = MutableStateFlow<Map<Float, PuppetStateInfo?>>(emptyMap())
+    val thresholds: StateFlow<Map<Float, PuppetStateInfo?>> = _thresholds.asStateFlow()
+
     private var serverStateJob: Job? = null
     private var clientControlSocketJob: Job? = null
     private var clientControlSocket: ClientWebSocketSession? = null
@@ -128,8 +134,13 @@ class MainViewModel(context: Any) : ViewModel() {
         _troupe.value?.let { currentTroupe ->
             val newTroupe = currentTroupe.copy(activePuppetName = name)
             _troupe.value = newTroupe
-            _activePuppet.value = newTroupe.puppets.find { it.name == name }
-            _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+            val newActivePuppet = newTroupe.puppets.find { it.name == name }
+            _activePuppet.value = newActivePuppet
+            _activeState.value = newActivePuppet?.states?.find { it.name == "idle" }
+
+            // Load thresholds from the newly activated puppet
+            _thresholds.value = newActivePuppet?.thresholds ?: emptyMap()
+
             saveLocalTroupe(newTroupe)
         }
     }
@@ -151,6 +162,7 @@ class MainViewModel(context: Any) : ViewModel() {
         _troupe.value = newTroupe
         _activePuppet.value = newPuppet
         _activeState.value = null // A new puppet starts with no states
+        _thresholds.value = emptyMap() // Clear thresholds for new puppet
         saveLocalTroupe(newTroupe)
     }
 
@@ -176,35 +188,7 @@ class MainViewModel(context: Any) : ViewModel() {
     }
 
     fun updateBlinkRate(state: PuppetStateInfo, blinkRate: LongRange) {
-        _activePuppet.value?.let { puppet ->
-            val newStates = puppet.states.orEmpty().map {
-                if (it.name == state.name) {
-                    it.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last)
-                } else {
-                    it
-                }
-            }
-            val newPuppet = puppet.copy(states = newStates)
-            _troupe.value?.let { troupe ->
-                val newPuppets = troupe.puppets.map {
-                    if (it.name == newPuppet.name) {
-                        newPuppet
-                    } else {
-                        it
-                    }
-                }
-                val newTroupe = troupe.copy(puppets = newPuppets)
-                _troupe.value = newTroupe
-                _activePuppet.value = newPuppet
-                _selectedState.value = newPuppet.states.find { it.name == state.name }
-
-                if (_activeState.value?.name == state.name) {
-                    _activeState.value = newPuppet.states.find { it.name == state.name }
-                }
-
-                saveLocalTroupe(newTroupe)
-            }
-        }
+        updatePuppetState(state.name) { it.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last) }
     }
 
     private fun smartLoad() {
@@ -212,16 +196,20 @@ class MainViewModel(context: Any) : ViewModel() {
             val localTroupe = loadLocalTroupe()
             if (localTroupe != null) {
                 _troupe.value = localTroupe
-                _activePuppet.value = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
-                _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+                val activePuppet = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
+                _activePuppet.value = activePuppet
+                _activeState.value = activePuppet?.states?.find { it.name == "idle" }
+                _thresholds.value = activePuppet?.thresholds ?: emptyMap()
             }
 
             try {
                 val serverTroupe = client.get("http://127.0.0.1:$SERVER_PORT/troupe").body<Troupe>()
                 if (localTroupe == null || serverTroupe.puppets.any { sp -> localTroupe.puppets.find { lp -> lp.name == sp.name }?.lastUpdated ?: 0 < sp.lastUpdated }) {
                     _troupe.value = serverTroupe
-                    _activePuppet.value = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
-                    _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+                    val activePuppet = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
+                    _activePuppet.value = activePuppet
+                    _activeState.value = activePuppet?.states?.find { it.name == "idle" }
+                    _thresholds.value = activePuppet?.thresholds ?: emptyMap()
                     saveLocalTroupe(serverTroupe)
                 }
             } catch (e: Exception) {
@@ -261,17 +249,7 @@ class MainViewModel(context: Any) : ViewModel() {
 
             _activePuppet.value?.let { currentPuppet ->
                 val newStates = currentPuppet.states.orEmpty() + newState
-                val updatedPuppet = currentPuppet.copy(states = newStates, lastUpdated = System.currentTimeMillis())
-                _troupe.value?.let { currentTroupe ->
-                    val newPuppets = currentTroupe.puppets.filter { it.name != currentPuppet.name } + updatedPuppet
-                    val newTroupe = currentTroupe.copy(puppets = newPuppets)
-                    _troupe.value = newTroupe
-                    _activePuppet.value = updatedPuppet
-                    saveLocalTroupe(newTroupe)
-                    if (_activeState.value == null) {
-                        _activeState.value = newState
-                    }
-                }
+                updatePuppet(currentPuppet.name) { it.copy(states = newStates, lastUpdated = System.currentTimeMillis()) }
             }
         }
     }
@@ -285,20 +263,79 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
+    fun addThreshold(value: Float) {
+        val newThresholds = _thresholds.value.toMutableMap()
+        newThresholds[value] = null
+        _thresholds.value = newThresholds
+        persistThresholds()
+    }
+
+    fun updateThreshold(oldValue: Float, newValue: Float) {
+        val newThresholds = _thresholds.value.toMutableMap()
+        val state = newThresholds.remove(oldValue)
+        newThresholds[newValue] = state
+        _thresholds.value = newThresholds
+        persistThresholds()
+    }
+
+    fun assignStateToThreshold(value: Float, state: PuppetStateInfo) {
+        val newThresholds = _thresholds.value.toMutableMap()
+        newThresholds[value] = state
+        _thresholds.value = newThresholds
+        persistThresholds()
+    }
+
+    private fun persistThresholds() {
+        _activePuppet.value?.let { puppet ->
+            val thresholdsToSave = _thresholds.value.filterValues { it != null }.mapValues { it.value!! }
+            updatePuppet(puppet.name) { it.copy(thresholds = thresholdsToSave, lastUpdated = System.currentTimeMillis()) }
+        }
+    }
+
+    private fun updatePuppet(puppetName: String, update: (Puppet) -> Puppet) {
+        _troupe.value?.let { troupe ->
+            val newPuppets = troupe.puppets.map {
+                if (it.name == puppetName) update(it) else it
+            }
+            val newTroupe = troupe.copy(puppets = newPuppets)
+            _troupe.value = newTroupe
+            _activePuppet.value = newPuppets.find { it.name == puppetName }
+            saveLocalTroupe(newTroupe)
+        }
+    }
+
+    private fun updatePuppetState(stateName: String, update: (PuppetStateInfo) -> PuppetStateInfo) {
+        _activePuppet.value?.let { puppet ->
+            val newStates = puppet.states.map {
+                if (it.name == stateName) update(it) else it
+            }
+            updatePuppet(puppet.name) { it.copy(states = newStates) }
+        }
+    }
+
     private fun startListening() {
         _isListening.value = true
-        audioProcessor.start { isSpeaking ->
+        audioProcessor.start { level ->
+            _audioLevel.value = level
             val isControlling = _operatingMode.value == OperatingMode.OFFLINE || _isPublishing.value
 
             if (isControlling) {
-                val targetStateName = if (isSpeaking) "talking" else "idle"
-                _activeState.value = _activePuppet.value?.states?.find { it.name == targetStateName }
+                val sortedThresholds = _thresholds.value.entries.sortedByDescending { it.key }
+                val activeStateFromThreshold = sortedThresholds.firstOrNull { level >= it.key }?.value
+
+                if (activeStateFromThreshold != null) {
+                    _activeState.value = activeStateFromThreshold
+                } else {
+                    // Fallback to idle if no threshold is met
+                    _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+                }
             }
         }
     }
 
     private fun stopListening() {
         _isListening.value = false
+        _audioLevel.value = 0f
         audioProcessor.stop()
     }
 

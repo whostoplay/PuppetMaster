@@ -18,7 +18,7 @@ actual class AudioProcessor actual constructor(private val context: Any) {
     private var audioJob: Job? = null
 
     @SuppressLint("MissingPermission")
-    actual fun start(onVoiceActivity: (Boolean) -> Unit) {
+    actual fun start(onLevelChange: (Float) -> Unit) {
         val androidContext = context as Context
         if (ActivityCompat.checkSelfPermission(androidContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             println("RECORD_AUDIO permission not granted.")
@@ -31,12 +31,11 @@ actual class AudioProcessor actual constructor(private val context: Any) {
                 val channelConfig = AudioFormat.CHANNEL_IN_MONO
                 val audioFormat = AudioFormat.ENCODING_PCM_16BIT
                 val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
-                
+
                 val audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, minBufferSize)
                 audioRecord.startRecording()
 
                 val buffer = ShortArray(minBufferSize)
-                var isSpeaking = false
 
                 while (true) {
                     val readSize = audioRecord.read(buffer, 0, buffer.size)
@@ -46,13 +45,11 @@ actual class AudioProcessor actual constructor(private val context: Any) {
                             sum += buffer[i] * buffer[i]
                         }
                         val rms = sqrt(sum / readSize)
-                        
-                        val currentlySpeaking = rms > 300 // Basic threshold
 
-                        if (currentlySpeaking != isSpeaking) {
-                            isSpeaking = currentlySpeaking
-                            onVoiceActivity(isSpeaking)
-                        }
+                        // Normalize the RMS value to a float between 0.0 and 1.0.
+                        // The max RMS value is 32767 for 16-bit PCM audio.
+                        val level = (rms / 32767.0).toFloat()
+                        onLevelChange(level)
                     }
                 }
             } catch (e: Exception) {
