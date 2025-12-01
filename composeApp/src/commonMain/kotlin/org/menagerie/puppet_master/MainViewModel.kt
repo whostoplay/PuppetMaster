@@ -235,13 +235,21 @@ class MainViewModel(context: Any) : ViewModel() {
 
     fun createNewState(stateName: String, imageBytes: ByteArray, localImageName: String, blinkImageBytes: ByteArray?, localBlinkImageName: String?) {
         viewModelScope.launch {
-            val serverImageName = uploader.upload(imageBytes, localImageName)
+            val serverImageName = if (_operatingMode.value == OperatingMode.ONLINE) {
+                uploader.upload(imageBytes, localImageName)
+            } else {
+                localImageName
+            }
             val localFile = File(uploadsDir, serverImageName)
             localFile.writeBytes(imageBytes)
 
             var serverBlinkImageName: String? = null
             if (blinkImageBytes != null && localBlinkImageName != null) {
-                serverBlinkImageName = uploader.upload(blinkImageBytes, localBlinkImageName)
+                serverBlinkImageName = if (_operatingMode.value == OperatingMode.ONLINE) {
+                    uploader.upload(blinkImageBytes, localBlinkImageName)
+                } else {
+                    localBlinkImageName
+                }
                 val localBlinkFile = File(uploadsDir, serverBlinkImageName)
                 localBlinkFile.writeBytes(blinkImageBytes)
             }
@@ -249,7 +257,8 @@ class MainViewModel(context: Any) : ViewModel() {
             val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
 
             _activePuppet.value?.let { currentPuppet ->
-                val newStates = currentPuppet.states.orEmpty() + newState
+                val otherStates = currentPuppet.states.orEmpty().filter { it.name != stateName }
+                val newStates = otherStates + newState
                 updatePuppet(currentPuppet.name) { it.copy(states = newStates, lastUpdated = System.currentTimeMillis()) }
             }
         }
