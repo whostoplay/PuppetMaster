@@ -26,7 +26,37 @@ data class UiState(
     val backgroundColor: Color = Color.Green,
     val showStateAssignmentDialog: Boolean = false,
     val selectedThreshold: Float? = null
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as UiState
+
+        if (showStateAssignmentDialog != other.showStateAssignmentDialog) return false
+        if (selectedThreshold != other.selectedThreshold) return false
+        if (!selectedImage.contentEquals(other.selectedImage)) return false
+        if (selectedImageName != other.selectedImageName) return false
+        if (!selectedBlinkImage.contentEquals(other.selectedBlinkImage)) return false
+        if (selectedBlinkImageName != other.selectedBlinkImageName) return false
+        if (newStateName != other.newStateName) return false
+        if (backgroundColor != other.backgroundColor) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = showStateAssignmentDialog.hashCode()
+        result = 31 * result + (selectedThreshold?.hashCode() ?: 0)
+        result = 31 * result + (selectedImage?.contentHashCode() ?: 0)
+        result = 31 * result + selectedImageName.hashCode()
+        result = 31 * result + (selectedBlinkImage?.contentHashCode() ?: 0)
+        result = 31 * result + selectedBlinkImageName.hashCode()
+        result = 31 * result + newStateName.hashCode()
+        result = 31 * result + backgroundColor.hashCode()
+        return result
+    }
+}
 
 class MainViewModel(context: Any) : ViewModel() {
 

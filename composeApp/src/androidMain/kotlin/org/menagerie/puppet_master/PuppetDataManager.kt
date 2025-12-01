@@ -1,13 +1,15 @@
 package org.menagerie.puppet_master
 
-import android.content.Context
 import com.google.gson.Gson
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.request.*
-import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -129,7 +131,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
 
             _activePuppet.value?.let { currentPuppet ->
-                val otherStates = currentPuppet.states.orEmpty().filter { it.name != stateName }
+                val otherStates = currentPuppet.states.filter { it.name != stateName }
                 val newStates = otherStates + newState
                 updatePuppet(currentPuppet.name) { it.copy(states = newStates, lastUpdated = System.currentTimeMillis()) }
             }

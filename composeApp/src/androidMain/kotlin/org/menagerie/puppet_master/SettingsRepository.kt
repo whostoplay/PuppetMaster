@@ -2,6 +2,7 @@ package org.menagerie.puppet_master
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.core.content.edit
 
 /**
  * An Android-specific implementation of the [SettingsRepository] that uses [SharedPreferences] for storage.
@@ -13,7 +14,7 @@ actual class SettingsRepository actual constructor(context: Any) {
      * Saves the server IP address to [SharedPreferences].
      */
     actual fun saveIp(ip: String) {
-        prefs.edit().putString("server_ip", ip).apply()
+        prefs.edit { putString("server_ip", ip) }
     }
 
     /**

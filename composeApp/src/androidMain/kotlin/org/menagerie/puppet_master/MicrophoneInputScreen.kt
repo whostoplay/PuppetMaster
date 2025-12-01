@@ -10,6 +10,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -22,7 +23,7 @@ import androidx.compose.ui.unit.dp
 fun MicrophoneInputScreen() {
     val context = LocalContext.current
     val audioProcessor = remember { AudioProcessor(context) }
-    var audioLevel by remember { mutableStateOf(0f) }
+    var audioLevel by remember { mutableFloatStateOf(0f) }
     var isRecording by remember { mutableStateOf(false) }
 
     Column(
