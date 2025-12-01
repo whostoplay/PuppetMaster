@@ -12,24 +12,32 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import org.menagerie.puppet_master.Puppet
+import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetStateInfo
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun StateListing(
     modifier: Modifier,
-    activePuppet: Puppet?,
+    activePuppet: PuppetCharacter?,
     selectedState: PuppetStateInfo?,
     onStateSelected: (PuppetStateInfo) -> Unit,
     onHover: (Boolean) -> Unit
 ) {
     LazyColumn(
         modifier = modifier.padding(8.dp)
-            .onPointerEvent(PointerEventType.Enter) { onHover(true) }
-            .onPointerEvent(PointerEventType.Exit) { onHover(false) }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        when (awaitPointerEvent().type) {
+                            PointerEventType.Enter -> onHover(true)
+                            PointerEventType.Exit -> onHover(false)
+                        }
+                    }
+                }
+            }
     ) {
         item { Text("Puppet States", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp)) }
         activePuppet?.states?.let {

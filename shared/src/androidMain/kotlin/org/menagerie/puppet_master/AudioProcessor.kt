@@ -11,7 +11,6 @@ import androidx.core.app.ActivityCompat
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlin.math.sqrt
 
 actual class AudioProcessor actual constructor(private val context: Any) {
 
@@ -40,15 +39,7 @@ actual class AudioProcessor actual constructor(private val context: Any) {
                 while (true) {
                     val readSize = audioRecord.read(buffer, 0, buffer.size)
                     if (readSize > 0) {
-                        var sum = 0.0
-                        for (i in 0 until readSize) {
-                            sum += buffer[i] * buffer[i]
-                        }
-                        val rms = sqrt(sum / readSize)
-
-                        // Normalize the RMS value to a float between 0.0 and 1.0.
-                        // The max RMS value is 32767 for 16-bit PCM audio.
-                        val level = (rms / 32767.0).toFloat()
+                        val level = calculateAudioLevel(buffer, readSize)
                         onLevelChange(level)
                     }
                 }

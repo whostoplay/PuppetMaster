@@ -15,10 +15,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.PuppetStateInfo
 
+/**
+ * A composable that provides a UI for editing the properties of a puppet state.
+ *
+ * @param modifier The modifier to be applied to the composable.
+ * @param selectedState The currently selected puppet state.
+ * @param onBlinkRateChanged A callback that is invoked when the blink rate is changed.
+ * @param onHover A callback that is invoked when the user hovers over the composable.
+ */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun StateEditor(
@@ -45,16 +53,32 @@ fun StateEditor(
         Text(
             text = "Edit State: ${selectedState?.name ?: ""}",
             modifier = Modifier
-                .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["title"] = true }
-                .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["title"] = false }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            when (awaitPointerEvent().type) {
+                                PointerEventType.Enter -> isHoveringOnItems["title"] = true
+                                PointerEventType.Exit -> isHoveringOnItems["title"] = false
+                            }
+                        }
+                    }
+                }
         )
         selectedState?.let {
             if (it.blinkImageName != null) {
                 Text(
                     text = "Blink Rate Range: ${blinkRateRange.start.toLong()} - ${blinkRateRange.endInclusive.toLong()} ms",
                     modifier = Modifier
-                        .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["rangeLabel"] = true }
-                        .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["rangeLabel"] = false }
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    when (awaitPointerEvent().type) {
+                                        PointerEventType.Enter -> isHoveringOnItems["rangeLabel"] = true
+                                        PointerEventType.Exit -> isHoveringOnItems["rangeLabel"] = false
+                                    }
+                                }
+                            }
+                        }
                 )
                 RangeSlider(
                     value = blinkRateRange,
@@ -62,8 +86,16 @@ fun StateEditor(
                     onValueChangeFinished = { onBlinkRateChanged(blinkRateRange.start.toLong()..blinkRateRange.endInclusive.toLong()) },
                     valueRange = sliderValueRange,
                     modifier = Modifier
-                        .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["slider"] = true }
-                        .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["slider"] = false }
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    when (awaitPointerEvent().type) {
+                                        PointerEventType.Enter -> isHoveringOnItems["slider"] = true
+                                        PointerEventType.Exit -> isHoveringOnItems["slider"] = false
+                                    }
+                                }
+                            }
+                        }
                 )
             }
         }

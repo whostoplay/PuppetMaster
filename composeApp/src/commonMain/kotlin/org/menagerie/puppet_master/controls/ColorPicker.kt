@@ -18,39 +18,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import org.menagerie.puppet_master.toImageBitmap
-import java.awt.image.BufferedImage
-import java.io.ByteArrayOutputStream
-import javax.imageio.ImageIO
+import org.menagerie.puppet_master.rememberColorMapBitmap
 
-@Composable
-private fun rememberColorMapBitmap(width: Int, height: Int): ImageBitmap {
-    val byteArray = remember(width, height) {
-        val buffer = IntArray(width * height)
-        for (y in 0 until height) {
-            for (x in 0 until width) {
-                val hue = (x.toFloat() / width) * 360f
-                val saturation = 1f - (y.toFloat() / height)
-                buffer[y * width + x] = Color.hsv(hue, saturation, 1f).toArgb()
-            }
-        }
-
-        val bufferedImage = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
-        bufferedImage.setRGB(0, 0, width, height, buffer, 0, width)
-
-        val outputStream = ByteArrayOutputStream()
-        ImageIO.write(bufferedImage, "png", outputStream)
-        outputStream.toByteArray()
-    }
-    return byteArray.toImageBitmap()
-}
-
+/**
+ * A composable that allows the user to pick a color from a color map.
+ *
+ * @param onColorSelected A callback that is invoked when a color is selected.
+ * @param onHover A callback that is invoked when the user hovers over the color picker.
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ColorPicker(
@@ -69,8 +47,16 @@ fun ColorPicker(
         Button(
             onClick = { showColors = !showColors },
             modifier = Modifier
-                .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["colorPickerButton"] = true }
-                .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["colorPickerButton"] = false }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            when (awaitPointerEvent().type) {
+                                PointerEventType.Enter -> isHoveringOnItems["colorPickerButton"] = true
+                                PointerEventType.Exit -> isHoveringOnItems["colorPickerButton"] = false
+                            }
+                        }
+                    }
+                }
         ) {
             Text("BG Color")
         }
@@ -95,8 +81,16 @@ fun ColorPicker(
                             showColors = false
                         }
                     }
-                    .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["colorMap"] = true }
-                    .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["colorMap"] = false }
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                when (awaitPointerEvent().type) {
+                                    PointerEventType.Enter -> isHoveringOnItems["colorMap"] = true
+                                    PointerEventType.Exit -> isHoveringOnItems["colorMap"] = false
+                                }
+                            }
+                        }
+                    }
             )
         }
     }

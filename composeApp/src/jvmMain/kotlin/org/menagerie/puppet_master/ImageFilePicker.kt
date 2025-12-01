@@ -6,6 +6,12 @@ import androidx.compose.runtime.Composable
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
+/**
+ * A composable that allows the user to select one or more images from their device.
+ *
+ * @param buttonText The text to display on the button.
+ * @param onImagesSelected A callback that is invoked when the user has selected images. The callback receives a list of pairs, where each pair contains the image data as a byte array and the name of the image file.
+ */
 @Composable
 actual fun ImageFilePicker(buttonText: String, onImagesSelected: (List<Pair<ByteArray, String>>) -> Unit) {
     Button(onClick = { 

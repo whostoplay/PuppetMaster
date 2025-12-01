@@ -3,6 +3,7 @@ package org.menagerie.puppet_master
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,6 +18,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -24,15 +27,17 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -60,34 +65,29 @@ fun App() {
     val audioLevel by viewModel.audioLevel.collectAsState()
     val selectedState by viewModel.selectedState.collectAsState()
     val thresholds by viewModel.thresholds.collectAsState()
+    val uiState by viewModel.uiState.collectAsState()
+    val serverIpAddress by viewModel.serverIpAddress.collectAsState()
+    val focusManager = LocalFocusManager.current
 
-    var selectedImage by remember { mutableStateOf<ByteArray?>(null) }
-    var selectedImageName by remember { mutableStateOf("") }
-    var selectedBlinkImage by remember { mutableStateOf<ByteArray?>(null) }
-    var selectedBlinkImageName by remember { mutableStateOf("") }
-    var newStateName by remember { mutableStateOf("") }
-    var backgroundColor by remember { mutableStateOf(Color.Green) }
-
-    var showControls by remember { mutableStateOf(true) }
+    val isDesktop = isDesktop()
+    var showControls by remember { mutableStateOf(isDesktop) }
+    var controlsLocked by remember { mutableStateOf(!isDesktop) }
     val isHoveringOn = remember { mutableStateMapOf<String, Boolean>() }
     val isHoveringOnControls = isHoveringOn.values.any { it }
-    val controlsAlpha by animateFloatAsState(if (showControls) 1f else 0f)
+    val controlsAlpha by animateFloatAsState(if (showControls || controlsLocked) 1f else 0f)
 
-    var showStateAssignmentDialog by remember { mutableStateOf(false) }
-    var selectedThreshold by remember { mutableStateOf<Float?>(null) }
-
-    LaunchedEffect(showControls, isHoveringOnControls) {
-        if (showControls && !isHoveringOnControls) {
+    LaunchedEffect(showControls, isHoveringOnControls, controlsLocked) {
+        if (showControls && !isHoveringOnControls && !controlsLocked) {
             delay(1500)
-            if (!isHoveringOnControls) {
+            if (!isHoveringOnControls && !controlsLocked) {
                 showControls = false
             }
         }
     }
 
-    if (showStateAssignmentDialog && selectedThreshold != null) {
+    if (uiState.showStateAssignmentDialog && uiState.selectedThreshold != null) {
         AlertDialog(
-            onDismissRequest = { showStateAssignmentDialog = false },
+            onDismissRequest = { viewModel.hideStateAssignmentDialog() },
             title = { Text("Assign State to Threshold") },
             text = {
                 LazyColumn {
@@ -96,14 +96,14 @@ fun App() {
                             text = state.name,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.assignStateToThreshold(selectedThreshold!!, state); showStateAssignmentDialog = false }
+                                .clickable { viewModel.assignStateToThreshold(uiState.selectedThreshold!!, state) }
                                 .padding(8.dp)
                         )
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showStateAssignmentDialog = false }) {
+                TextButton(onClick = { viewModel.hideStateAssignmentDialog() }) {
                     Text("Cancel")
                 }
             }
@@ -111,22 +111,53 @@ fun App() {
     }
 
     MaterialTheme {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize().onPointerEvent(PointerEventType.Move) { showControls = true }) {
+        @OptIn(ExperimentalComposeUiApi::class)
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = { controlsLocked = !controlsLocked },
+                        onTap = { showControls = true } // Always show on single tap
+                    )
+                }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            if (event.type == PointerEventType.Move) {
+                                showControls = true
+                            }
+                        }
+                    }
+                }
+        ) {
             val isLandscape = maxWidth > maxHeight
+            val panelWeight = if (isDesktop) 0.25f else 1 / 3f
 
-            LivePreview(operatingMode, displayedImageName, viewModel.uploadsDir, backgroundColor)
+            LivePreview(operatingMode, displayedImageName, viewModel.uploadsDir, uiState.backgroundColor, serverIpAddress)
 
             Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {
                 if (isLandscape) {
                     Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(
-                            modifier = Modifier.fillMaxHeight().weight(0.25f)
+                            modifier = Modifier.fillMaxHeight().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
                                 .verticalScroll(rememberScrollState())
                         ) {
                             PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet) { isHoveringOn["puppet"] = it }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            TextField(
+                                value = serverIpAddress,
+                                onValueChange = viewModel::onServerIpAddressChanged,
+                                label = { Text("Server IP Address") },
+                                singleLine = true,
+                                enabled = operatingMode == OperatingMode.OFFLINE,
+                                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                                modifier = Modifier.fillMaxWidth().padding(8.dp)
+                            )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
                             if (isListening) {
@@ -137,42 +168,33 @@ fun App() {
                                     thresholds = thresholds,
                                     onAddThreshold = { newThreshold ->
                                         viewModel.addThreshold(newThreshold)
-                                        selectedThreshold = newThreshold
-                                        showStateAssignmentDialog = true
+                                        viewModel.showStateAssignmentDialog(newThreshold)
                                     },
                                     onUpdateThreshold = viewModel::updateThreshold,
-                                    onThresholdSelected = { threshold ->
-                                        selectedThreshold = threshold
-                                        showStateAssignmentDialog = true
-                                    }
+                                    onThresholdSelected = { threshold -> viewModel.showStateAssignmentDialog(threshold) }
                                 )
                             }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ColorPicker(onColorSelected = { backgroundColor = it }) { isHoveringOn["color"] = it }
+                            ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) }) { isHoveringOn["color"] = it }
                         }
 
-                        Spacer(modifier = Modifier.fillMaxHeight().weight(0.5f))
+                        Spacer(modifier = Modifier.fillMaxHeight().weight(1f - (2 * panelWeight)))
 
                         Column(
-                            modifier = Modifier.fillMaxHeight().weight(0.25f)
+                            modifier = Modifier.fillMaxHeight().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                                .verticalScroll(rememberScrollState())
                         ) {
                             if (activePuppet != null) {
                                 StateCreation(
                                     modifier = Modifier.fillMaxWidth(),
                                     viewModel = viewModel,
-                                    selectedImage = selectedImage,
-                                    selectedImageName = selectedImageName,
-                                    selectedBlinkImage = selectedBlinkImage,
-                                    selectedBlinkImageName = selectedBlinkImageName,
-                                    newStateName = newStateName,
-                                    onStateChange = { si, sin, sbi, sbin, nsn ->
-                                        selectedImage = si
-                                        selectedImageName = sin
-                                        selectedBlinkImage = sbi
-                                        selectedBlinkImageName = sbin
-                                        newStateName = nsn
-                                    },
+                                    selectedImage = uiState.selectedImage,
+                                    selectedImageName = uiState.selectedImageName,
+                                    selectedBlinkImage = uiState.selectedBlinkImage,
+                                    selectedBlinkImageName = uiState.selectedBlinkImageName,
+                                    newStateName = uiState.newStateName,
+                                    onStateChange = viewModel::onStateCreationChange,
                                     onHover = { isHoveringOn["stateCreation"] = it }
                                 )
                                 HorizontalDivider()
@@ -193,16 +215,27 @@ fun App() {
                             }
                         }
                     }
-                } else {
+                } else { // Portrait
                     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
                         Column(
-                            modifier = Modifier.fillMaxWidth().weight(0.25f)
+                            modifier = Modifier.fillMaxWidth().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
                                 .verticalScroll(rememberScrollState())
                         ) {
                             PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet) { isHoveringOn["puppet"] = it }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            TextField(
+                                value = serverIpAddress,
+                                onValueChange = viewModel::onServerIpAddressChanged,
+                                label = { Text("Server IP Address") },
+                                singleLine = true,
+                                enabled = operatingMode == OperatingMode.OFFLINE,
+                                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                                modifier = Modifier.fillMaxWidth().padding(8.dp)
+                            )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
                             if (isListening) {
@@ -213,42 +246,33 @@ fun App() {
                                     thresholds = thresholds,
                                     onAddThreshold = { newThreshold ->
                                         viewModel.addThreshold(newThreshold)
-                                        selectedThreshold = newThreshold
-                                        showStateAssignmentDialog = true
+                                        viewModel.showStateAssignmentDialog(newThreshold)
                                     },
                                     onUpdateThreshold = viewModel::updateThreshold,
-                                    onThresholdSelected = { threshold ->
-                                        selectedThreshold = threshold
-                                        showStateAssignmentDialog = true
-                                    }
+                                    onThresholdSelected = { threshold -> viewModel.showStateAssignmentDialog(threshold) }
                                 )
                             }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ColorPicker(onColorSelected = { backgroundColor = it }) { isHoveringOn["color"] = it }
+                            ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) }) { isHoveringOn["color"] = it }
                         }
 
-                        Spacer(modifier = Modifier.fillMaxWidth().weight(0.5f))
+                        Spacer(modifier = Modifier.fillMaxWidth().weight(1f - (2 * panelWeight)))
 
                         Column(
-                            modifier = Modifier.fillMaxWidth().weight(0.25f)
+                            modifier = Modifier.fillMaxWidth().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                                .verticalScroll(rememberScrollState())
                         ) {
                             if (activePuppet != null) {
                                 StateCreation(
                                     modifier = Modifier.fillMaxWidth(),
                                     viewModel = viewModel,
-                                    selectedImage = selectedImage,
-                                    selectedImageName = selectedImageName,
-                                    selectedBlinkImage = selectedBlinkImage,
-                                    selectedBlinkImageName = selectedBlinkImageName,
-                                    newStateName = newStateName,
-                                    onStateChange = { si, sin, sbi, sbin, nsn ->
-                                        selectedImage = si
-                                        selectedImageName = sin
-                                        selectedBlinkImage = sbi
-                                        selectedBlinkImageName = sbin
-                                        newStateName = nsn
-                                    },
+                                    selectedImage = uiState.selectedImage,
+                                    selectedImageName = uiState.selectedImageName,
+                                    selectedBlinkImage = uiState.selectedBlinkImage,
+                                    selectedBlinkImageName = uiState.selectedBlinkImageName,
+                                    newStateName = uiState.newStateName,
+                                    onStateChange = viewModel::onStateCreationChange,
                                     onHover = { isHoveringOn["stateCreation"] = it }
                                 )
                                 HorizontalDivider()

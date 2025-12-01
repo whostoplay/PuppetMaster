@@ -7,7 +7,6 @@ import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.DataLine
 import javax.sound.sampled.TargetDataLine
-import kotlin.math.sqrt
 
 actual class AudioProcessor actual constructor(context: Any) {
 
@@ -27,16 +26,11 @@ actual class AudioProcessor actual constructor(context: Any) {
                 while (true) {
                     val bytesRead = line.read(buffer, 0, buffer.size)
                     if (bytesRead > 0) {
-                        var sum = 0.0
+                        val shortBuffer = ShortArray(bytesRead / 2)
                         for (i in 0 until bytesRead step 2) {
-                            val sample = ((buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xFF)).toShort()
-                            sum += sample * sample
+                            shortBuffer[i / 2] = ((buffer[i + 1].toInt() shl 8) or (buffer[i].toInt() and 0xFF)).toShort()
                         }
-                        val rms = sqrt(sum / (bytesRead / 2))
-
-                        // Normalize the RMS value to a float between 0.0 and 1.0.
-                        // The max RMS value is 32767 for 16-bit PCM audio.
-                        val level = (rms / 32767.0).toFloat()
+                        val level = calculateAudioLevel(shortBuffer, shortBuffer.size)
                         onLevelChange(level)
                     }
                 }

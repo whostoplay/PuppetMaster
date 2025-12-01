@@ -1,181 +1,143 @@
 package org.menagerie.puppet_master
 
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.gson.Gson
 import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
-import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.Json
-import java.io.File
-import kotlin.math.pow
-import kotlin.random.Random
 
 enum class OperatingMode {
     ONLINE, OFFLINE
 }
 
+data class UiState(
+    val selectedImage: ByteArray? = null,
+    val selectedImageName: String = "",
+    val selectedBlinkImage: ByteArray? = null,
+    val selectedBlinkImageName: String = "",
+    val newStateName: String = "",
+    val backgroundColor: Color = Color.Green,
+    val showStateAssignmentDialog: Boolean = false,
+    val selectedThreshold: Float? = null
+)
+
 class MainViewModel(context: Any) : ViewModel() {
 
-    val uploadsDir = getUploadsDir(context)
-    private val uploader = Uploader()
-    private val audioProcessor = AudioProcessor(context)
-    private val client = HttpClient {
-        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(WebSockets)
-    }
-    private val gson = Gson()
-    private val localTroupeFile = File(uploadsDir, "local_troupe.json")
+    private val dataManager = PuppetDataManager(viewModelScope, context)
+    val uploadsDir = dataManager.uploadsDir
+    private val stateController = PuppetStateController(viewModelScope, dataManager, AudioProcessor(context))
+    private val settingsRepository = SettingsRepository(context)
 
-    private val _troupe = MutableStateFlow<Troupe?>(null)
-    val troupe: StateFlow<Troupe?> = _troupe
-
-    private val _activePuppet = MutableStateFlow<Puppet?>(null)
-    val activePuppet: StateFlow<Puppet?> = _activePuppet
-
-    private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
-    val activeState: StateFlow<PuppetStateInfo?> = _activeState
+    val troupe: StateFlow<PuppetTroupe?> = dataManager.troupe
+    val activePuppet: StateFlow<PuppetCharacter?> = dataManager.activePuppet
+    val activeState: StateFlow<PuppetStateInfo?> = stateController.activeState
+    val displayedImageName: StateFlow<String?> = stateController.displayedImageName
+    val isListening: StateFlow<Boolean> = stateController.isListening
+    val audioLevel: StateFlow<Float> = stateController.audioLevel
 
     private val _selectedState = MutableStateFlow<PuppetStateInfo?>(null)
-    val selectedState: StateFlow<PuppetStateInfo?> = _selectedState
+    val selectedState: StateFlow<PuppetStateInfo?> = _selectedState.asStateFlow()
 
-    private val _displayedImageName = MutableStateFlow<String?>(null)
-    val displayedImageName: StateFlow<String?> = _displayedImageName
+    private val _serverIpAddress = MutableStateFlow(DEFAULT_SERVER_HOST)
+    val serverIpAddress: StateFlow<String> = _serverIpAddress.asStateFlow()
 
     private val _isPublishing = MutableStateFlow(false)
-    val isPublishing: StateFlow<Boolean> = _isPublishing
+    val isPublishing: StateFlow<Boolean> = _isPublishing.asStateFlow()
 
     private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
-    val operatingMode: StateFlow<OperatingMode> = _operatingMode
-
-    private val _isListening = MutableStateFlow(false)
-    val isListening: StateFlow<Boolean> = _isListening
-
-    private val _audioLevel = MutableStateFlow(0f)
-    val audioLevel: StateFlow<Float> = _audioLevel.asStateFlow()
-
+    val operatingMode: StateFlow<OperatingMode> = _operatingMode.asStateFlow()
+    
     private val _thresholds = MutableStateFlow<Map<Float, PuppetStateInfo?>>(emptyMap())
     val thresholds: StateFlow<Map<Float, PuppetStateInfo?>> = _thresholds.asStateFlow()
+    
+    private val _uiState = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
+    private val client = HttpClient { install(WebSockets) }
     private var serverStateJob: Job? = null
     private var clientControlSocketJob: Job? = null
     private var clientControlSocket: ClientWebSocketSession? = null
-    private var clientBlinkingJob: Job? = null
-    private var returnToIdleJob: Job? = null
 
     init {
-        smartLoad()
-
+        _serverIpAddress.value = settingsRepository.loadIp()
         viewModelScope.launch {
-            displayedImageName.collect { imageName ->
-                if (_isPublishing.value && clientControlSocket != null && imageName != null) {
-                    try {
-                        clientControlSocket?.send(imageName)
-                    } catch (e: Exception) {
-                        println("Failed to publish state: ${e.message}")
-                    }
-                }
+            activePuppet.collect {
+                _thresholds.value = it?.thresholds ?: emptyMap()
             }
         }
+    }
 
-        viewModelScope.launch {
-            activeState.collect { state ->
-                clientBlinkingJob?.cancel()
-                _displayedImageName.value = state?.imageName
+    fun onStateCreationChange(image: ByteArray?, imageName: String, blinkImage: ByteArray?, blinkImageName: String, stateName: String) {
+        _uiState.value = _uiState.value.copy(
+            selectedImage = image,
+            selectedImageName = imageName,
+            selectedBlinkImage = blinkImage,
+            selectedBlinkImageName = blinkImageName,
+            newStateName = stateName
+        )
+    }
+    
+    fun setBackgroundColor(color: Color) {
+        _uiState.value = _uiState.value.copy(backgroundColor = color)
+    }
+    
+    fun showStateAssignmentDialog(threshold: Float) {
+        _uiState.value = _uiState.value.copy(showStateAssignmentDialog = true, selectedThreshold = threshold)
+    }
 
-                if (state?.blinkImageName != null) {
-                    clientBlinkingJob = launch {
-                        while (true) {
-                            val delayTime = if (state.minBlinkRate >= state.maxBlinkRate) {
-                                state.maxBlinkRate
-                            } else {
-                                Random.nextLong(state.minBlinkRate, state.maxBlinkRate)
-                            }
-                            delay(delayTime)
-
-                            val isClientInControl = _operatingMode.value == OperatingMode.OFFLINE || _isPublishing.value
-
-                            if (isClientInControl && activeState.value == state) {
-                                _displayedImageName.value = state.blinkImageName
-                                delay(150)
-                                _displayedImageName.value = state.imageName
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    fun hideStateAssignmentDialog() {
+        _uiState.value = _uiState.value.copy(showStateAssignmentDialog = false, selectedThreshold = null)
     }
 
     fun setOperatingMode(mode: OperatingMode) {
         _operatingMode.value = mode
+        dataManager.setOperatingMode(mode)
+        stateController.operatingMode = mode
+
         if (mode == OperatingMode.ONLINE) {
             if (_isPublishing.value) {
                 setPublishing(false)
             }
-            observeServerState()
+            connectAndSync()
         } else { // OFFLINE
             serverStateJob?.cancel()
-            _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
+            stateController.onOffline()
         }
+    }
+
+    fun onServerIpAddressChanged(ipAddress: String) {
+        _serverIpAddress.value = ipAddress
+        settingsRepository.saveIp(ipAddress)
+    }
+
+    fun connectAndSync() {
+        dataManager.connectAndSync(serverIpAddress.value)
+        observeServerState()
     }
 
     fun setActivePuppet(name: String) {
-        _troupe.value?.let { currentTroupe ->
-            val newTroupe = currentTroupe.copy(activePuppetName = name)
-            _troupe.value = newTroupe
-            val newActivePuppet = newTroupe.puppets.find { it.name == name }
-            _activePuppet.value = newActivePuppet
-            _activeState.value = newActivePuppet?.states?.find { it.name == "idle" }
-
-            // Load thresholds from the newly activated puppet
-            _thresholds.value = newActivePuppet?.thresholds ?: emptyMap()
-
-            saveLocalTroupe(newTroupe)
-        }
+        dataManager.setActivePuppet(name)
     }
 
     fun createNewPuppet(name: String) {
-        // Prevent creating puppet with duplicate name
-        if (_troupe.value?.puppets?.any { it.name == name } == true) {
-            return
-        }
-
-        val newPuppet = Puppet(name, System.currentTimeMillis(), emptyList())
-        val currentTroupe = _troupe.value ?: Troupe(activePuppetName = "", puppets = emptyList())
-
-        val newTroupe = currentTroupe.copy(
-            puppets = currentTroupe.puppets + newPuppet,
-            activePuppetName = name
-        )
-
-        _troupe.value = newTroupe
-        _activePuppet.value = newPuppet
-        _activeState.value = null // A new puppet starts with no states
-        _thresholds.value = emptyMap() // Clear thresholds for new puppet
-        saveLocalTroupe(newTroupe)
+        dataManager.createNewPuppet(name)
     }
 
     fun setPublishing(isPublishing: Boolean) {
         if (_operatingMode.value == OperatingMode.OFFLINE) return
 
         _isPublishing.value = isPublishing
+        stateController.isPublishing = isPublishing
 
         if (isPublishing) {
-            viewModelScope.launch {
-                _troupe.value?.let { client.post("http://127.0.0.1:$SERVER_PORT/troupe") { contentType(ContentType.Application.Json); setBody(it) } }
-            }
+            dataManager.publishTroupe(serverIpAddress.value)
             serverStateJob?.cancel()
             startClientControl()
         } else {
@@ -188,88 +150,28 @@ class MainViewModel(context: Any) : ViewModel() {
         _selectedState.value = state
     }
 
-    fun updateBlinkRate(state: PuppetStateInfo, blinkRate: LongRange) {
-        updatePuppetState(state.name) { it.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last) }
-    }
-
-    private fun smartLoad() {
-        viewModelScope.launch {
-            val localTroupe = loadLocalTroupe()
-            if (localTroupe != null) {
-                _troupe.value = localTroupe
-                val activePuppet = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
-                _activePuppet.value = activePuppet
-                _activeState.value = activePuppet?.states?.find { it.name == "idle" }
-                _thresholds.value = activePuppet?.thresholds ?: emptyMap()
-            }
-
-            try {
-                val serverTroupe = client.get("http://127.0.0.1:$SERVER_PORT/troupe").body<Troupe>()
-                if (localTroupe == null || serverTroupe.puppets.any { sp -> localTroupe.puppets.find { lp -> lp.name == sp.name }?.lastUpdated ?: 0 < sp.lastUpdated }) {
-                    _troupe.value = serverTroupe
-                    val activePuppet = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
-                    _activePuppet.value = activePuppet
-                    _activeState.value = activePuppet?.states?.find { it.name == "idle" }
-                    _thresholds.value = activePuppet?.thresholds ?: emptyMap()
-                    saveLocalTroupe(serverTroupe)
-                }
-            } catch (e: Exception) {
-                // Could not reach server, remain in offline mode
-                if (localTroupe == null) {
-                    _troupe.value = null
-                    _activePuppet.value = null
-                    _activeState.value = null
-                }
-            }
-        }
-    }
-
-    private fun loadLocalTroupe(): Troupe? = try {
-        if (!localTroupeFile.exists()) null
-        else gson.fromJson(localTroupeFile.readText(), Troupe::class.java)
-    } catch (e: Exception) { null }
-
-    private fun saveLocalTroupe(troupe: Troupe) {
-        localTroupeFile.writeText(gson.toJson(troupe))
-    }
-
-    fun createNewState(stateName: String, imageBytes: ByteArray, localImageName: String, blinkImageBytes: ByteArray?, localBlinkImageName: String?) {
-        viewModelScope.launch {
-            val serverImageName = if (_operatingMode.value == OperatingMode.ONLINE) {
-                uploader.upload(imageBytes, localImageName)
-            } else {
-                localImageName
-            }
-            val localFile = File(uploadsDir, serverImageName)
-            localFile.writeBytes(imageBytes)
-
-            var serverBlinkImageName: String? = null
-            if (blinkImageBytes != null && localBlinkImageName != null) {
-                serverBlinkImageName = if (_operatingMode.value == OperatingMode.ONLINE) {
-                    uploader.upload(blinkImageBytes, localBlinkImageName)
-                } else {
-                    localBlinkImageName
-                }
-                val localBlinkFile = File(uploadsDir, serverBlinkImageName)
-                localBlinkFile.writeBytes(blinkImageBytes)
-            }
-
-            val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
-
-            _activePuppet.value?.let { currentPuppet ->
-                val otherStates = currentPuppet.states.orEmpty().filter { it.name != stateName }
-                val newStates = otherStates + newState
-                updatePuppet(currentPuppet.name) { it.copy(states = newStates, lastUpdated = System.currentTimeMillis()) }
-            }
-        }
+    fun createNewState() {
+        val uiState = _uiState.value
+        dataManager.createNewState(
+            uiState.newStateName, 
+            uiState.selectedImage!!, 
+            uiState.selectedImageName, 
+            uiState.selectedBlinkImage, 
+            uiState.selectedBlinkImageName,
+            serverIpAddress.value
+        )
+        _uiState.value = uiState.copy(selectedImage = null, selectedImageName = "", selectedBlinkImage = null, selectedBlinkImageName = "", newStateName = "")
     }
 
     fun toggleListening() {
-        val newListeningState = !_isListening.value
-        if (newListeningState) {
-            startListening()
-        } else {
-            stopListening()
+        stateController.toggleListening()
+    }
+
+    fun updateBlinkRate(state: PuppetStateInfo, blinkRate: LongRange) {
+        dataManager.updatePuppet(dataManager.activePuppet.value!!.name) {
+            it.copy(states = it.states.map {
+                if (it.name == state.name) it.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last) else it
+            })
         }
     }
 
@@ -293,100 +195,25 @@ class MainViewModel(context: Any) : ViewModel() {
         newThresholds[value] = state
         _thresholds.value = newThresholds
         persistThresholds()
+        hideStateAssignmentDialog()
     }
 
     private fun persistThresholds() {
-        _activePuppet.value?.let { puppet ->
+        dataManager.activePuppet.value?.let { puppet ->
             val thresholdsToSave = _thresholds.value.filterValues { it != null }.mapValues { it.value!! }
-            updatePuppet(puppet.name) { it.copy(thresholds = thresholdsToSave, lastUpdated = System.currentTimeMillis()) }
+            dataManager.updatePuppet(puppet.name) { it.copy(thresholds = thresholdsToSave, lastUpdated = System.currentTimeMillis()) }
         }
-    }
-
-    private fun updatePuppet(puppetName: String, update: (Puppet) -> Puppet) {
-        _troupe.value?.let { troupe ->
-            val newPuppets = troupe.puppets.map {
-                if (it.name == puppetName) update(it) else it
-            }
-            val newTroupe = troupe.copy(puppets = newPuppets)
-            _troupe.value = newTroupe
-            _activePuppet.value = newPuppets.find { it.name == puppetName }
-            saveLocalTroupe(newTroupe)
-        }
-    }
-
-    private fun updatePuppetState(stateName: String, update: (PuppetStateInfo) -> PuppetStateInfo) {
-        _activePuppet.value?.let { puppet ->
-            val newStates = puppet.states.map {
-                if (it.name == stateName) update(it) else it
-            }
-            updatePuppet(puppet.name) { it.copy(states = newStates) }
-        }
-    }
-
-    private fun startListening() {
-        _isListening.value = true
-        audioProcessor.start { level ->
-            _audioLevel.value = level
-            val isControlling = _operatingMode.value == OperatingMode.OFFLINE || _isPublishing.value
-
-            if (isControlling) {
-                val scaledLevel = level.pow(0.5f)
-                val sortedThresholds = _thresholds.value.entries.sortedBy { it.key }
-                val activeThresholdIndex = sortedThresholds.indexOfLast { scaledLevel >= it.key }
-
-                if (activeThresholdIndex != -1) {
-                    returnToIdleJob?.cancel()
-                    var state: PuppetStateInfo? = null
-                    for (i in activeThresholdIndex downTo 0) {
-                        if (sortedThresholds[i].value != null) {
-                            state = sortedThresholds[i].value
-                            break
-                        }
-                    }
-                    if (state != null) {
-                        _activeState.value = state
-                    } else {
-                        if (_activeState.value?.name != "idle") {
-                            returnToIdleJob = viewModelScope.launch {
-                                delay(100)
-                                _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
-                            }
-                        }
-                    }
-                } else {
-                    if (_activeState.value?.name != "idle") {
-                        returnToIdleJob?.cancel()
-                        returnToIdleJob = viewModelScope.launch {
-                            delay(100)
-                            _activeState.value = _activePuppet.value?.states?.find { it.name == "idle" }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun stopListening() {
-        _isListening.value = false
-        _audioLevel.value = 0f
-        audioProcessor.stop()
     }
 
     private fun observeServerState() {
-        clientBlinkingJob?.cancel() // When observing server, server is the source of truth for blinks.
+        stateController.stopBlinking()
         serverStateJob = viewModelScope.launch {
             try {
-                client.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = SERVER_PORT, path = "/obs") {
+                client.webSocket(method = HttpMethod.Get, host = serverIpAddress.value, port = SERVER_PORT, path = "/obs") {
                     for (frame in incoming) {
                         if (frame is Frame.Text) {
                             val imageUrl = frame.readText()
-                            val imageName = imageUrl.substringAfterLast("/")
-                            _displayedImageName.value = imageName
-
-                            val newActiveState = _activePuppet.value?.states?.find { it.imageName == imageName || it.blinkImageName == imageName }
-                            if (newActiveState != null && _activeState.value != newActiveState) {
-                                _activeState.value = newActiveState
-                            }
+                            stateController.setServerImage(imageUrl.substringAfterLast("/"))
                         }
                     }
                 }
@@ -397,17 +224,15 @@ class MainViewModel(context: Any) : ViewModel() {
     private fun startClientControl() {
         clientControlSocketJob = viewModelScope.launch {
             try {
-                client.webSocket(method = HttpMethod.Get, host = "127.0.0.1", port = SERVER_PORT, path = "/client-control") {
+                client.webSocket(method = HttpMethod.Get, host = serverIpAddress.value, port = SERVER_PORT, path = "/client-control") {
                     clientControlSocket = this
-                    // Resend current state upon connection
-                    _displayedImageName.value?.let {
+                    displayedImageName.value?.let {
                         send(it)
                     }
-                    // Suspend to keep the socket open
                     incoming.receive()
                 }
             } catch (e: Exception) {
-                println("Client control socket error: ${e.message}")
+                // Handle error
             } finally {
                 clientControlSocket = null
             }

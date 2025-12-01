@@ -14,10 +14,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.OperatingMode
 
+/**
+ * A composable that provides a switch to toggle between online and offline operating modes.
+ *
+ * @param operatingMode The current operating mode.
+ * @param onModeChanged A callback that is invoked when the operating mode is changed.
+ * @param onHover A callback that is invoked when the user hovers over the controls.
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ModeControls(
@@ -40,23 +47,45 @@ fun ModeControls(
         Text(
             text = "Offline",
             modifier = Modifier
-                .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["offlineText"] = true }
-                .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["offlineText"] = false }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            when (awaitPointerEvent().type) {
+                                PointerEventType.Enter -> isHoveringOnItems["offlineText"] = true
+                                PointerEventType.Exit -> isHoveringOnItems["offlineText"] = false
+                            }
+                        }
+                    }
+                }
         )
         Switch(
             checked = operatingMode == OperatingMode.ONLINE,
-            onCheckedChange = { isOnline ->
-                onModeChanged(if (isOnline) OperatingMode.ONLINE else OperatingMode.OFFLINE)
-            },
+            onCheckedChange = { isOnline -> onModeChanged(if (isOnline) OperatingMode.ONLINE else OperatingMode.OFFLINE) },
             modifier = Modifier.padding(horizontal = 8.dp)
-                .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["onlineSwitch"] = true }
-                .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["onlineSwitch"] = false }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            when (awaitPointerEvent().type) {
+                                PointerEventType.Enter -> isHoveringOnItems["onlineSwitch"] = true
+                                PointerEventType.Exit -> isHoveringOnItems["onlineSwitch"] = false
+                            }
+                        }
+                    }
+                }
         )
         Text(
             text = "Online",
             modifier = Modifier
-                .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["onlineText"] = true }
-                .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["onlineText"] = false }
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            when (awaitPointerEvent().type) {
+                                PointerEventType.Enter -> isHoveringOnItems["onlineText"] = true
+                                PointerEventType.Exit -> isHoveringOnItems["onlineText"] = false
+                            }
+                        }
+                    }
+                }
         )
     }
 }

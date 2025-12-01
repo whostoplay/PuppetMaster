@@ -15,21 +15,31 @@ import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.SERVER_PORT
 import org.menagerie.puppet_master.rememberImageFromUrl
 
+/**
+ * A composable that displays a live preview of the puppet.
+ *
+ * @param operatingMode The current operating mode.
+ * @param displayedImageName The name of the image to display.
+ * @param uploadsDir The directory where uploaded images are stored.
+ * @param backgroundColor The background color of the preview.
+ * @param serverIp The IP address of the server.
+ */
 @Composable
 fun LivePreview(
     operatingMode: OperatingMode,
     displayedImageName: String?,
     uploadsDir: String,
-    backgroundColor: Color
+    backgroundColor: Color,
+    serverIp: String
 ) {
     Box(
         modifier = Modifier.fillMaxSize().background(backgroundColor).padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
-        val imageUrl = if (operatingMode == OperatingMode.ONLINE) {
-            "http://127.0.0.1:$SERVER_PORT/uploads/${displayedImageName ?: ""}"
-        } else {
-            if (displayedImageName?.isNotBlank() == true) "file://$uploadsDir/$displayedImageName" else ""
+        val imageUrl = when {
+            displayedImageName.isNullOrBlank() -> ""
+            operatingMode == OperatingMode.ONLINE -> "http://$serverIp:$SERVER_PORT/uploads/$displayedImageName"
+            else -> "file://$uploadsDir/$displayedImageName"
         }
         val image = rememberImageFromUrl(imageUrl)
 

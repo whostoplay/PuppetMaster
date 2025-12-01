@@ -15,10 +15,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.OperatingMode
 
+/**
+ * A composable that provides controls for interacting with the server.
+ *
+ * @param operatingMode The current operating mode.
+ * @param isPublishing Whether the client is currently publishing its state to the server.
+ * @param isListening Whether the client is currently listening for audio input.
+ * @param onTogglePublishing A callback that is invoked when the user toggles the publishing switch.
+ * @param onToggleListening A callback that is invoked when the user toggles the listening switch.
+ * @param onHover A callback that is invoked when the user hovers over the controls.
+ */
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ServerControls(
@@ -45,16 +55,32 @@ fun ServerControls(
             Text(
                 text = "Publishing",
                 modifier = Modifier
-                    .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["publishingText"] = true }
-                    .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["publishingText"] = false }
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                when (awaitPointerEvent().type) {
+                                    PointerEventType.Enter -> isHoveringOnItems["publishingText"] = true
+                                    PointerEventType.Exit -> isHoveringOnItems["publishingText"] = false
+                                }
+                            }
+                        }
+                    }
             )
             Switch(
                 checked = isPublishing,
                 onCheckedChange = onTogglePublishing,
                 enabled = operatingMode == OperatingMode.ONLINE,
                 modifier = Modifier
-                    .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["publishingSwitch"] = true }
-                    .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["publishingSwitch"] = false }
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                when (awaitPointerEvent().type) {
+                                    PointerEventType.Enter -> isHoveringOnItems["publishingSwitch"] = true
+                                    PointerEventType.Exit -> isHoveringOnItems["publishingSwitch"] = false
+                                }
+                            }
+                        }
+                    }
             )
         }
 
@@ -62,15 +88,31 @@ fun ServerControls(
             Text(
                 text = "Listening",
                 modifier = Modifier
-                    .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["listeningText"] = true }
-                    .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["listeningText"] = false }
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                when (awaitPointerEvent().type) {
+                                    PointerEventType.Enter -> isHoveringOnItems["listeningText"] = true
+                                    PointerEventType.Exit -> isHoveringOnItems["listeningText"] = false
+                                }
+                            }
+                        }
+                    }
             )
             Switch(
                 checked = isListening,
                 onCheckedChange = { onToggleListening() },
                 modifier = Modifier
-                    .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["listeningSwitch"] = true }
-                    .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["listeningSwitch"] = false }
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                when (awaitPointerEvent().type) {
+                                    PointerEventType.Enter -> isHoveringOnItems["listeningSwitch"] = true
+                                    PointerEventType.Exit -> isHoveringOnItems["listeningSwitch"] = false
+                                }
+                            }
+                        }
+                    }
             )
         }
     }

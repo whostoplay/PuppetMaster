@@ -3,6 +3,15 @@ package org.menagerie.puppet_master
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
+/**
+ * Represents the configuration for a single state of a puppet.
+ *
+ * @property name The name of the state.
+ * @property imageName The name of the image to display for this state.
+ * @property blinkImageName The name of the image to display when the puppet blinks. If null, the puppet will not blink.
+ * @property minBlinkRate The minimum time in milliseconds between blinks.
+ * @property maxBlinkRate The maximum time in milliseconds between blinks.
+ */
 @Serializable
 data class PuppetStateInfo(
     val name: String,
@@ -10,5 +19,21 @@ data class PuppetStateInfo(
     val blinkImageName: String? = null,
     val minBlinkRate: Long = 1500L,
     val maxBlinkRate: Long = 6000L,
-    @Transient private val lastUpdated: Long = System.currentTimeMillis()
-)
+) {
+    @Transient
+    private var lastUpdated: Long = System.currentTimeMillis()
+
+    /**
+     * Updates the lastUpdated timestamp to the current time.
+     */
+    fun updateTimestamp() {
+        lastUpdated = System.currentTimeMillis()
+    }
+
+    /**
+     * Returns the last time the state was updated.
+     */
+    fun getLastUpdated(): Long {
+        return lastUpdated
+    }
+}

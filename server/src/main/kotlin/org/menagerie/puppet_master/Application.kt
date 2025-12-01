@@ -15,60 +15,10 @@ import io.ktor.server.websocket.*
 import io.ktor.utils.io.core.readBytes
 import io.ktor.utils.io.readRemaining
 import io.ktor.websocket.*
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.serialization.json.Json
 import java.io.File
-import kotlin.random.Random
 import kotlin.time.Duration.Companion.seconds
-
-// --- Data Models & Persistence ---
-
-val json = Json {
-    prettyPrint = true
-    isLenient = true
-    ignoreUnknownKeys = true
-}
-val troupeFile = File("troupe.json")
-val legacyConfigFile = File("puppet_config.json")
-
-fun saveTroupe(troupe: Troupe) {
-    troupeFile.writeText(json.encodeToString(troupe))
-}
-
-fun loadTroupe(): Troupe? {
-    if (troupeFile.exists()) {
-        return try {
-            json.decodeFromString<Troupe>(troupeFile.readText())
-        } catch (e: Exception) {
-            // If troupe file is corrupt, treat as non-existent
-            null
-        }
-    }
-
-    // If the new file doesn't exist, try to migrate from the old format
-    if (legacyConfigFile.exists()) {
-        return try {
-            val legacyConfig = json.decodeFromString<PuppetConfiguration>(legacyConfigFile.readText())
-            val defaultPuppet = Puppet("Default", legacyConfig.lastUpdated, legacyConfig.states)
-            val troupe = Troupe("Default", listOf(defaultPuppet))
-            saveTroupe(troupe)
-            legacyConfigFile.delete() // remove old file after successful migration
-            troupe
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    return null
-}
-
-// --- Main Application ---
-
-var obsConnectionCount = 0
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -76,16 +26,11 @@ fun main() {
 }
 
 fun Application.module() {
-    val uploadsDir = File("uploads").apply { mkdirs() }
-    var troupe: Troupe? = loadTroupe()
-    var activePuppet: Puppet? = troupe?.puppets?.find { it.name == troupe?.activePuppetName }
-    val activeState = MutableStateFlow<PuppetStateInfo?>(activePuppet?.states?.find { it.name == "idle" } ?: activePuppet?.states?.firstOrNull())
-
-    var manualControlActive = false
-    fun isHeadless() = obsConnectionCount > 0 && !manualControlActive
+    val troupeManager = TroupeManager()
+    val stateManager = PuppetStateManager(this, troupeManager)
 
     install(ContentNegotiation) {
-        json()
+        json(Json { isLenient = true; ignoreUnknownKeys = true })
     }
     install(WebSockets) {
         pingPeriod = 15.seconds
@@ -94,53 +39,18 @@ fun Application.module() {
         masking = false
     }
 
-    val stateToSend = MutableStateFlow(activeState.value)
-    var blinkingJob: Job? = null
-
-    // This collector now ONLY handles blinking for headless mode.
-    launch {
-        activeState.collect { state ->
-            blinkingJob?.cancel()
-            stateToSend.value = state // Immediately update the display state.
-            if (state?.blinkImageName != null) {
-                blinkingJob = launch {
-                    while (true) {
-                        val delayTime = if (state.minBlinkRate >= state.maxBlinkRate) {
-                            state.maxBlinkRate
-                        } else {
-                            Random.nextLong(state.minBlinkRate, state.maxBlinkRate)
-                        }
-                        delay(delayTime)
-                        // This is the key condition: ONLY blink if in headless mode.
-                        if (isHeadless() && activeState.value == state) {
-                            val blinkState = state.copy(imageName = state.blinkImageName!!)
-                            stateToSend.value = blinkState
-                            delay(150)
-                            stateToSend.value = state
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     routing {
+        val uploadsDir = File("uploads").apply { mkdirs() }
         staticFiles("/uploads", uploadsDir)
 
-        // --- Configuration API for the Client ---
-
         get("/troupe") {
-            troupe?.let { call.respond(it) } ?: call.respond(HttpStatusCode.NotFound)
+            troupeManager.troupe?.let { call.respond(it) } ?: call.respond(HttpStatusCode.NotFound)
         }
 
         post("/troupe") {
-            val newTroupe = call.receive<Troupe>()
-            troupe = newTroupe
-            saveTroupe(newTroupe)
-            activePuppet = troupe?.puppets?.find { it.name == newTroupe.activePuppetName }
-            if (!isHeadless()) {
-                activeState.value = activePuppet?.states?.find { it.name == "idle" } ?: activePuppet?.states?.firstOrNull()
-            }
+            val newTroupe = call.receive<PuppetTroupe>()
+            troupeManager.updateTroupe(newTroupe)
+            stateManager.onTroupeUpdated()
             call.respond(HttpStatusCode.OK)
         }
 
@@ -158,25 +68,16 @@ fun Application.module() {
             call.respondText(fileName)
         }
 
-        post("state") {
-            call.respond(HttpStatusCode.Forbidden, "State updates must be sent via the /client-control WebSocket.")
-        }
-
-        // --- Real-time Endpoints ---
-
         webSocket("/audio-input") {
-            if (isHeadless() && activePuppet != null) {
+            if (stateManager.obsConnectionCount > 0 && troupeManager.activePuppet != null) {
                 for (frame in incoming) {
-                    if (!isHeadless()) {
+                    if (stateManager.manualControlActive) {
                         close(CloseReason(CloseReason.Codes.NORMAL, "Client took control"))
                         break
                     }
-
                     if (frame is Frame.Text) {
-                        val isSpeaking = frame.readText().toBoolean()
-                        val targetStateName = if (isSpeaking) "talking" else "idle"
-                        activePuppet?.states?.find { it.name == targetStateName }?.let {
-                            activeState.value = it
+                        frame.readText().toFloatOrNull()?.let { level ->
+                            stateManager.onAudioLevelChanged(level)
                         }
                     }
                 }
@@ -186,40 +87,26 @@ fun Application.module() {
         }
 
         webSocket("/client-control") {
-            if (activePuppet == null) {
+            if (troupeManager.activePuppet == null) {
                 close(CloseReason(CloseReason.Codes.NORMAL, "No active puppet configured on server"))
                 return@webSocket
             }
-            manualControlActive = true
+            stateManager.manualControlActive = true
             try {
                 for (frame in incoming) {
                     if (frame is Frame.Text) {
-                        val receivedImageName = frame.readText()
-                        val baseState = activePuppet?.states?.find { it.imageName == receivedImageName || it.blinkImageName == receivedImageName }
-                        if (baseState != null) {
-                            if (activeState.value != baseState) {
-                                activeState.value = baseState
-                            }
-                            if (stateToSend.value?.imageName != receivedImageName) {
-                                // Create a temporary state with the correct image name (for blinks)
-                                val tempState = baseState.copy(imageName = receivedImageName)
-                                stateToSend.value = tempState
-                            }
-                        }
+                        stateManager.onClientSentState(frame.readText())
                     }
                 }
             } finally {
-                manualControlActive = false
-                activeState.value = activePuppet?.states?.find { it.name == "idle" } ?: activePuppet?.states?.firstOrNull()
+                stateManager.onClientDisconnected()
             }
         }
 
         webSocket("/obs") {
-            obsConnectionCount++
+            stateManager.obsConnectionCount++
             try {
-                var lastSentImage: String? = null
-                while(true) {
-                    val state = stateToSend.value
+                stateManager.stateToSend.collectLatest { state ->
                     val imageUrl = if (state != null) {
                         val imageFile = File(uploadsDir, state.imageName)
                         if (imageFile.exists()) {
@@ -230,15 +117,11 @@ fun Application.module() {
                     } else {
                         ""
                     }
-
-                    if (imageUrl != lastSentImage) {
-                        outgoing.send(Frame.Text(imageUrl))
-                        lastSentImage = imageUrl
-                    }
-                    delay(16) // ~60fps
+                    println("SERVER: Sending state: ${state?.name}, image: $imageUrl")
+                    send(Frame.Text(imageUrl))
                 }
             } finally {
-                obsConnectionCount--
+                stateManager.obsConnectionCount--
             }
         }
     }

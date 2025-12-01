@@ -24,17 +24,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import org.menagerie.puppet_master.Puppet
-import org.menagerie.puppet_master.Troupe
+import org.menagerie.puppet_master.PuppetCharacter
+import org.menagerie.puppet_master.PuppetTroupe
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun PuppetControls(
-    troupe: Troupe?,
-    activePuppet: Puppet?,
+    troupe: PuppetTroupe?,
+    activePuppet: PuppetCharacter?,
     onPuppetSelected: (String) -> Unit,
     onPuppetCreated: (String) -> Unit,
     onHover: (Boolean) -> Unit
@@ -56,8 +56,16 @@ fun PuppetControls(
         ExposedDropdownMenuBox(expanded = puppetExpanded, onExpandedChange = { puppetExpanded = !puppetExpanded }, modifier = Modifier.fillMaxWidth()) {
             TextField(
                 modifier = Modifier.menuAnchor().fillMaxWidth()
-                    .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["puppetDropdown"] = true }
-                    .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["puppetDropdown"] = false },
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                when (awaitPointerEvent().type) {
+                                    PointerEventType.Enter -> isHoveringOnItems["puppetDropdown"] = true
+                                    PointerEventType.Exit -> isHoveringOnItems["puppetDropdown"] = false
+                                }
+                            }
+                        }
+                    },
                 value = activePuppet?.name ?: "", onValueChange = {},
                 label = { Text("Active Puppet") },
                 readOnly = true,
@@ -71,8 +79,16 @@ fun PuppetControls(
                         onClick = { onPuppetSelected(puppet.name); puppetExpanded = false },
                         contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
                         modifier = Modifier
-                            .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["puppetItem$index"] = true }
-                            .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["puppetItem$index"] = false }
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        when (awaitPointerEvent().type) {
+                                            PointerEventType.Enter -> isHoveringOnItems["puppetItem$index"] = true
+                                            PointerEventType.Exit -> isHoveringOnItems["puppetItem$index"] = false
+                                        }
+                                    }
+                                }
+                            }
                     )
                 }
             }
@@ -82,8 +98,16 @@ fun PuppetControls(
             onValueChange = {newPuppetName = it},
             placeholder = {Text("New Puppet Name")},
             modifier = Modifier.fillMaxWidth()
-                .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["newPuppetName"] = true }
-                .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["newPuppetName"] = false },
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            when (awaitPointerEvent().type) {
+                                PointerEventType.Enter -> isHoveringOnItems["newPuppetName"] = true
+                                PointerEventType.Exit -> isHoveringOnItems["newPuppetName"] = false
+                            }
+                        }
+                    }
+                },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(
@@ -98,8 +122,16 @@ fun PuppetControls(
         Button(
             onClick = { if (newPuppetName.isNotBlank()) { onPuppetCreated(newPuppetName); newPuppetName = "" } },
             modifier = Modifier
-                .onPointerEvent(PointerEventType.Enter) { isHoveringOnItems["createPuppet"] = true }
-                .onPointerEvent(PointerEventType.Exit) { isHoveringOnItems["createPuppet"] = false },
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            when (awaitPointerEvent().type) {
+                                PointerEventType.Enter -> isHoveringOnItems["createPuppet"] = true
+                                PointerEventType.Exit -> isHoveringOnItems["createPuppet"] = false
+                            }
+                        }
+                    }
+                },
         ){
             Text("Create")
         }
