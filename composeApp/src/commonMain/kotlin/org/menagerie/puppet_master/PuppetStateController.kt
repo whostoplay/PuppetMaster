@@ -14,12 +14,16 @@ class PuppetStateController(
     private val scope: CoroutineScope,
     private val dataManager: PuppetDataManager,
     private val audioProcessor: AudioProcessor,
+    private val getUiState: () -> UiState
 ) {
     private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
     val activeState: StateFlow<PuppetStateInfo?> = _activeState.asStateFlow()
 
     private val _displayedImageName = MutableStateFlow<String?>(null)
     val displayedImageName: StateFlow<String?> = _displayedImageName.asStateFlow()
+
+    private val _activeSpecialEffect = MutableStateFlow<ActiveSpecialEffect?>(null)
+    val activeSpecialEffect: StateFlow<ActiveSpecialEffect?> = _activeSpecialEffect.asStateFlow()
 
     private val _isListening = MutableStateFlow(false)
     val isListening: StateFlow<Boolean> = _isListening.asStateFlow()
@@ -29,7 +33,7 @@ class PuppetStateController(
 
     private var clientBlinkingJob: Job? = null
     private var returnToIdleJob: Job? = null
-    
+
     var operatingMode: OperatingMode = OperatingMode.OFFLINE
     var isPublishing: Boolean = false
 
@@ -45,6 +49,21 @@ class PuppetStateController(
             activeState.collect { state ->
                 clientBlinkingJob?.cancel()
                 _displayedImageName.value = state?.imageName
+
+                if (state?.appliedEffectName != null) {
+                    val effect = dataManager.troupe.value?.specialEffectsManager?.effects?.find { it.name == state.appliedEffectName }
+                    if (effect != null) {
+                        val newEffect = ActiveSpecialEffect(effect)
+                        if (getUiState().preserveState) {
+                            newEffect.preserveStartTime(activeSpecialEffect.value)
+                        }
+                        _activeSpecialEffect.value = newEffect
+                    } else {
+                        _activeSpecialEffect.value = null
+                    }
+                } else {
+                    _activeSpecialEffect.value = null
+                }
 
                 if (state?.blinkImageName != null) {
                     clientBlinkingJob = scope.launch {
@@ -125,7 +144,7 @@ class PuppetStateController(
             }
         }
     }
-    
+
     fun setServerImage(imageName: String) {
         _displayedImageName.value = imageName
         val newActiveState = dataManager.activePuppet.value?.states?.find { it.imageName == imageName || it.blinkImageName == imageName }
@@ -133,11 +152,11 @@ class PuppetStateController(
             _activeState.value = newActiveState
         }
     }
-    
+
     fun onOffline() {
         _activeState.value = dataManager.activePuppet.value?.states?.find { it.name == "idle" }
     }
-    
+
     fun stopBlinking() {
         clientBlinkingJob?.cancel()
     }

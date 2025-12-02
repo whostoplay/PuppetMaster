@@ -1,4 +1,4 @@
-package org.menagerie.puppet_master
+package org.menagerie.puppet_master.controls
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.times
+import org.menagerie.puppet_master.PuppetStateInfo
 import kotlin.math.pow
 
 enum class Orientation {

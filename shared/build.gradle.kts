@@ -4,6 +4,8 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.compose)
+    alias(libs.plugins.composeCompiler)
 }
 
 kotlin {
@@ -22,6 +24,7 @@ kotlin {
             api(libs.ktor.client.websockets)
             api(libs.kotlinx.serialization.json)
             api(libs.ktor.client.contentnegotiation)
+            implementation(libs.compose.ui)
         }
         androidMain.dependencies {
             implementation(libs.androidx.core)

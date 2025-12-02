@@ -2,15 +2,26 @@ package org.menagerie.puppet_master.previews
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.SERVER_PORT
 import org.menagerie.puppet_master.rememberImageFromUrl
@@ -23,6 +34,7 @@ import org.menagerie.puppet_master.rememberImageFromUrl
  * @param uploadsDir The directory where uploaded images are stored.
  * @param backgroundColor The background color of the preview.
  * @param serverIp The IP address of the server.
+ * @param activeSpecialEffect The currently active special effect.
  */
 @Composable
 fun LivePreview(
@@ -30,9 +42,21 @@ fun LivePreview(
     displayedImageName: String?,
     uploadsDir: String,
     backgroundColor: Color,
-    serverIp: String
+    serverIp: String,
+    activeSpecialEffect: ActiveSpecialEffect?
 ) {
-    Box(
+    var frame by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(activeSpecialEffect) {
+        if (activeSpecialEffect != null) {
+            while (true) {
+                frame = System.currentTimeMillis()
+                delay(16) // roughly 60 fps
+            }
+        }
+    }
+
+    BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(backgroundColor).padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -44,7 +68,18 @@ fun LivePreview(
         val image = rememberImageFromUrl(imageUrl)
 
         if (image != null) {
-            Image(bitmap = image, contentDescription = "Live Preview")
+            val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f) ?: androidx.compose.ui.geometry.Offset.Zero
+
+            Image(
+                bitmap = image,
+                contentDescription = "Live Preview",
+                colorFilter = activeSpecialEffect?.getGlow()?.let { ColorFilter.lighting(Color.White, Color(it, it, it)) },
+                modifier = Modifier
+                    .scale(activeSpecialEffect?.getScaleX() ?: 1f, activeSpecialEffect?.getScaleY() ?: 1f)
+                    .graphicsLayer(rotationZ = activeSpecialEffect?.getRotation() ?: 0f)
+                    .offset(offset.x.dp, offset.y.dp)
+                    .let { if (frame > 0) it else it } // force recomposition
+            )
         } else {
             Text("No Active Image")
         }

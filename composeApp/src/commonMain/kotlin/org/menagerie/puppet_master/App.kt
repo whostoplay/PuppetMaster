@@ -40,11 +40,13 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.ModeControls
+import org.menagerie.puppet_master.controls.Orientation
 import org.menagerie.puppet_master.controls.PuppetControls
 import org.menagerie.puppet_master.controls.ServerControls
+import org.menagerie.puppet_master.controls.SpecialEffectsUI
+import org.menagerie.puppet_master.controls.VolumeIndicator
 import org.menagerie.puppet_master.previews.LivePreview
 import org.menagerie.puppet_master.states.StateCreation
 import org.menagerie.puppet_master.states.StateEditor
@@ -66,6 +68,7 @@ fun App() {
     val thresholds by viewModel.thresholds.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val serverIpAddress by viewModel.serverIpAddress.collectAsState()
+    val activeSpecialEffect by viewModel.activeSpecialEffect.collectAsState()
     val focusManager = LocalFocusManager.current
 
     val isDesktop = isDesktop()
@@ -133,7 +136,14 @@ fun App() {
             val isLandscape = maxWidth > maxHeight
             val panelWeight = 1 / 3f
 
-            LivePreview(operatingMode, displayedImageName, viewModel.uploadsDir, uiState.backgroundColor, serverIpAddress)
+            LivePreview(
+                operatingMode = operatingMode,
+                displayedImageName = displayedImageName,
+                uploadsDir = viewModel.uploadsDir,
+                backgroundColor = uiState.backgroundColor,
+                serverIp = serverIpAddress,
+                activeSpecialEffect = activeSpecialEffect
+            )
 
             Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {
                 if (isLandscape) {
@@ -212,9 +222,11 @@ fun App() {
                                 troupe?.let {
                                     SpecialEffectsUI(
                                         specialEffectsManager = it.specialEffectsManager,
-                                        onSaveEffect = {
-                                            viewModel.onSpecialEffectUpdated()
-                                        }
+                                        onSaveEffect = { viewModel.onSpecialEffectUpdated() },
+                                        activePuppet = activePuppet,
+                                        uploadsDir = viewModel.uploadsDir,
+                                        preserveState = uiState.preserveState,
+                                        onPreserveStateChanged = viewModel::onPreserveStateChanged
                                     )
                                 }
                             } else {
@@ -300,9 +312,11 @@ fun App() {
                                 troupe?.let {
                                     SpecialEffectsUI(
                                         specialEffectsManager = it.specialEffectsManager,
-                                        onSaveEffect = {
-                                            viewModel.onSpecialEffectUpdated()
-                                        }
+                                        onSaveEffect = { viewModel.onSpecialEffectUpdated() },
+                                        activePuppet = activePuppet,
+                                        uploadsDir = viewModel.uploadsDir,
+                                        preserveState = uiState.preserveState,
+                                        onPreserveStateChanged = viewModel::onPreserveStateChanged
                                     )
                                 }
                             } else {

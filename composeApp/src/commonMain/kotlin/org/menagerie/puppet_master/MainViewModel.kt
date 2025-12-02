@@ -25,7 +25,8 @@ data class UiState(
     val newStateName: String = "",
     val backgroundColor: Color = Color.Green,
     val showStateAssignmentDialog: Boolean = false,
-    val selectedThreshold: Float? = null
+    val selectedThreshold: Float? = null,
+    val preserveState: Boolean = false
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -41,6 +42,7 @@ data class UiState(
         if (selectedBlinkImageName != other.selectedBlinkImageName) return false
         if (newStateName != other.newStateName) return false
         if (backgroundColor != other.backgroundColor) return false
+        if (preserveState != other.preserveState) return false
 
         return true
     }
@@ -54,20 +56,28 @@ data class UiState(
         result = 31 * result + selectedBlinkImageName.hashCode()
         result = 31 * result + newStateName.hashCode()
         result = 31 * result + backgroundColor.hashCode()
+        result = 31 * result + preserveState.hashCode()
         return result
     }
 }
 
 class MainViewModel(context: Any) : ViewModel() {
 
+    private val _uiState = MutableStateFlow(UiState())
+    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
     private val dataManager = PuppetDataManager(viewModelScope, context)
     val uploadsDir = dataManager.uploadsDir
-    private val stateController = PuppetStateController(viewModelScope, dataManager, AudioProcessor(context))
+    private val stateController = PuppetStateController(
+        viewModelScope, dataManager, AudioProcessor(context),
+        getUiState = { uiState.value }
+    )
     private val settingsRepository = SettingsRepository(context)
 
     val troupe: StateFlow<PuppetTroupe?> = dataManager.troupe
     val activePuppet: StateFlow<PuppetCharacter?> = dataManager.activePuppet
     val activeState: StateFlow<PuppetStateInfo?> = stateController.activeState
+    val activeSpecialEffect: StateFlow<ActiveSpecialEffect?> = stateController.activeSpecialEffect
     val displayedImageName: StateFlow<String?> = stateController.displayedImageName
     val isListening: StateFlow<Boolean> = stateController.isListening
     val audioLevel: StateFlow<Float> = stateController.audioLevel
@@ -83,12 +93,9 @@ class MainViewModel(context: Any) : ViewModel() {
 
     private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
     val operatingMode: StateFlow<OperatingMode> = _operatingMode.asStateFlow()
-    
+
     private val _thresholds = MutableStateFlow<Map<Float, PuppetStateInfo?>>(emptyMap())
     val thresholds: StateFlow<Map<Float, PuppetStateInfo?>> = _thresholds.asStateFlow()
-    
-    private val _uiState = MutableStateFlow(UiState())
-    val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
     private val client = HttpClient { install(WebSockets) }
     private var serverStateJob: Job? = null
@@ -107,7 +114,13 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
-    fun onStateCreationChange(image: ByteArray?, imageName: String, blinkImage: ByteArray?, blinkImageName: String, stateName: String) {
+    fun onStateCreationChange(
+        image: ByteArray?,
+        imageName: String,
+        blinkImage: ByteArray?,
+        blinkImageName: String,
+        stateName: String
+    ) {
         _uiState.value = _uiState.value.copy(
             selectedImage = image,
             selectedImageName = imageName,
@@ -116,11 +129,11 @@ class MainViewModel(context: Any) : ViewModel() {
             newStateName = stateName
         )
     }
-    
+
     fun setBackgroundColor(color: Color) {
         _uiState.value = _uiState.value.copy(backgroundColor = color)
     }
-    
+
     fun showStateAssignmentDialog(threshold: Float) {
         _uiState.value = _uiState.value.copy(showStateAssignmentDialog = true, selectedThreshold = threshold)
     }
@@ -186,14 +199,20 @@ class MainViewModel(context: Any) : ViewModel() {
     fun createNewState() {
         val uiState = _uiState.value
         dataManager.createNewState(
-            uiState.newStateName, 
-            uiState.selectedImage!!, 
-            uiState.selectedImageName, 
-            uiState.selectedBlinkImage, 
+            uiState.newStateName,
+            uiState.selectedImage!!,
+            uiState.selectedImageName,
+            uiState.selectedBlinkImage,
             uiState.selectedBlinkImageName,
             serverIpAddress.value
         )
-        _uiState.value = uiState.copy(selectedImage = null, selectedImageName = "", selectedBlinkImage = null, selectedBlinkImageName = "", newStateName = "")
+        _uiState.value = uiState.copy(
+            selectedImage = null,
+            selectedImageName = "",
+            selectedBlinkImage = null,
+            selectedBlinkImageName = "",
+            newStateName = ""
+        )
     }
 
     fun toggleListening() {
@@ -247,6 +266,10 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
+    fun onPreserveStateChanged(preserveState: Boolean) {
+        _uiState.value = _uiState.value.copy(preserveState = preserveState)
+    }
+
     private fun persistThresholds() {
         dataManager.activePuppet.value?.let { puppet ->
             val thresholdsToSave = _thresholds.value.filterValues { it != null }.mapValues { it.value!! }
@@ -266,14 +289,20 @@ class MainViewModel(context: Any) : ViewModel() {
                         }
                     }
                 }
-            } catch (e: Exception) { /* Handle error */ }
+            } catch (e: Exception) { /* Handle error */
+            }
         }
     }
 
     private fun startClientControl() {
         clientControlSocketJob = viewModelScope.launch {
             try {
-                client.webSocket(method = HttpMethod.Get, host = serverIpAddress.value, port = SERVER_PORT, path = "/client-control") {
+                client.webSocket(
+                    method = HttpMethod.Get,
+                    host = serverIpAddress.value,
+                    port = SERVER_PORT,
+                    path = "/client-control"
+                ) {
                     clientControlSocket = this
                     displayedImageName.value?.let {
                         send(it)
