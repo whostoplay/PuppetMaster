@@ -14,6 +14,7 @@ import kotlinx.coroutines.launch
 
 actual class AudioProcessor actual constructor(private val context: Any) {
 
+    private var audioRecord: AudioRecord? = null
     private var audioJob: Job? = null
 
     @SuppressLint("MissingPermission")
@@ -31,13 +32,13 @@ actual class AudioProcessor actual constructor(private val context: Any) {
                 val audioFormat = AudioFormat.ENCODING_PCM_16BIT
                 val minBufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat)
 
-                val audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, minBufferSize)
-                audioRecord.startRecording()
+                audioRecord = AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, channelConfig, audioFormat, minBufferSize)
+                audioRecord?.startRecording()
 
                 val buffer = ShortArray(minBufferSize)
 
                 while (true) {
-                    val readSize = audioRecord.read(buffer, 0, buffer.size)
+                    val readSize = audioRecord?.read(buffer, 0, buffer.size) ?: 0
                     if (readSize > 0) {
                         val level = calculateAudioLevel(buffer, readSize)
                         onLevelChange(level)
@@ -51,5 +52,18 @@ actual class AudioProcessor actual constructor(private val context: Any) {
 
     actual fun stop() {
         audioJob?.cancel()
+        audioRecord?.stop()
+        audioRecord?.release()
+        audioRecord = null
+    }
+
+    private fun calculateAudioLevel(audioData: ShortArray, readSize: Int): Float {
+        var sum = 0.0
+        for (i in 0 until readSize) {
+            sum += audioData[i] * audioData[i]
+        }
+        val rms = Math.sqrt(sum / readSize)
+        val normalizedRms = (rms / 32767).toFloat()
+        return normalizedRms.coerceIn(0f, 1f)
     }
 }

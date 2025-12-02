@@ -293,7 +293,7 @@ class MainViewModel(context: Any) : ViewModel() {
                         if (frame is Frame.Text) {
                             val serverState = Json.decodeFromString<ServerState>(frame.readText())
                             _serverImageName.value = serverState.imageName
-                            _serverSpecialEffect.value = serverState.activeSpecialEffect
+                            _serverSpecialEffect.value = serverState.effect?.let { ActiveSpecialEffect(it) }
                         }
                     }
                 }

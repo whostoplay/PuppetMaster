@@ -17,8 +17,6 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
     private val _stateToSend = MutableStateFlow<ServerState?>(null)
     val stateToSend = _stateToSend.asStateFlow()
 
-    private val _activeSpecialEffect = MutableStateFlow<ActiveSpecialEffect?>(null)
-
     private var blinkingJob: Job? = null
     private var returnToIdleJob: Job? = null
 
@@ -119,15 +117,6 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         val effect = state?.appliedEffectName?.let { name ->
             troupeManager.troupe?.specialEffectsManager?.effects?.find { it.name == name }
         }
-
-        if (effect != null) {
-            val newEffect = ActiveSpecialEffect(effect)
-            // We don't have the UI state here, so we can't preserve the start time
-            _activeSpecialEffect.value = newEffect
-        } else {
-            _activeSpecialEffect.value = null
-        }
-
-        _stateToSend.value = ServerState(state?.imageName, _activeSpecialEffect.value)
+        _stateToSend.value = ServerState(state?.imageName, effect)
     }
 }

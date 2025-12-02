@@ -10,11 +10,14 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +25,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -42,8 +46,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.controls.ColorPicker
+import org.menagerie.puppet_master.controls.ControlDrawer
 import org.menagerie.puppet_master.controls.ModeControls
-import org.menagerie.puppet_master.controls.Orientation
 import org.menagerie.puppet_master.controls.PuppetControls
 import org.menagerie.puppet_master.controls.ServerControls
 import org.menagerie.puppet_master.controls.SpecialEffectsUI
@@ -72,6 +76,16 @@ fun App() {
     val serverImageName by viewModel.serverImageName.collectAsState()
     val serverSpecialEffect by viewModel.serverSpecialEffect.collectAsState()
     val focusManager = LocalFocusManager.current
+
+    var showPermissionRequest by remember { mutableStateOf(false) }
+    if (showPermissionRequest) {
+        RequestAudioPermission { granted ->
+            if (granted) {
+                viewModel.toggleListening()
+            }
+            showPermissionRequest = false
+        }
+    }
 
     val isDesktop = isDesktop()
     var showControls by remember { mutableStateOf(isDesktop) }
@@ -118,6 +132,7 @@ fun App() {
         @OptIn(ExperimentalComposeUiApi::class)
         BoxWithConstraints(
             modifier = Modifier.fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onDoubleTap = { controlsLocked = !controlsLocked },
@@ -151,7 +166,7 @@ fun App() {
             )
 
             Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {
-                if (isLandscape) {
+                if (isLandscape || isDesktop) {
                     Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(
                             modifier = Modifier.fillMaxHeight().weight(panelWeight)
@@ -174,11 +189,16 @@ fun App() {
                                 modifier = Modifier.fillMaxWidth().padding(8.dp)
                             )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening)
+                            ServerControls(operatingMode, isPublishing, isListening, { viewModel.setPublishing(it) }, { 
+                                if (hasAudioPermission(context)) {
+                                    viewModel.toggleListening()
+                                } else {
+                                    showPermissionRequest = true
+                                }
+                            })
                             if (isListening) {
                                 VolumeIndicator(
                                     level = audioLevel,
-                                    orientation = Orientation.Horizontal,
                                     modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
                                     thresholds = thresholds,
                                     onAddThreshold = { newThreshold ->
@@ -260,12 +280,15 @@ fun App() {
                         }
                     }
                 } else { // Portrait
-                    Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+                    var showLeftDrawer by remember { mutableStateOf(false) }
+                    var showRightDrawer by remember { mutableStateOf(false) }
+
+                    ControlDrawer(
+                        show = showLeftDrawer,
+                        onDismissRequest = { showLeftDrawer = false }
+                    ) {
                         Column(
-                            modifier = Modifier.fillMaxWidth()
-                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
-                                .verticalScroll(rememberScrollState())
-                                .onHover { isHoveringOn["topPanel"] = it }
+                            modifier = Modifier.fillMaxWidth().padding(16.dp)
                         ) {
                             PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet)
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -282,11 +305,16 @@ fun App() {
                                 modifier = Modifier.fillMaxWidth().padding(8.dp)
                             )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening)
+                            ServerControls(operatingMode, isPublishing, isListening, { viewModel.setPublishing(it) }, { 
+                                if (hasAudioPermission(context)) {
+                                    viewModel.toggleListening()
+                                } else {
+                                    showPermissionRequest = true
+                                }
+                            })
                             if (isListening) {
                                 VolumeIndicator(
                                     level = audioLevel,
-                                    orientation = Orientation.Vertical,
                                     modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
                                     thresholds = thresholds,
                                     onAddThreshold = { newThreshold ->
@@ -300,13 +328,14 @@ fun App() {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
                         }
+                    }
 
-                        Spacer(modifier = Modifier.fillMaxWidth().weight(1f - (2 * panelWeight)))
-
+                    ControlDrawer(
+                        show = showRightDrawer,
+                        onDismissRequest = { showRightDrawer = false }
+                    ) {
                         LazyColumn(
-                            modifier = Modifier.fillMaxWidth().weight(panelWeight)
-                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
-                                .onHover { isHoveringOn["bottomPanel"] = it }
+                            modifier = Modifier.fillMaxWidth().padding(16.dp)
                         ) {
                             val currentPuppet = activePuppet
                             val currentTroupe = troupe
@@ -366,6 +395,15 @@ fun App() {
                                 }
                             }
                         }
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Button(onClick = { showLeftDrawer = true }) { Text("Puppet Controls") }
+                        Button(onClick = { showRightDrawer = true }) { Text("State Controls") }
                     }
                 }
             }
