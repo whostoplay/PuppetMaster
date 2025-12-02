@@ -11,7 +11,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 
 enum class OperatingMode {
     ONLINE, OFFLINE
@@ -82,6 +84,12 @@ class MainViewModel(context: Any) : ViewModel() {
     val isListening: StateFlow<Boolean> = stateController.isListening
     val audioLevel: StateFlow<Float> = stateController.audioLevel
 
+    private val _serverImageName = MutableStateFlow<String?>(null)
+    val serverImageName: StateFlow<String?> = _serverImageName.asStateFlow()
+
+    private val _serverSpecialEffect = MutableStateFlow<ActiveSpecialEffect?>(null)
+    val serverSpecialEffect: StateFlow<ActiveSpecialEffect?> = _serverSpecialEffect.asStateFlow()
+
     private val _selectedState = MutableStateFlow<PuppetStateInfo?>(null)
     val selectedState: StateFlow<PuppetStateInfo?> = _selectedState.asStateFlow()
 
@@ -100,7 +108,6 @@ class MainViewModel(context: Any) : ViewModel() {
     private val client = HttpClient { install(WebSockets) }
     private var serverStateJob: Job? = null
     private var clientControlSocketJob: Job? = null
-    private var clientControlSocket: ClientWebSocketSession? = null
 
     init {
         _serverIpAddress.value = settingsRepository.loadIp()
@@ -284,8 +291,9 @@ class MainViewModel(context: Any) : ViewModel() {
                 client.webSocket(method = HttpMethod.Get, host = serverIpAddress.value, port = SERVER_PORT, path = "/obs") {
                     for (frame in incoming) {
                         if (frame is Frame.Text) {
-                            val imageUrl = frame.readText()
-                            stateController.setServerImage(imageUrl.substringAfterLast("/"))
+                            val serverState = Json.decodeFromString<ServerState>(frame.readText())
+                            _serverImageName.value = serverState.imageName
+                            _serverSpecialEffect.value = serverState.activeSpecialEffect
                         }
                     }
                 }
@@ -303,25 +311,17 @@ class MainViewModel(context: Any) : ViewModel() {
                     port = SERVER_PORT,
                     path = "/client-control"
                 ) {
-                    clientControlSocket = this
-                    displayedImageName.value?.let {
-                        send(it)
+                    displayedImageName.collectLatest { imageName ->
+                        imageName?.let { send(it) }
                     }
-                    incoming.receive()
                 }
             } catch (e: Exception) {
                 // Handle error
-            } finally {
-                clientControlSocket = null
             }
         }
     }
 
     private fun stopClientControl() {
-        viewModelScope.launch {
-            clientControlSocket?.close()
-            clientControlSocketJob?.cancel()
-            clientControlSocket = null
-        }
+        clientControlSocketJob?.cancel()
     }
 }

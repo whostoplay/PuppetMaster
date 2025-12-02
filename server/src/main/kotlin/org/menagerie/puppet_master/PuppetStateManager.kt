@@ -14,8 +14,10 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
     private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
     val activeState = _activeState.asStateFlow()
 
-    private val _stateToSend = MutableStateFlow<PuppetStateInfo?>(null)
+    private val _stateToSend = MutableStateFlow<ServerState?>(null)
     val stateToSend = _stateToSend.asStateFlow()
+
+    private val _activeSpecialEffect = MutableStateFlow<ActiveSpecialEffect?>(null)
 
     private var blinkingJob: Job? = null
     private var returnToIdleJob: Job? = null
@@ -30,7 +32,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         scope.launch {
             activeState.collect { state ->
                 blinkingJob?.cancel()
-                _stateToSend.value = state
+                updateStateToSend(state)
                 if (state?.blinkImageName != null) {
                     blinkingJob = launch {
                         while (true) {
@@ -42,9 +44,9 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
                             delay(delayTime)
                             if (isHeadless() && _activeState.value == state) {
                                 val blinkState = state.copy(imageName = state.blinkImageName!!)
-                                _stateToSend.value = blinkState
+                                updateStateToSend(blinkState)
                                 delay(150)
-                                _stateToSend.value = state
+                                updateStateToSend(state)
                             }
                         }
                     }
@@ -77,7 +79,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
             returnToIdle()
         }
     }
-    
+
     fun onClientSentState(imageName: String) {
         val activePuppet = troupeManager.activePuppet ?: return
         val baseState = activePuppet.states.find { it.imageName == imageName || it.blinkImageName == imageName }
@@ -87,7 +89,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
             }
             if (_stateToSend.value?.imageName != imageName) {
                 val tempState = baseState.copy(imageName = imageName)
-                _stateToSend.value = tempState
+                updateStateToSend(tempState)
             }
         }
     }
@@ -111,5 +113,21 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
                 _activeState.value = troupeManager.activePuppet?.states?.find { it.name == "idle" }
             }
         }
+    }
+
+    private fun updateStateToSend(state: PuppetStateInfo?) {
+        val effect = state?.appliedEffectName?.let { name ->
+            troupeManager.troupe?.specialEffectsManager?.effects?.find { it.name == name }
+        }
+
+        if (effect != null) {
+            val newEffect = ActiveSpecialEffect(effect)
+            // We don't have the UI state here, so we can't preserve the start time
+            _activeSpecialEffect.value = newEffect
+        } else {
+            _activeSpecialEffect.value = null
+        }
+
+        _stateToSend.value = ServerState(state?.imageName, _activeSpecialEffect.value)
     }
 }

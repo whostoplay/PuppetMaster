@@ -24,24 +24,78 @@
         const img = document.getElementById('puppet');
         const socket = new WebSocket('ws://127.0.0.1:8080/obs');
 
+        let activeEffect = null;
+        let startTime = 0;
+
         socket.onmessage = function(event) {
-            // The server sends the URL of the image
-            // To prevent flickering, we can preload the image
+            const serverState = JSON.parse(event.data);
             const newImg = new Image();
             newImg.onload = () => {
                 img.src = newImg.src;
+                if (serverState.effect) {
+                    if (!activeEffect || activeEffect.name !== serverState.effect.name) {
+                        startTime = Date.now();
+                    }
+                    activeEffect = serverState.effect;
+                } else {
+                    activeEffect = null;
+                }
             }
-            newImg.src = event.data;
+            newImg.src = `http://127.0.0.1:8080/uploads/${serverState.imageName}`;
         };
+
+        function animate() {
+            if (activeEffect) {
+                const elapsedTime = Date.now() - startTime;
+
+                // Scale
+                let scaleX = activeEffect.scaleX;
+                let scaleY = activeEffect.scaleY;
+                if (activeEffect.scaleSpeed > 0) {
+                    const angle = (elapsedTime / (1000 / (activeEffect.scaleSpeed + 1))) * 2 * Math.PI;
+                    scaleX = 1 + (Math.sin(angle) * (activeEffect.scaleX - 1));
+                    scaleY = 1 + (Math.sin(angle) * (activeEffect.scaleY - 1));
+                }
+
+                // Rotation
+                let rotation = 0;
+                if (activeEffect.spinSpeed > 0) {
+                    rotation = (elapsedTime * activeEffect.spinSpeed * 10 / 1000) % 360;
+                    rotation *= activeEffect.spinDirection;
+                }
+
+                // Vibration
+                let offsetX = 0;
+                let offsetY = 0;
+                if (activeEffect.vibrationDistance > 0) {
+                    const maxOffset = img.width / 20;
+                    const offset = activeEffect.vibrationDistance * maxOffset;
+                    const angle = (elapsedTime / (100 / (activeEffect.vibrationSpeed + 1))) * 2 * Math.PI;
+                    offsetX = Math.sin(angle) * offset;
+                    offsetY = Math.sin(angle * 2) * offset;
+                }
+
+                img.style.transform = `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg) translate(${offsetX}px, ${offsetY}px)`;
+                
+                // Glow
+                img.style.filter = `brightness(${1 + activeEffect.glowIntensity})`;
+
+            } else {
+                img.style.transform = 'scale(1) rotate(0deg) translate(0px, 0px)';
+                img.style.filter = 'brightness(1)';
+            }
+
+            requestAnimationFrame(animate);
+        }
 
         socket.onopen = function(event) {
             console.log("Connected to Puppet Master server.");
+            requestAnimationFrame(animate);
         };
 
         socket.onclose = function(event) {
             console.log("Disconnected from Puppet Master server. Reconnecting in 1 second...");
             setTimeout(() => {
-                // You might want more sophisticated reconnect logic here
                 location.reload(); 
             }, 1000);
         };

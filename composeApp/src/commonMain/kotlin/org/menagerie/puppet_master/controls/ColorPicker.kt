@@ -3,6 +3,7 @@ package org.menagerie.puppet_master.controls
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
@@ -30,9 +31,12 @@ fun ColorPicker(
 ) {
     var showColors by remember { mutableStateOf(false) }
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Button(
-            onClick = { showColors = !showColors }
+            onClick = { showColors = !showColors },
         ) {
             Text("BG Color")
         }

@@ -68,7 +68,7 @@ fun LivePreview(
         val image = rememberImageFromUrl(imageUrl)
 
         if (image != null) {
-            val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f) ?: androidx.compose.ui.geometry.Offset.Zero
+            val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f)
 
             Image(
                 bitmap = image,
@@ -77,7 +77,7 @@ fun LivePreview(
                 modifier = Modifier
                     .scale(activeSpecialEffect?.getScaleX() ?: 1f, activeSpecialEffect?.getScaleY() ?: 1f)
                     .graphicsLayer(rotationZ = activeSpecialEffect?.getRotation() ?: 0f)
-                    .offset(offset.x.dp, offset.y.dp)
+                    .offset((offset?.x ?: 0f).dp, (offset?.y ?: 0f).dp)
                     .let { if (frame > 0) it else it } // force recomposition
             )
         } else {

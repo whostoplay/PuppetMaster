@@ -16,6 +16,7 @@ import io.ktor.utils.io.core.readBytes
 import io.ktor.utils.io.readRemaining
 import io.ktor.websocket.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
@@ -107,18 +108,8 @@ fun Application.module() {
             stateManager.obsConnectionCount++
             try {
                 stateManager.stateToSend.collectLatest { state ->
-                    val imageUrl = if (state != null) {
-                        val imageFile = File(uploadsDir, state.imageName)
-                        if (imageFile.exists()) {
-                            "http://127.0.0.1:$SERVER_PORT/uploads/${state.imageName}"
-                        } else {
-                            ""
-                        }
-                    } else {
-                        ""
-                    }
-                    println("SERVER: Sending state: ${state?.name}, image: $imageUrl")
-                    send(Frame.Text(imageUrl))
+                    val json = Json { isLenient = true; ignoreUnknownKeys = true }
+                    send(Frame.Text(json.encodeToString(state)))
                 }
             } finally {
                 stateManager.obsConnectionCount--

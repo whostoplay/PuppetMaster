@@ -1,11 +1,15 @@
 package org.menagerie.puppet_master
 
-import androidx.compose.ui.geometry.Offset
+import kotlinx.serialization.Serializable
 import kotlin.math.sin
+
+@Serializable
+data class SerializableOffset(val x: Float, val y: Float)
 
 /**
  * Represents the currently active special effect, and calculates its visual properties over time.
  */
+@Serializable
 class ActiveSpecialEffect(
     val effect: SpecialEffect,
     private var startTime: Long = System.currentTimeMillis()
@@ -41,16 +45,16 @@ class ActiveSpecialEffect(
         return effect.glowIntensity
     }
 
-    fun getVibrationOffset(maxOffset: Float): Offset {
+    fun getVibrationOffset(maxOffset: Float): SerializableOffset {
         if (effect.vibrationDistance == 0f) {
-            return Offset.Zero
+            return SerializableOffset(0f, 0f)
         }
         val elapsedTime = (System.currentTimeMillis() - startTime).toFloat()
         val offset = effect.vibrationDistance * maxOffset
         val angle = (elapsedTime / (100f / (effect.vibrationSpeed + 1))) * 2 * Math.PI
         val x = (sin(angle) * offset).toFloat()
         val y = (sin(angle * 2) * offset).toFloat() // Using a different frequency for y to make it more interesting
-        return Offset(x, y)
+        return SerializableOffset(x, y)
     }
 
     fun preserveStartTime(previousEffect: ActiveSpecialEffect?) {

@@ -32,6 +32,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -50,7 +51,6 @@ import org.menagerie.puppet_master.controls.VolumeIndicator
 import org.menagerie.puppet_master.previews.LivePreview
 import org.menagerie.puppet_master.states.StateCreation
 import org.menagerie.puppet_master.states.StateEditor
-import org.menagerie.puppet_master.states.StateListing
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -69,6 +69,8 @@ fun App() {
     val uiState by viewModel.uiState.collectAsState()
     val serverIpAddress by viewModel.serverIpAddress.collectAsState()
     val activeSpecialEffect by viewModel.activeSpecialEffect.collectAsState()
+    val serverImageName by viewModel.serverImageName.collectAsState()
+    val serverSpecialEffect by viewModel.serverSpecialEffect.collectAsState()
     val focusManager = LocalFocusManager.current
 
     val isDesktop = isDesktop()
@@ -136,13 +138,16 @@ fun App() {
             val isLandscape = maxWidth > maxHeight
             val panelWeight = 1 / 3f
 
+            val imageName = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverImageName else displayedImageName
+            val specialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect
+
             LivePreview(
                 operatingMode = operatingMode,
-                displayedImageName = displayedImageName,
+                displayedImageName = imageName,
                 uploadsDir = viewModel.uploadsDir,
                 backgroundColor = uiState.backgroundColor,
                 serverIp = serverIpAddress,
-                activeSpecialEffect = activeSpecialEffect
+                activeSpecialEffect = specialEffect
             )
 
             Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {
@@ -190,48 +195,66 @@ fun App() {
 
                         Spacer(modifier = Modifier.fillMaxHeight().weight(1f - (2 * panelWeight)))
 
-                        Column(
+                        LazyColumn(
                             modifier = Modifier.fillMaxHeight().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
-                                .verticalScroll(rememberScrollState())
                                 .onHover { isHoveringOn["rightPanel"] = it }
                         ) {
-                            if (activePuppet != null && troupe != null) {
-                                StateCreation(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    viewModel = viewModel,
-                                    selectedImage = uiState.selectedImage,
-                                    selectedImageName = uiState.selectedImageName,
-                                    selectedBlinkImage = uiState.selectedBlinkImage,
-                                    selectedBlinkImageName = uiState.selectedBlinkImageName,
-                                    newStateName = uiState.newStateName,
-                                    onStateChange = viewModel::onStateCreationChange
-                                )
-                                HorizontalDivider()
-                                StateListing(modifier = Modifier.fillMaxWidth().weight(.5f), activePuppet = activePuppet, selectedState = selectedState, onStateSelected = viewModel::selectState)
-                                selectedState?.let { state ->
-                                    StateEditor(
+                            val currentPuppet = activePuppet
+                            val currentTroupe = troupe
+                            if (currentPuppet != null && currentTroupe != null) {
+                                item {
+                                    StateCreation(
                                         modifier = Modifier.fillMaxWidth(),
-                                        selectedState = state,
-                                        specialEffectsManager = troupe!!.specialEffectsManager,
-                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
-                                        onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
+                                        viewModel = viewModel,
+                                        selectedImage = uiState.selectedImage,
+                                        selectedImageName = uiState.selectedImageName,
+                                        selectedBlinkImage = uiState.selectedBlinkImage,
+                                        selectedBlinkImageName = uiState.selectedBlinkImageName,
+                                        newStateName = uiState.newStateName,
+                                        onStateChange = viewModel::onStateCreationChange
                                     )
-                                 }
-                                HorizontalDivider()
-                                troupe?.let {
+                                }
+                                item { HorizontalDivider() }
+                                item { Text(text = "States") }
+                                item { HorizontalDivider() }
+                                items(currentPuppet.states) { state ->
+                                    Text(
+                                        text = state.name,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { viewModel.selectState(state) }
+                                            .background(if (state == selectedState) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                            .padding(8.dp)
+                                    )
+                                }
+                                item {
+                                    selectedState?.let { state ->
+                                        StateEditor(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            selectedState = state,
+                                            specialEffectsManager = currentTroupe.specialEffectsManager,
+                                            onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
+                                            onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
+                                        )
+                                    }
+                                }
+                                item { HorizontalDivider() }
+                                item {
                                     SpecialEffectsUI(
-                                        specialEffectsManager = it.specialEffectsManager,
+                                        specialEffectsManager = currentTroupe.specialEffectsManager,
                                         onSaveEffect = { viewModel.onSpecialEffectUpdated() },
-                                        activePuppet = activePuppet,
+                                        activePuppet = currentPuppet,
                                         uploadsDir = viewModel.uploadsDir,
                                         preserveState = uiState.preserveState,
                                         onPreserveStateChanged = viewModel::onPreserveStateChanged
                                     )
                                 }
                             } else {
-                                Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                                    Text("Create or select a puppet to get started.")
+                                item {
+                                    Box(modifier = Modifier.fillParentMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                        Text("Create or select a puppet to get started.")
+                                    }
                                 }
                             }
                         }
@@ -239,7 +262,7 @@ fun App() {
                 } else { // Portrait
                     Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
                         Column(
-                            modifier = Modifier.fillMaxWidth().weight(panelWeight)
+                            modifier = Modifier.fillMaxWidth()
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
                                 .verticalScroll(rememberScrollState())
                                 .onHover { isHoveringOn["topPanel"] = it }
@@ -280,48 +303,66 @@ fun App() {
 
                         Spacer(modifier = Modifier.fillMaxWidth().weight(1f - (2 * panelWeight)))
 
-                        Column(
+                        LazyColumn(
                             modifier = Modifier.fillMaxWidth().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
-                                .verticalScroll(rememberScrollState())
                                 .onHover { isHoveringOn["bottomPanel"] = it }
                         ) {
-                            if (activePuppet != null && troupe != null) {
-                                StateCreation(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    viewModel = viewModel,
-                                    selectedImage = uiState.selectedImage,
-                                    selectedImageName = uiState.selectedImageName,
-                                    selectedBlinkImage = uiState.selectedBlinkImage,
-                                    selectedBlinkImageName = uiState.selectedBlinkImageName,
-                                    newStateName = uiState.newStateName,
-                                    onStateChange = viewModel::onStateCreationChange
-                                )
-                                HorizontalDivider()
-                                StateListing(modifier = Modifier.fillMaxWidth(), activePuppet = activePuppet, selectedState = selectedState, onStateSelected = viewModel::selectState)
-                                selectedState?.let { state ->
-                                    StateEditor(
-                                        modifier = Modifier.fillMaxWidth().weight(1f),
-                                        selectedState = state,
-                                        specialEffectsManager = troupe!!.specialEffectsManager,
-                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
-                                        onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
+                            val currentPuppet = activePuppet
+                            val currentTroupe = troupe
+                            if (currentPuppet != null && currentTroupe != null) {
+                                item {
+                                    StateCreation(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        viewModel = viewModel,
+                                        selectedImage = uiState.selectedImage,
+                                        selectedImageName = uiState.selectedImageName,
+                                        selectedBlinkImage = uiState.selectedBlinkImage,
+                                        selectedBlinkImageName = uiState.selectedBlinkImageName,
+                                        newStateName = uiState.newStateName,
+                                        onStateChange = viewModel::onStateCreationChange
                                     )
                                 }
-                                HorizontalDivider()
-                                troupe?.let {
+                                item { HorizontalDivider() }
+                                item { Text(text = "States") }
+                                item { HorizontalDivider() }
+                                items(currentPuppet.states) { state ->
+                                    Text(
+                                        text = state.name,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { viewModel.selectState(state) }
+                                            .background(if (state == selectedState) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                            .padding(8.dp)
+                                    )
+                                }
+                                item {
+                                    selectedState?.let { state ->
+                                        StateEditor(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            selectedState = state,
+                                            specialEffectsManager = currentTroupe.specialEffectsManager,
+                                            onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
+                                            onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
+                                        )
+                                    }
+                                }
+                                item { HorizontalDivider() }
+                                item {
                                     SpecialEffectsUI(
-                                        specialEffectsManager = it.specialEffectsManager,
+                                        specialEffectsManager = currentTroupe.specialEffectsManager,
                                         onSaveEffect = { viewModel.onSpecialEffectUpdated() },
-                                        activePuppet = activePuppet,
+                                        activePuppet = currentPuppet,
                                         uploadsDir = viewModel.uploadsDir,
                                         preserveState = uiState.preserveState,
                                         onPreserveStateChanged = viewModel::onPreserveStateChanged
                                     )
                                 }
                             } else {
-                                Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                                    Text("Create or select a puppet to get started.")
+                                item {
+                                    Box(modifier = Modifier.fillParentMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                        Text("Create or select a puppet to get started.")
+                                    }
                                 }
                             }
                         }
