@@ -1,6 +1,5 @@
 package org.menagerie.puppet_master
 
-import com.google.gson.Gson
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.*
@@ -21,7 +20,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     private val client = HttpClient {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
-    private val gson = Gson()
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val localTroupeFile = File(uploadsDir, "local_troupe.json")
 
     private val _troupe = MutableStateFlow<PuppetTroupe?>(null)
@@ -147,11 +146,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
     private fun loadLocalTroupe(): PuppetTroupe? = try {
         if (!localTroupeFile.exists()) null
-        else gson.fromJson(localTroupeFile.readText(), PuppetTroupe::class.java)
+        else json.decodeFromString(localTroupeFile.readText())
     } catch (e: Exception) { null }
 
     private fun saveLocalTroupe(troupe: PuppetTroupe) {
-        localTroupeFile.writeText(gson.toJson(troupe))
+        localTroupeFile.writeText(json.encodeToString(troupe))
     }
 
     actual fun publishTroupe(serverIp: String) {

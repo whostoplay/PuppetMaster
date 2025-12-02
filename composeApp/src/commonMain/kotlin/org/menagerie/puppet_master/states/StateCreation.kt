@@ -17,17 +17,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.ImageFilePicker
 import org.menagerie.puppet_master.MainViewModel
@@ -44,9 +39,8 @@ import org.menagerie.puppet_master.toImageBitmap
  * @param selectedBlinkImageName The name of the currently selected blink image.
  * @param newStateName The name of the new state.
  * @param onStateChange A callback that is invoked when any of the state creation parameters change.
- * @param onHover A callback that is invoked when the user hovers over the composable.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StateCreation(
     modifier: Modifier,
@@ -56,16 +50,8 @@ fun StateCreation(
     selectedBlinkImage: ByteArray?,
     selectedBlinkImageName: String,
     newStateName: String,
-    onStateChange: (ByteArray?, String, ByteArray?, String, String) -> Unit,
-    onHover: (Boolean) -> Unit
+    onStateChange: (ByteArray?, String, ByteArray?, String, String) -> Unit
 ) {
-    val isHoveringOnItems = remember { mutableStateMapOf<String, Boolean>() }
-    val isHovering = isHoveringOnItems.values.any { it }
-
-    LaunchedEffect(isHovering) {
-        onHover(isHovering)
-    }
-
     Column(modifier = modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Create New State", style = MaterialTheme.typography.titleMedium)
         Row(
@@ -82,18 +68,7 @@ fun StateCreation(
 
             if (selectedImage != null && selectedBlinkImage != null) {
                 Button(
-                    onClick = { onStateChange(selectedBlinkImage, selectedBlinkImageName, selectedImage, selectedImageName, newStateName) },
-                    modifier = Modifier
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    when (awaitPointerEvent().type) {
-                                        PointerEventType.Enter -> isHoveringOnItems["swap"] = true
-                                        PointerEventType.Exit -> isHoveringOnItems["swap"] = false
-                                    }
-                                }
-                            }
-                        }
+                    onClick = { onStateChange(selectedBlinkImage, selectedBlinkImageName, selectedImage, selectedImageName, newStateName) }
                 ) {
                     Text("<->")
                 }
@@ -107,19 +82,7 @@ fun StateCreation(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            when (awaitPointerEvent().type) {
-                                PointerEventType.Enter -> isHoveringOnItems["picker"] = true
-                                PointerEventType.Exit -> isHoveringOnItems["picker"] = false
-                            }
-                        }
-                    }
-                }
-        ) {
+        Box {
             ImageFilePicker("Select Image(s)") { images ->
                 val mainImage = images.getOrNull(0)
                 val blinkImage = images.getOrNull(1)
@@ -132,38 +95,17 @@ fun StateCreation(
 
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
             TextField(
-                modifier = Modifier.menuAnchor().fillMaxWidth()
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                when (awaitPointerEvent().type) {
-                                    PointerEventType.Enter -> isHoveringOnItems["nameField"] = true
-                                    PointerEventType.Exit -> isHoveringOnItems["nameField"] = false
-                                }
-                            }
-                        }
-                    },
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
                 value = newStateName, onValueChange = { onStateChange(selectedImage, selectedImageName, selectedBlinkImage, selectedBlinkImageName, it) },
                 label = { Text("State Name") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
             )
             ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                predefinedStates.forEachIndexed { index, selectionOption ->
+                predefinedStates.forEach { selectionOption ->
                     DropdownMenuItem(
                         text = { Text(selectionOption) },
-                        onClick = { onStateChange(selectedImage, selectedImageName, selectedBlinkImage, selectedBlinkImageName, selectionOption); expanded = false },
-                        modifier = Modifier
-                            .pointerInput(Unit) {
-                                awaitPointerEventScope {
-                                    while (true) {
-                                        when (awaitPointerEvent().type) {
-                                            PointerEventType.Enter -> isHoveringOnItems["menuItem$index"] = true
-                                            PointerEventType.Exit -> isHoveringOnItems["menuItem$index"] = false
-                                        }
-                                    }
-                                }
-                            }
+                        onClick = { onStateChange(selectedImage, selectedImageName, selectedBlinkImage, selectedBlinkImageName, selectionOption); expanded = false }
                     )
                 }
             }
@@ -193,16 +135,6 @@ fun StateCreation(
             },
             enabled = isSaveEnabled,
             modifier = Modifier.padding(top = 8.dp)
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            when (awaitPointerEvent().type) {
-                                PointerEventType.Enter -> isHoveringOnItems["save"] = true
-                                PointerEventType.Exit -> isHoveringOnItems["save"] = false
-                            }
-                        }
-                    }
-                }
         ) { Text("Save Local State") }
     }
 }

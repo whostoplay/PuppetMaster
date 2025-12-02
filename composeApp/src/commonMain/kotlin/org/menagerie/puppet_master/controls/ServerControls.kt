@@ -8,14 +8,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.OperatingMode
 
@@ -27,92 +21,34 @@ import org.menagerie.puppet_master.OperatingMode
  * @param isListening Whether the client is currently listening for audio input.
  * @param onTogglePublishing A callback that is invoked when the user toggles the publishing switch.
  * @param onToggleListening A callback that is invoked when the user toggles the listening switch.
- * @param onHover A callback that is invoked when the user hovers over the controls.
  */
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun ServerControls(
     operatingMode: OperatingMode,
     isPublishing: Boolean,
     isListening: Boolean,
     onTogglePublishing: (Boolean) -> Unit,
-    onToggleListening: () -> Unit,
-    onHover: (Boolean) -> Unit
+    onToggleListening: () -> Unit
 ) {
-    val isHoveringOnItems = remember { mutableStateMapOf<String, Boolean>() }
-    val isHovering = isHoveringOnItems.values.any { it }
-
-    LaunchedEffect(isHovering) {
-        onHover(isHovering)
-    }
-
     Row(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "Publishing",
-                modifier = Modifier
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                when (awaitPointerEvent().type) {
-                                    PointerEventType.Enter -> isHoveringOnItems["publishingText"] = true
-                                    PointerEventType.Exit -> isHoveringOnItems["publishingText"] = false
-                                }
-                            }
-                        }
-                    }
-            )
+            Text(text = "Publishing")
             Switch(
                 checked = isPublishing,
                 onCheckedChange = onTogglePublishing,
-                enabled = operatingMode == OperatingMode.ONLINE,
-                modifier = Modifier
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                when (awaitPointerEvent().type) {
-                                    PointerEventType.Enter -> isHoveringOnItems["publishingSwitch"] = true
-                                    PointerEventType.Exit -> isHoveringOnItems["publishingSwitch"] = false
-                                }
-                            }
-                        }
-                    }
+                enabled = operatingMode == OperatingMode.ONLINE
             )
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "Listening",
-                modifier = Modifier
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                when (awaitPointerEvent().type) {
-                                    PointerEventType.Enter -> isHoveringOnItems["listeningText"] = true
-                                    PointerEventType.Exit -> isHoveringOnItems["listeningText"] = false
-                                }
-                            }
-                        }
-                    }
-            )
+            Text(text = "Listening")
             Switch(
                 checked = isListening,
-                onCheckedChange = { onToggleListening() },
-                modifier = Modifier
-                    .pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                when (awaitPointerEvent().type) {
-                                    PointerEventType.Enter -> isHoveringOnItems["listeningSwitch"] = true
-                                    PointerEventType.Exit -> isHoveringOnItems["listeningSwitch"] = false
-                                }
-                            }
-                        }
-                    }
+                onCheckedChange = { onToggleListening() }
             )
         }
     }

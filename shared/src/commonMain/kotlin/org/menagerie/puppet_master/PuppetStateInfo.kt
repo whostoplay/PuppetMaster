@@ -11,6 +11,7 @@ import kotlinx.serialization.Transient
  * @property blinkImageName The name of the image to display when the puppet blinks. If null, the puppet will not blink.
  * @property minBlinkRate The minimum time in milliseconds between blinks.
  * @property maxBlinkRate The maximum time in milliseconds between blinks.
+ * @property appliedEffectName The name of the special effect applied to this state.
  */
 @Serializable
 data class PuppetStateInfo(
@@ -19,6 +20,7 @@ data class PuppetStateInfo(
     val blinkImageName: String? = null,
     val minBlinkRate: Long = 1500L,
     val maxBlinkRate: Long = 6000L,
+    val appliedEffectName: String? = null
 ) {
     @Transient
     private var lastUpdated: Long = System.currentTimeMillis()

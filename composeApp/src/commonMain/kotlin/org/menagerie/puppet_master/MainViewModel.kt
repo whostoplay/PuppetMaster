@@ -98,8 +98,11 @@ class MainViewModel(context: Any) : ViewModel() {
     init {
         _serverIpAddress.value = settingsRepository.loadIp()
         viewModelScope.launch {
-            activePuppet.collect {
-                _thresholds.value = it?.thresholds ?: emptyMap()
+            activePuppet.collect { puppet ->
+                _thresholds.value = puppet?.thresholds ?: emptyMap()
+                _selectedState.value?.let { selected ->
+                    _selectedState.value = puppet?.states?.find { it.name == selected.name }
+                }
             }
         }
     }
@@ -205,6 +208,14 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
+    fun updateAppliedEffect(state: PuppetStateInfo, effectName: String?) {
+        dataManager.updatePuppet(dataManager.activePuppet.value!!.name) {
+            it.copy(states = it.states.map {
+                if (it.name == state.name) it.copy(appliedEffectName = effectName) else it
+            })
+        }
+    }
+
     fun addThreshold(value: Float) {
         val newThresholds = _thresholds.value.toMutableMap()
         newThresholds[value] = null
@@ -226,6 +237,14 @@ class MainViewModel(context: Any) : ViewModel() {
         _thresholds.value = newThresholds
         persistThresholds()
         hideStateAssignmentDialog()
+    }
+
+    fun onSpecialEffectUpdated() {
+        dataManager.activePuppet.value?.let { puppet ->
+            dataManager.updatePuppet(puppet.name) {
+                it.copy(lastUpdated = System.currentTimeMillis())
+            }
+        }
     }
 
     private fun persistThresholds() {

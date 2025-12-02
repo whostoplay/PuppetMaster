@@ -8,36 +8,21 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.PointerEventType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetStateInfo
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun StateListing(
     modifier: Modifier,
     activePuppet: PuppetCharacter?,
     selectedState: PuppetStateInfo?,
-    onStateSelected: (PuppetStateInfo) -> Unit,
-    onHover: (Boolean) -> Unit
+    onStateSelected: (PuppetStateInfo) -> Unit
 ) {
     LazyColumn(
         modifier = modifier.padding(8.dp)
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        when (awaitPointerEvent().type) {
-                            PointerEventType.Enter -> onHover(true)
-                            PointerEventType.Exit -> onHover(false)
-                        }
-                    }
-                }
-            }
     ) {
         item { Text("Puppet States", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp)) }
         activePuppet?.states?.let {

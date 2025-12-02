@@ -52,7 +52,6 @@ import org.menagerie.puppet_master.states.StateListing
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
-@Preview
 fun App() {
     val context = getContext()
     val viewModel = remember { MainViewModel(context) }
@@ -132,7 +131,7 @@ fun App() {
                 }
         ) {
             val isLandscape = maxWidth > maxHeight
-            val panelWeight = if (isDesktop) 0.25f else 1 / 3f
+            val panelWeight = 1 / 3f
 
             LivePreview(operatingMode, displayedImageName, viewModel.uploadsDir, uiState.backgroundColor, serverIpAddress)
 
@@ -143,10 +142,11 @@ fun App() {
                             modifier = Modifier.fillMaxHeight().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
                                 .verticalScroll(rememberScrollState())
+                                .onHover { isHoveringOn["leftPanel"] = it }
                         ) {
-                            PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet) { isHoveringOn["puppet"] = it }
+                            PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet)
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
+                            ModeControls(operatingMode, viewModel::setOperatingMode)
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             TextField(
                                 value = serverIpAddress,
@@ -159,7 +159,7 @@ fun App() {
                                 modifier = Modifier.fillMaxWidth().padding(8.dp)
                             )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
+                            ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening)
                             if (isListening) {
                                 VolumeIndicator(
                                     level = audioLevel,
@@ -175,7 +175,7 @@ fun App() {
                                 )
                             }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) }) { isHoveringOn["color"] = it }
+                            ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
                         }
 
                         Spacer(modifier = Modifier.fillMaxHeight().weight(1f - (2 * panelWeight)))
@@ -184,8 +184,9 @@ fun App() {
                             modifier = Modifier.fillMaxHeight().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
                                 .verticalScroll(rememberScrollState())
+                                .onHover { isHoveringOn["rightPanel"] = it }
                         ) {
-                            if (activePuppet != null) {
+                            if (activePuppet != null && troupe != null) {
                                 StateCreation(
                                     modifier = Modifier.fillMaxWidth(),
                                     viewModel = viewModel,
@@ -194,18 +195,26 @@ fun App() {
                                     selectedBlinkImage = uiState.selectedBlinkImage,
                                     selectedBlinkImageName = uiState.selectedBlinkImageName,
                                     newStateName = uiState.newStateName,
-                                    onStateChange = viewModel::onStateCreationChange,
-                                    onHover = { isHoveringOn["stateCreation"] = it }
+                                    onStateChange = viewModel::onStateCreationChange
                                 )
                                 HorizontalDivider()
-                                StateListing(modifier = Modifier.fillMaxWidth().weight(1f), activePuppet = activePuppet, selectedState = selectedState, onStateSelected = viewModel::selectState) { isHoveringOn["stateListing"] = it }
-                                HorizontalDivider()
-                                selectedState?.let {
+                                StateListing(modifier = Modifier.fillMaxWidth().weight(.5f), activePuppet = activePuppet, selectedState = selectedState, onStateSelected = viewModel::selectState)
+                                selectedState?.let { state ->
                                     StateEditor(
                                         modifier = Modifier.fillMaxWidth(),
-                                        selectedState = it,
-                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(it, newBlinkRate) },
-                                        onHover = { isHoveringOn["stateEditor"] = it }
+                                        selectedState = state,
+                                        specialEffectsManager = troupe!!.specialEffectsManager,
+                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
+                                        onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
+                                    )
+                                 }
+                                HorizontalDivider()
+                                troupe?.let {
+                                    SpecialEffectsUI(
+                                        specialEffectsManager = it.specialEffectsManager,
+                                        onSaveEffect = {
+                                            viewModel.onSpecialEffectUpdated()
+                                        }
                                     )
                                 }
                             } else {
@@ -221,10 +230,11 @@ fun App() {
                             modifier = Modifier.fillMaxWidth().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
                                 .verticalScroll(rememberScrollState())
+                                .onHover { isHoveringOn["topPanel"] = it }
                         ) {
-                            PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet) { isHoveringOn["puppet"] = it }
+                            PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet)
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ModeControls(operatingMode, viewModel::setOperatingMode) { isHoveringOn["mode"] = it }
+                            ModeControls(operatingMode, viewModel::setOperatingMode)
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             TextField(
                                 value = serverIpAddress,
@@ -237,7 +247,7 @@ fun App() {
                                 modifier = Modifier.fillMaxWidth().padding(8.dp)
                             )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening) { isHoveringOn["server"] = it }
+                            ServerControls(operatingMode, isPublishing, isListening, viewModel::setPublishing, viewModel::toggleListening)
                             if (isListening) {
                                 VolumeIndicator(
                                     level = audioLevel,
@@ -253,7 +263,7 @@ fun App() {
                                 )
                             }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) }) { isHoveringOn["color"] = it }
+                            ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
                         }
 
                         Spacer(modifier = Modifier.fillMaxWidth().weight(1f - (2 * panelWeight)))
@@ -262,8 +272,9 @@ fun App() {
                             modifier = Modifier.fillMaxWidth().weight(panelWeight)
                                 .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
                                 .verticalScroll(rememberScrollState())
+                                .onHover { isHoveringOn["bottomPanel"] = it }
                         ) {
-                            if (activePuppet != null) {
+                            if (activePuppet != null && troupe != null) {
                                 StateCreation(
                                     modifier = Modifier.fillMaxWidth(),
                                     viewModel = viewModel,
@@ -272,18 +283,26 @@ fun App() {
                                     selectedBlinkImage = uiState.selectedBlinkImage,
                                     selectedBlinkImageName = uiState.selectedBlinkImageName,
                                     newStateName = uiState.newStateName,
-                                    onStateChange = viewModel::onStateCreationChange,
-                                    onHover = { isHoveringOn["stateCreation"] = it }
+                                    onStateChange = viewModel::onStateCreationChange
                                 )
                                 HorizontalDivider()
-                                StateListing(modifier = Modifier.fillMaxWidth().weight(1f), activePuppet = activePuppet, selectedState = selectedState, onStateSelected = viewModel::selectState) { isHoveringOn["stateListing"] = it }
-                                HorizontalDivider()
-                                selectedState?.let {
+                                StateListing(modifier = Modifier.fillMaxWidth(), activePuppet = activePuppet, selectedState = selectedState, onStateSelected = viewModel::selectState)
+                                selectedState?.let { state ->
                                     StateEditor(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        selectedState = it,
-                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(it, newBlinkRate) },
-                                        onHover = { isHoveringOn["stateEditor"] = it }
+                                        modifier = Modifier.fillMaxWidth().weight(1f),
+                                        selectedState = state,
+                                        specialEffectsManager = troupe!!.specialEffectsManager,
+                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
+                                        onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
+                                    )
+                                }
+                                HorizontalDivider()
+                                troupe?.let {
+                                    SpecialEffectsUI(
+                                        specialEffectsManager = it.specialEffectsManager,
+                                        onSaveEffect = {
+                                            viewModel.onSpecialEffectUpdated()
+                                        }
                                     )
                                 }
                             } else {
