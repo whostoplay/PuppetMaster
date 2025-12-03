@@ -11,115 +11,149 @@
             overflow: hidden;
             background-color: transparent; /* Makes the background transparent */
         }
-        img {
+        #puppet {
             width: 100%;
             height: 100%;
-            object-fit: contain;
-            /* This helps performance by hinting to the browser that the transform won't change the layout */
-            will-change: transform, filter;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
         }
     </style>
 </head>
 <body>
-    <img id="puppet" src="" />
-    <script>
-        const img = document.getElementById('puppet');
-        const socket = new WebSocket('ws://127.0.0.1:8080/obs');
+<div id="puppet"></div>
+<script>
+    const puppetElement = document.getElementById('puppet');
+    const socket = new WebSocket('ws://127.0.0.1:8080/obs');
 
-        let activeEffect = null;
-        let startTime = 0;
+    let activeEffect = null;
+    let startTime = 0;
 
-        socket.onmessage = function(event) {
-            const serverState = JSON.parse(event.data);
-            if (serverState.imageName) {
-                const newImg = new Image();
-                newImg.onload = () => {
-                    img.src = newImg.src;
-                    if (serverState.effect) {
-                        // Check if the effect is new or different to reset the animation start time
-                        if (!activeEffect || activeEffect.name !== serverState.effect.name) {
-                            startTime = Date.now();
-                        }
-                        activeEffect = serverState.effect;
-                    } else {
-                        activeEffect = null;
-                    }
-                }
-                newImg.src = `http://127.0.0.1:8080/uploads/${serverState.imageName}`;
-            } else {
-                img.src = ""; // Hide image
-                activeEffect = null;
-            }
-        };
+    function intToCssColor(colorInt) {
+        const a = ((colorInt >> 24) & 0xFF) / 255;
+        const r = (colorInt >> 16) & 0xFF;
+        const g = (colorInt >> 8) & 0xFF;
+        const b = colorInt & 0xFF;
+        return `rgba(${r}, ${g}, ${b}, ${a})`;
+    }
 
-        function animate() {
-            if (activeEffect) {
-                const elapsedTime = Date.now() - startTime;
+    socket.onmessage = function(event) {
+        const serverState = JSON.parse(event.data);
+        const puppetStateInfo = serverState.puppetStateInfo;
 
-                // Scale
-                let scaleX = activeEffect.scaleX;
-                let scaleY = activeEffect.scaleY;
-                if (activeEffect.scaleSpeed > 0) {
-                    const angle = (elapsedTime / (100 / (activeEffect.scaleSpeed + 1))) * 2 * Math.PI;
-                    scaleX = 1 + (Math.sin(angle) * (activeEffect.scaleX - 1));
-                    scaleY = 1 + (Math.sin(angle) * (activeEffect.scaleY - 1));
-                }
-
-                // Rotation
-                let rotation = 0;
-                if (activeEffect.spinSpeed > 0) {
-                    rotation = (elapsedTime * activeEffect.spinSpeed * 10 / 50) % 360;
-                    rotation *= activeEffect.spinDirection;
-                }
-
-                // Vibration
-                let offsetX = 0;
-                let offsetY = 0;
-                if (activeEffect.vibrationDistance > 0) {
-                    const maxOffset = img.width / 20; // Base offset on image width
-                    const offset = activeEffect.vibrationDistance * maxOffset;
-                    const angle = (elapsedTime / (100 / (activeEffect.vibrationSpeed + 1))) * 2 * Math.PI;
-                    offsetX = Math.sin(angle) * offset;
-                    offsetY = Math.sin(angle * 2) * offset;
-                }
-
-                img.style.transform = `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg) translate(${offsetX}px, ${offsetY}px)`;
-
-                // Glow
-                const colorInt = activeEffect.glowColor;
-                const r = (colorInt >> 16) & 0xFF;
-                const g = (colorInt >> 8) & 0xFF;
-                const b = colorInt & 0xFF;
-                const glowCssColor = `rgb(${r}, ${g}, ${b})`;
-                const blurRadius = activeEffect.glowIntensity * 25; // Scale intensity to a blur radius
-                const brightness = 1 + activeEffect.glowIntensity * 0.5; // Also make the image itself brighter
-
-                img.style.filter = `brightness(${brightness}) drop-shadow(0 0 ${blurRadius}px ${glowCssColor})`;
-
-            } else {
-                // Reset styles when no effect is active
-                img.style.transform = 'none';
-                img.style.filter = 'none';
-            }
-
-            requestAnimationFrame(animate);
+        if (!puppetStateInfo || !puppetStateInfo.imageName) {
+            puppetElement.style.backgroundImage = '';
+            activeEffect = null;
+            return;
         }
 
-        socket.onopen = function(event) {
-            console.log("Connected to Puppet Master server.");
-            requestAnimationFrame(animate);
-        };
+        const newImg = new Image();
+        newImg.onload = () => {
+            puppetElement.style.backgroundImage = `url(${newImg.src})`;
+            if (puppetStateInfo.appliedEffect) {
+                if (!activeEffect || activeEffect.name !== puppetStateInfo.appliedEffect.name) {
+                    startTime = Date.now();
+                }
+                activeEffect = puppetStateInfo.appliedEffect;
+            } else {
+                activeEffect = null;
+            }
+        }
+        newImg.src = `http://127.0.0.1:8080/uploads/${puppetStateInfo.imageName}`;
+    };
 
-        socket.onclose = function(event) {
-            console.log("Disconnected from Puppet Master server. Reconnecting in 1 second...");
-            setTimeout(() => {
-                location.reload();
-            }, 1000);
-        };
+    function getAnimatedScale(targetScale, scaleSpeed, elapsedTime) {
+        if (scaleSpeed === 0) {
+            return targetScale;
+        }
+        const angle = (elapsedTime / (1000 / (scaleSpeed + 1))) * 2 * Math.PI;
+        return 1 + (Math.sin(angle) * (targetScale - 1));
+    }
 
-        socket.onerror = function(error) {
-            console.error("WebSocket Error: ", error);
-        };
-    </script>
+    function animate() {
+        let transform = 'scale(1) rotate(0deg) translate(0px, 0px)';
+        let filter = 'none';
+
+        if (activeEffect) {
+            const elapsedTime = Date.now() - startTime;
+
+            // Scale
+            const scaleX = getAnimatedScale(activeEffect.scaleX, activeEffect.scaleSpeed, elapsedTime);
+            const scaleY = getAnimatedScale(activeEffect.scaleY, activeEffect.scaleSpeed, elapsedTime);
+
+            // Rotation
+            let rotation = 0;
+            if (activeEffect.spinSpeed > 0) {
+                rotation = (elapsedTime * activeEffect.spinSpeed * 10 / 50) % 360;
+                rotation *= activeEffect.spinDirection;
+            }
+
+            // Vibration
+            let offsetX = 0;
+            let offsetY = 0;
+            if (activeEffect.vibrationDistance > 0) {
+                const maxOffset = puppetElement.clientWidth / 50;
+                const offset = activeEffect.vibrationDistance * maxOffset;
+                const angle = (elapsedTime / (100 / (activeEffect.vibrationSpeed + 1))) * 2 * Math.PI;
+                offsetX = Math.sin(angle) * offset;
+                offsetY = Math.sin(angle * 2) * offset;
+            }
+
+            transform = `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg) translate(${offsetX}px, ${offsetY}px)`;
+
+            // Filters
+            const filters = [];
+
+            // Glow
+            if (activeEffect.glowIntensity > 0) {
+                const glowBlur = activeEffect.glowIntensity * 5;
+                const glowColor = intToCssColor(activeEffect.glowColor);
+                filters.push(`drop-shadow(0 0 ${glowBlur}px ${glowColor})`);
+            }
+
+            // Brightness
+            filters.push(`brightness(${activeEffect.brightness})`);
+
+            // Hue Shift
+            filters.push(`hue-rotate(${activeEffect.hueShift}deg)`);
+
+            if (filters.length > 0) {
+                filter = filters.join(' ');
+            }
+            
+            // Color Tint & Transparency
+            const color = intToCssColor(activeEffect.colorTint);
+            puppetElement.style.backgroundColor = color;
+            puppetElement.style.backgroundBlendMode = 'color';
+            puppetElement.style.opacity = activeEffect.transparency;
+
+        } else {
+             puppetElement.style.backgroundColor = 'transparent';
+             puppetElement.style.opacity = 1;
+             puppetElement.style.backgroundBlendMode = 'normal';
+        }
+
+        puppetElement.style.transform = transform;
+        puppetElement.style.filter = filter;
+
+        requestAnimationFrame(animate);
+    }
+
+    socket.onopen = function(event) {
+        console.log("Connected to Puppet Master server.");
+        requestAnimationFrame(animate);
+    };
+
+    socket.onclose = function(event) {
+        console.log("Disconnected from Puppet Master server. Reconnecting in 1 second...");
+        setTimeout(() => {
+            location.reload();
+        }, 1000);
+    };
+
+    socket.onerror = function(error) {
+        console.error("WebSocket Error: ", error);
+    };
+</script>
 </body>
 </html>

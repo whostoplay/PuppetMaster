@@ -31,7 +31,7 @@ fun Application.module() {
     val stateManager = PuppetStateManager(this, troupeManager)
 
     install(ContentNegotiation) {
-        json(Json { isLenient = true; ignoreUnknownKeys = true })
+        json(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true })
     }
     install(WebSockets) {
         pingPeriod = 15.seconds
@@ -108,7 +108,7 @@ fun Application.module() {
             stateManager.obsConnectionCount++
             try {
                 stateManager.stateToSend.collectLatest { state ->
-                    val json = Json { isLenient = true; ignoreUnknownKeys = true }
+                    val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true }
                     send(Frame.Text(json.encodeToString(state)))
                 }
             } finally {

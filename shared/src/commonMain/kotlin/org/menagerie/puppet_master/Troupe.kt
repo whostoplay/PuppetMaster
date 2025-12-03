@@ -29,5 +29,5 @@ data class PuppetCharacter(
 data class PuppetTroupe(
     val activePuppetName: String, 
     val puppets: List<PuppetCharacter>,
-    val specialEffectsManager: SpecialEffectsManager = SpecialEffectsManager()
+    val specialEffectsManager: SpecialEffectsManager
 )

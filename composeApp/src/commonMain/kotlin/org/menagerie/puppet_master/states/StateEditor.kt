@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.PuppetStateInfo
+import org.menagerie.puppet_master.SpecialEffect
 import org.menagerie.puppet_master.SpecialEffectsManager
 
 /**
@@ -36,7 +37,7 @@ fun StateEditor(
     selectedState: PuppetStateInfo?,
     specialEffectsManager: SpecialEffectsManager,
     onBlinkRateChanged: (LongRange) -> Unit,
-    onApplyEffect: (String?) -> Unit
+    onApplyEffect: (SpecialEffect?) -> Unit
 ) {
     val sliderValueRange = 200f..10000f
     var blinkRateRange by remember(selectedState) {
@@ -61,7 +62,7 @@ fun StateEditor(
 
             Box {
                 Text(
-                    text = "Applied Effect: ${state.appliedEffectName ?: "None"}",
+                    text = "Applied Effect: ${state.appliedEffect?.name ?: "None"}",
                     modifier = Modifier.fillMaxWidth().clickable { showEffectDropdown = true }
                 )
                 DropdownMenu(
@@ -79,7 +80,7 @@ fun StateEditor(
                         DropdownMenuItem(
                             text = { Text(effect.name) },
                             onClick = {
-                                onApplyEffect(effect.name)
+                                onApplyEffect(effect)
                                 showEffectDropdown = false
                             }
                         )

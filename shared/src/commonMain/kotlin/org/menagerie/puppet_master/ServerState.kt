@@ -4,6 +4,5 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class ServerState(
-    val imageName: String?,
-    val effect: SpecialEffect?
+    val puppetStateInfo: PuppetStateInfo?
 )

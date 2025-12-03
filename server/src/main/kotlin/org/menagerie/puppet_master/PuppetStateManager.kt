@@ -6,6 +6,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import kotlin.math.pow
 import kotlin.random.Random
 
@@ -78,16 +79,32 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
-    fun onClientSentState(imageName: String) {
-        val activePuppet = troupeManager.activePuppet ?: return
-        val baseState = activePuppet.states.find { it.imageName == imageName || it.blinkImageName == imageName }
-        if (baseState != null) {
-            if (_activeState.value != baseState) {
-                _activeState.value = baseState
+    fun onClientSentState(stateJson: String) {
+        val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true }
+        try {
+            val serverState = json.decodeFromString<ServerState>(stateJson)
+            _stateToSend.value = serverState
+
+            // Also update the internal active state for blinking logic
+            serverState.puppetStateInfo?.let { stateInfo ->
+                val baseState = troupeManager.activePuppet?.states?.find { it.imageName == stateInfo.imageName || it.blinkImageName == stateInfo.imageName }
+                if (baseState != null && _activeState.value != baseState) {
+                    _activeState.value = baseState
+                }
             }
-            if (_stateToSend.value?.imageName != imageName) {
-                val tempState = baseState.copy(imageName = imageName)
-                updateStateToSend(tempState)
+        } catch (e: Exception) {
+            // It's possible the client is just sending an imageName as a string.
+            val imageName = stateJson
+            val activePuppet = troupeManager.activePuppet ?: return
+            val baseState = activePuppet.states.find { it.imageName == imageName || it.blinkImageName == imageName }
+            if (baseState != null) {
+                if (_activeState.value != baseState) {
+                    _activeState.value = baseState
+                }
+                if (_stateToSend.value?.puppetStateInfo?.imageName != imageName) {
+                    val tempState = baseState.copy(imageName = imageName)
+                    updateStateToSend(tempState)
+                }
             }
         }
     }
@@ -114,9 +131,6 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
     }
 
     private fun updateStateToSend(state: PuppetStateInfo?) {
-        val effect = state?.appliedEffectName?.let { name ->
-            troupeManager.troupe?.specialEffectsManager?.effects?.find { it.name == name }
-        }
-        _stateToSend.value = ServerState(state?.imageName, effect)
+        _stateToSend.value = ServerState(state)
     }
 }

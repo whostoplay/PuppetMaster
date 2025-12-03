@@ -14,7 +14,8 @@ class PuppetStateController(
     private val scope: CoroutineScope,
     private val dataManager: PuppetDataManager,
     private val audioProcessor: AudioProcessor,
-    private val getUiState: () -> UiState
+    private val getUiState: () -> UiState,
+    private val thresholds: StateFlow<Map<Float, PuppetStateInfo?>>
 ) {
     private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
     val activeState: StateFlow<PuppetStateInfo?> = _activeState.asStateFlow()
@@ -49,18 +50,14 @@ class PuppetStateController(
             activeState.collect { state ->
                 clientBlinkingJob?.cancel()
                 _displayedImageName.value = state?.imageName
-
-                if (state?.appliedEffectName != null) {
-                    val effect = dataManager.troupe.value?.specialEffectsManager?.effects?.find { it.name == state.appliedEffectName }
-                    if (effect != null) {
-                        val newEffect = ActiveSpecialEffect(effect)
-                        if (getUiState().preserveState) {
-                            newEffect.preserveStartTime(activeSpecialEffect.value)
-                        }
-                        _activeSpecialEffect.value = newEffect
-                    } else {
-                        _activeSpecialEffect.value = null
+                val effect = state?.appliedEffect
+                 println(state)
+                if (effect != null) {
+                    val newEffect = ActiveSpecialEffect(effect)
+                    if (getUiState().preserveState) {
+                        newEffect.preserveStartTime(activeSpecialEffect.value)
                     }
+                    _activeSpecialEffect.value = newEffect
                 } else {
                     _activeSpecialEffect.value = null
                 }
@@ -105,7 +102,7 @@ class PuppetStateController(
 
             if (isControlling) {
                 val scaledLevel = level.pow(0.5f)
-                val sortedThresholds = dataManager.activePuppet.value?.thresholds?.entries?.sortedBy { it.key } ?: emptyList()
+                val sortedThresholds = thresholds.value.entries.sortedBy { it.key }
                 val activeThresholdIndex = sortedThresholds.indexOfLast { scaledLevel >= it.key }
 
                 if (activeThresholdIndex != -1) {

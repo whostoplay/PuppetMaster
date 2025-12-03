@@ -278,7 +278,7 @@ fun App() {
                                             selectedState = state,
                                             specialEffectsManager = currentTroupe.specialEffectsManager,
                                             onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
-                                            onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
+                                            onApplyEffect = { effect -> viewModel.updateAppliedEffect(state, effect) }
                                         )
                                     }
                                 }

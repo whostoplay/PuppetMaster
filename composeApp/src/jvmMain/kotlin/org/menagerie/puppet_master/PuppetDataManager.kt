@@ -18,9 +18,9 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     actual val uploadsDir = getUploadsDir(context)
     private val uploader = Uploader()
     private val client = HttpClient {
-        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true }) }
     }
-    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true }
     private val localTroupeFile = File(uploadsDir, "local_troupe.json")
 
     private val _troupe = MutableStateFlow<PuppetTroupe?>(null)
@@ -102,7 +102,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         if (_troupe.value?.puppets?.any { it.name == name } == true) return
 
         val newPuppet = PuppetCharacter(name, System.currentTimeMillis(), emptyList())
-        val currentTroupe = _troupe.value ?: PuppetTroupe(activePuppetName = "", puppets = emptyList())
+        val currentTroupe = _troupe.value ?: PuppetTroupe(activePuppetName = "", puppets = emptyList(), specialEffectsManager = SpecialEffectsManager())
 
         val newTroupe = currentTroupe.copy(
             puppets = currentTroupe.puppets + newPuppet,
@@ -134,14 +134,14 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             _activePuppet.value?.let { currentPuppet ->
                 val otherStates = currentPuppet.states.filter { it.name != stateName }
                 val newStates = otherStates + newState
-                updatePuppet(currentPuppet.name) { it.copy(states = newStates, lastUpdated = System.currentTimeMillis()) }
+                updatePuppet(currentPuppet.name) { it.copy(states = newStates) }
             }
         }
     }
 
     actual fun updatePuppet(puppetName: String, update: (PuppetCharacter) -> PuppetCharacter) {
         _troupe.value?.let { troupe ->
-            val newPuppets = troupe.puppets.map { if (it.name == puppetName) update(it) else it }
+            val newPuppets = troupe.puppets.map { if (it.name == puppetName) update(it).copy(lastUpdated = System.currentTimeMillis()) else it }
             val newTroupe = troupe.copy(puppets = newPuppets)
             _troupe.value = newTroupe
             _activePuppet.value = newPuppets.find { it.name == puppetName }

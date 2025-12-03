@@ -12,7 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 enum class OperatingMode {
@@ -73,9 +75,14 @@ class MainViewModel(context: Any) : ViewModel() {
 
     private val dataManager = PuppetDataManager(viewModelScope, context)
     val uploadsDir = dataManager.uploadsDir
+
+    private val _thresholds = MutableStateFlow<Map<Float, PuppetStateInfo?>>(emptyMap())
+    val thresholds: StateFlow<Map<Float, PuppetStateInfo?>> = _thresholds.asStateFlow()
+
     private val stateController = PuppetStateController(
         viewModelScope, dataManager, AudioProcessor(context),
-        getUiState = { uiState.value }
+        getUiState = { uiState.value },
+        thresholds = thresholds
     )
     private val settingsRepository = SettingsRepository(context)
 
@@ -104,9 +111,6 @@ class MainViewModel(context: Any) : ViewModel() {
 
     private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
     val operatingMode: StateFlow<OperatingMode> = _operatingMode.asStateFlow()
-
-    private val _thresholds = MutableStateFlow<Map<Float, PuppetStateInfo?>>(emptyMap())
-    val thresholds: StateFlow<Map<Float, PuppetStateInfo?>> = _thresholds.asStateFlow()
 
     private val client = HttpClient { install(WebSockets) }
     private var serverStateJob: Job? = null
@@ -251,18 +255,26 @@ class MainViewModel(context: Any) : ViewModel() {
     }
 
     fun updateBlinkRate(state: PuppetStateInfo, blinkRate: LongRange) {
-        dataManager.updatePuppet(dataManager.activePuppet.value!!.name) {
-            it.copy(states = it.states.map {
+        dataManager.updatePuppet(dataManager.activePuppet.value!!.name) { character ->
+            val newStates = character.states.map {
                 if (it.name == state.name) it.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last) else it
-            })
+            }
+            val newThresholds = character.thresholds.mapValues { (_, value) ->
+                if (value?.name == state.name) value.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last) else value
+            }
+            character.copy(states = newStates, thresholds = newThresholds)
         }
     }
 
-    fun updateAppliedEffect(state: PuppetStateInfo, effectName: String?) {
-        dataManager.updatePuppet(dataManager.activePuppet.value!!.name) {
-            it.copy(states = it.states.map {
-                if (it.name == state.name) it.copy(appliedEffectName = effectName) else it
-            })
+    fun updateAppliedEffect(state: PuppetStateInfo, effect: SpecialEffect?) {
+        dataManager.updatePuppet(dataManager.activePuppet.value!!.name) { character ->
+            val newStates = character.states.map {
+                if (it.name == state.name) it.copy(appliedEffect = effect) else it
+            }
+            val newThresholds = character.thresholds.mapValues { (_, value) ->
+                if (value?.name == state.name) value.copy(appliedEffect = effect) else value
+            }
+            character.copy(states = newStates, thresholds = newThresholds)
         }
     }
 
@@ -290,9 +302,10 @@ class MainViewModel(context: Any) : ViewModel() {
     }
 
     fun onSpecialEffectUpdated() {
-        dataManager.activePuppet.value?.let { puppet ->
-            dataManager.updatePuppet(puppet.name) {
-                it.copy(lastUpdated = System.currentTimeMillis())
+        val currentTroupe = troupe.value
+        if (currentTroupe != null) {
+            if (isPublishing.value) {
+                dataManager.publishTroupe(serverIpAddress.value)
             }
         }
     }
@@ -316,8 +329,10 @@ class MainViewModel(context: Any) : ViewModel() {
                     for (frame in incoming) {
                         if (frame is Frame.Text) {
                             val serverState = Json.decodeFromString<ServerState>(frame.readText())
-                            _serverImageName.value = serverState.imageName
-                            _serverSpecialEffect.value = serverState.effect?.let { ActiveSpecialEffect(it) }
+                            val stateInfo = serverState.puppetStateInfo
+                            _serverImageName.value = stateInfo?.imageName
+                            _serverSpecialEffect.value = stateInfo?.appliedEffect?.let { ActiveSpecialEffect(it) }
+                            println(stateInfo)
                         }
                     }
                 }
@@ -335,8 +350,18 @@ class MainViewModel(context: Any) : ViewModel() {
                     port = SERVER_PORT,
                     path = "/client-control"
                 ) {
-                    displayedImageName.collectLatest { imageName ->
-                        imageName?.let { send(it) }
+                    val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+                    activeState.combine(displayedImageName) { state, imageName ->
+                        val currentState = state?.copy(
+                            imageName = imageName ?: state.imageName,
+                            blinkImageName = state.blinkImageName,
+                            minBlinkRate = state.minBlinkRate,
+                            maxBlinkRate = state.maxBlinkRate,
+                            appliedEffect = state.appliedEffect
+                        )
+                        ServerState(currentState)
+                    }.collectLatest { state ->
+                        send(json.encodeToString(state))
                     }
                 }
             } catch (e: Exception) {

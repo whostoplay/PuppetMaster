@@ -9,9 +9,9 @@ class TroupeManager {
         prettyPrint = true
         isLenient = true
         ignoreUnknownKeys = true
+        encodeDefaults = true
     }
     private val troupeFile = File("troupe.json")
-    private val legacyConfigFile = File("puppet_config.json")
 
     var troupe: PuppetTroupe? = null
         private set
@@ -36,20 +36,6 @@ class TroupeManager {
                 null
             }
         }
-
-        if (legacyConfigFile.exists()) {
-            return try {
-                val legacyConfig = json.decodeFromString(PuppetConfiguration.serializer(), legacyConfigFile.readText())
-                val defaultPuppet = PuppetCharacter("Default", legacyConfig.lastUpdated, legacyConfig.states)
-                val troupe = PuppetTroupe("Default", listOf(defaultPuppet))
-                saveTroupe(troupe)
-                legacyConfigFile.delete()
-                troupe
-            } catch (e: Exception) {
-                null
-            }
-        }
-
         return null
     }
 
