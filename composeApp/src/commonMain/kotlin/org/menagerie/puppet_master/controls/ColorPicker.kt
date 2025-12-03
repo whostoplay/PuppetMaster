@@ -27,9 +27,10 @@ import org.menagerie.puppet_master.rememberColorMapBitmap
  */
 @Composable
 fun ColorPicker(
+    showColors: Boolean = false,
     onColorSelected: (Color) -> Unit
 ) {
-    var showColors by remember { mutableStateOf(false) }
+    var showColors by remember { mutableStateOf(showColors) }
 
     Column(
         modifier = Modifier.fillMaxWidth(),

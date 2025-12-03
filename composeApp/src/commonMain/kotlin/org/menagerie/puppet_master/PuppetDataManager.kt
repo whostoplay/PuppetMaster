@@ -22,4 +22,5 @@ expect class PuppetDataManager(scope: CoroutineScope, context: Any) {
     )
     fun updatePuppet(puppetName: String, update: (PuppetCharacter) -> PuppetCharacter)
     fun publishTroupe(serverIp: String)
+    suspend fun getImageData(imageName: String): ByteArray?
 }

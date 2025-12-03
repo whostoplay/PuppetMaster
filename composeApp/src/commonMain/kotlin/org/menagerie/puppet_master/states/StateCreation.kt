@@ -17,13 +17,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.ImageFilePicker
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.toImageBitmap
@@ -52,6 +55,9 @@ fun StateCreation(
     newStateName: String,
     onStateChange: (ByteArray?, String, ByteArray?, String, String) -> Unit
 ) {
+    val activePuppet by viewModel.activePuppet.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
+
     Column(modifier = modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Create New State", style = MaterialTheme.typography.titleMedium)
         Row(
@@ -92,6 +98,9 @@ fun StateCreation(
 
         var expanded by remember { mutableStateOf(false) }
         val predefinedStates = remember { listOf("idle", "talking", "listening", "shocked", "crying") }
+        val customStates = remember(activePuppet) {
+            activePuppet?.states?.map { it.name }?.filter { it !in predefinedStates } ?: emptyList()
+        }
 
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
             TextField(
@@ -102,10 +111,18 @@ fun StateCreation(
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
             )
             ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                predefinedStates.forEach { selectionOption ->
+                (predefinedStates + customStates).distinct().forEach { selectionOption ->
                     DropdownMenuItem(
                         text = { Text(selectionOption) },
-                        onClick = { onStateChange(selectedImage, selectedImageName, selectedBlinkImage, selectedBlinkImageName, selectionOption); expanded = false }
+                        onClick = { 
+                            coroutineScope.launch {
+                                val state = activePuppet?.states?.find { it.name == selectionOption }
+                                val mainImage = state?.imageName?.let { viewModel.getImageData(it) }
+                                val blinkImage = state?.blinkImageName?.let { viewModel.getImageData(it) }
+                                onStateChange(mainImage, state?.imageName ?: "", blinkImage, state?.blinkImageName ?: "", selectionOption)
+                            }
+                            expanded = false 
+                        }
                     )
                 }
             }
@@ -122,7 +139,7 @@ fun StateCreation(
                 missingParts.add("a state name")
             }
             Text(
-                "Please select ${missingParts.joinToString(" and ")}.",
+                "Please select ${missingParts.joinToString(" and ")} to create or update a state.",
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp)
@@ -131,10 +148,10 @@ fun StateCreation(
 
         Button(
             onClick = {
-                viewModel.createNewState()
+                viewModel.onSaveOrUpdateStateClicked()
             },
             enabled = isSaveEnabled,
             modifier = Modifier.padding(top = 8.dp)
-        ) { Text("Save Local State") }
+        ) { Text("Save/Update State") }
     }
 }

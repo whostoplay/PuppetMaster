@@ -4,7 +4,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,9 +14,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -69,15 +68,33 @@ fun LivePreview(
 
         if (image != null) {
             val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f)
+            val glowColor = activeSpecialEffect?.getGlowColor()?.let { Color(it) } ?: Color.White
+            val glowIntensity = activeSpecialEffect?.getGlow() ?: 1f
+
+            val colorMatrix = ColorMatrix().apply {
+                setToScale(
+                    redScale = glowIntensity * glowColor.red,
+                    greenScale = glowIntensity * glowColor.green,
+                    blueScale = glowIntensity * glowColor.blue,
+                    alphaScale = 1f
+                )
+            }
 
             Image(
                 bitmap = image,
                 contentDescription = "Live Preview",
-                colorFilter = activeSpecialEffect?.getGlow()?.let { ColorFilter.lighting(Color.White, Color(it, it, it)) },
+                colorFilter = ColorFilter.colorMatrix(colorMatrix),
                 modifier = Modifier
-                    .scale(activeSpecialEffect?.getScaleX() ?: 1f, activeSpecialEffect?.getScaleY() ?: 1f)
-                    .graphicsLayer(rotationZ = activeSpecialEffect?.getRotation() ?: 0f)
-                    .offset((offset?.x ?: 0f).dp, (offset?.y ?: 0f).dp)
+                    .graphicsLayer(
+                        scaleX = activeSpecialEffect?.getScaleX() ?: 1f,
+                        scaleY = activeSpecialEffect?.getScaleY() ?: 1f,
+                        rotationZ = activeSpecialEffect?.getRotation() ?: 0f,
+                        translationX = offset?.x ?: 0f,
+                        translationY = offset?.y ?: 0f,
+                        shadowElevation = glowIntensity * 30f,
+                        ambientShadowColor = glowColor,
+                        spotShadowColor = glowColor
+                    )
                     .let { if (frame > 0) it else it } // force recomposition
             )
         } else {

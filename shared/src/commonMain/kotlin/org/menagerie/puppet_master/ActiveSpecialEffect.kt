@@ -37,12 +37,16 @@ class ActiveSpecialEffect(
             return 0f
         }
         val elapsedTime = System.currentTimeMillis() - startTime
-        val rotation = (elapsedTime * effect.spinSpeed * 10f / 1000f) % 360f
+        val rotation = (elapsedTime * effect.spinSpeed * 10f / 50f) % 360f
         return rotation * effect.spinDirection
     }
 
     fun getGlow(): Float {
         return effect.glowIntensity
+    }
+
+    fun getGlowColor(): Int {
+        return effect.glowColor
     }
 
     fun getVibrationOffset(maxOffset: Float): SerializableOffset {

@@ -15,6 +15,8 @@
             width: 100%;
             height: 100%;
             object-fit: contain;
+            /* This helps performance by hinting to the browser that the transform won't change the layout */
+            will-change: transform, filter;
         }
     </style>
 </head>
@@ -29,19 +31,25 @@
 
         socket.onmessage = function(event) {
             const serverState = JSON.parse(event.data);
-            const newImg = new Image();
-            newImg.onload = () => {
-                img.src = newImg.src;
-                if (serverState.effect) {
-                    if (!activeEffect || activeEffect.name !== serverState.effect.name) {
-                        startTime = Date.now();
+            if (serverState.imageName) {
+                const newImg = new Image();
+                newImg.onload = () => {
+                    img.src = newImg.src;
+                    if (serverState.effect) {
+                        // Check if the effect is new or different to reset the animation start time
+                        if (!activeEffect || activeEffect.name !== serverState.effect.name) {
+                            startTime = Date.now();
+                        }
+                        activeEffect = serverState.effect;
+                    } else {
+                        activeEffect = null;
                     }
-                    activeEffect = serverState.effect;
-                } else {
-                    activeEffect = null;
                 }
+                newImg.src = `http://127.0.0.1:8080/uploads/${serverState.imageName}`;
+            } else {
+                img.src = ""; // Hide image
+                activeEffect = null;
             }
-            newImg.src = `http://127.0.0.1:8080/uploads/${serverState.imageName}`;
         };
 
         function animate() {
@@ -52,7 +60,7 @@
                 let scaleX = activeEffect.scaleX;
                 let scaleY = activeEffect.scaleY;
                 if (activeEffect.scaleSpeed > 0) {
-                    const angle = (elapsedTime / (1000 / (activeEffect.scaleSpeed + 1))) * 2 * Math.PI;
+                    const angle = (elapsedTime / (100 / (activeEffect.scaleSpeed + 1))) * 2 * Math.PI;
                     scaleX = 1 + (Math.sin(angle) * (activeEffect.scaleX - 1));
                     scaleY = 1 + (Math.sin(angle) * (activeEffect.scaleY - 1));
                 }
@@ -60,7 +68,7 @@
                 // Rotation
                 let rotation = 0;
                 if (activeEffect.spinSpeed > 0) {
-                    rotation = (elapsedTime * activeEffect.spinSpeed * 10 / 1000) % 360;
+                    rotation = (elapsedTime * activeEffect.spinSpeed * 10 / 50) % 360;
                     rotation *= activeEffect.spinDirection;
                 }
 
@@ -68,7 +76,7 @@
                 let offsetX = 0;
                 let offsetY = 0;
                 if (activeEffect.vibrationDistance > 0) {
-                    const maxOffset = img.width / 20;
+                    const maxOffset = img.width / 20; // Base offset on image width
                     const offset = activeEffect.vibrationDistance * maxOffset;
                     const angle = (elapsedTime / (100 / (activeEffect.vibrationSpeed + 1))) * 2 * Math.PI;
                     offsetX = Math.sin(angle) * offset;
@@ -76,13 +84,22 @@
                 }
 
                 img.style.transform = `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg) translate(${offsetX}px, ${offsetY}px)`;
-                
+
                 // Glow
-                img.style.filter = `brightness(${1 + activeEffect.glowIntensity})`;
+                const colorInt = activeEffect.glowColor;
+                const r = (colorInt >> 16) & 0xFF;
+                const g = (colorInt >> 8) & 0xFF;
+                const b = colorInt & 0xFF;
+                const glowCssColor = `rgb(${r}, ${g}, ${b})`;
+                const blurRadius = activeEffect.glowIntensity * 25; // Scale intensity to a blur radius
+                const brightness = 1 + activeEffect.glowIntensity * 0.5; // Also make the image itself brighter
+
+                img.style.filter = `brightness(${brightness}) drop-shadow(0 0 ${blurRadius}px ${glowCssColor})`;
 
             } else {
-                img.style.transform = 'scale(1) rotate(0deg) translate(0px, 0px)';
-                img.style.filter = 'brightness(1)';
+                // Reset styles when no effect is active
+                img.style.transform = 'none';
+                img.style.filter = 'none';
             }
 
             requestAnimationFrame(animate);
@@ -96,7 +113,7 @@
         socket.onclose = function(event) {
             console.log("Disconnected from Puppet Master server. Reconnecting in 1 second...");
             setTimeout(() => {
-                location.reload(); 
+                location.reload();
             }, 1000);
         };
 

@@ -27,6 +27,7 @@ data class UiState(
     val newStateName: String = "",
     val backgroundColor: Color = Color.Green,
     val showStateAssignmentDialog: Boolean = false,
+    val showOverwriteConfirmDialog: Boolean = false,
     val selectedThreshold: Float? = null,
     val preserveState: Boolean = false
 ) {
@@ -37,6 +38,7 @@ data class UiState(
         other as UiState
 
         if (showStateAssignmentDialog != other.showStateAssignmentDialog) return false
+        if (showOverwriteConfirmDialog != other.showOverwriteConfirmDialog) return false
         if (selectedThreshold != other.selectedThreshold) return false
         if (!selectedImage.contentEquals(other.selectedImage)) return false
         if (selectedImageName != other.selectedImageName) return false
@@ -51,6 +53,7 @@ data class UiState(
 
     override fun hashCode(): Int {
         var result = showStateAssignmentDialog.hashCode()
+        result = 31 * result + showOverwriteConfirmDialog.hashCode()
         result = 31 * result + (selectedThreshold?.hashCode() ?: 0)
         result = 31 * result + (selectedImage?.contentHashCode() ?: 0)
         result = 31 * result + selectedImageName.hashCode()
@@ -121,6 +124,10 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
+    suspend fun getImageData(imageName: String): ByteArray? {
+        return dataManager.getImageData(imageName)
+    }
+
     fun onStateCreationChange(
         image: ByteArray?,
         imageName: String,
@@ -147,6 +154,14 @@ class MainViewModel(context: Any) : ViewModel() {
 
     fun hideStateAssignmentDialog() {
         _uiState.value = _uiState.value.copy(showStateAssignmentDialog = false, selectedThreshold = null)
+    }
+
+    fun showOverwriteConfirmDialog() {
+        _uiState.value = _uiState.value.copy(showOverwriteConfirmDialog = true)
+    }
+
+    fun hideOverwriteConfirmDialog() {
+        _uiState.value = _uiState.value.copy(showOverwriteConfirmDialog = false)
     }
 
     fun setOperatingMode(mode: OperatingMode) {
@@ -203,7 +218,16 @@ class MainViewModel(context: Any) : ViewModel() {
         _selectedState.value = state
     }
 
-    fun createNewState() {
+    fun onSaveOrUpdateStateClicked() {
+        val stateName = _uiState.value.newStateName
+        if (activePuppet.value?.states?.any { it.name == stateName } == true) {
+            showOverwriteConfirmDialog()
+        } else {
+            forceCreateNewState()
+        }
+    }
+    
+    fun forceCreateNewState() {
         val uiState = _uiState.value
         dataManager.createNewState(
             uiState.newStateName,

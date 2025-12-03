@@ -128,6 +128,29 @@ fun App() {
         )
     }
 
+    if (uiState.showOverwriteConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.hideOverwriteConfirmDialog() },
+            title = { Text("Overwrite State?") },
+            text = { Text("A state with this name already exists. Do you want to overwrite it?") },
+            confirmButton = {
+                TextButton(
+                    onClick = { 
+                        viewModel.forceCreateNewState()
+                        viewModel.hideOverwriteConfirmDialog()
+                    }
+                ) {
+                    Text("Overwrite")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.hideOverwriteConfirmDialog() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     MaterialTheme {
         @OptIn(ExperimentalComposeUiApi::class)
         BoxWithConstraints(

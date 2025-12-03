@@ -1,5 +1,7 @@
 package org.menagerie.puppet_master.controls
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,6 +9,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -14,6 +18,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
@@ -29,7 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.ActiveSpecialEffect
@@ -55,7 +62,8 @@ fun SpecialEffectsUI(
     var effectName by remember { mutableStateOf(activeEffect?.name ?: "") }
     var vibrationDistance by remember { mutableStateOf(activeEffect?.vibrationDistance ?: 0f) }
     var vibrationSpeed by remember { mutableStateOf(activeEffect?.vibrationSpeed ?: 0f) }
-    var glowIntensity by remember { mutableStateOf(activeEffect?.glowIntensity ?: 0f) }
+    var glowIntensity by remember { mutableStateOf(activeEffect?.glowIntensity ?: 2f) }
+    var glowColor by remember { mutableStateOf(Color(activeEffect?.glowColor ?: 0xFFFFFFFF.toInt())) }
     var scaleX by remember { mutableStateOf(activeEffect?.scaleX ?: 1f) }
     var scaleY by remember { mutableStateOf(activeEffect?.scaleY ?: 1f) }
     var scaleSpeed by remember { mutableStateOf(activeEffect?.scaleSpeed ?: 0f) }
@@ -65,6 +73,7 @@ fun SpecialEffectsUI(
     var showPreview by remember { mutableStateOf(false) }
     var showScaleDetails by remember { mutableStateOf(false) }
     var showVibrationDetails by remember { mutableStateOf(false) }
+    var showGlowColorPicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(activeEffect) {
         activeEffect?.let {
@@ -72,6 +81,7 @@ fun SpecialEffectsUI(
             vibrationDistance = it.vibrationDistance
             vibrationSpeed = it.vibrationSpeed
             glowIntensity = it.glowIntensity
+            glowColor = Color(it.glowColor)
             scaleX = it.scaleX
             scaleY = it.scaleY
             scaleSpeed = it.scaleSpeed
@@ -86,12 +96,13 @@ fun SpecialEffectsUI(
 
     EffectPreview(show = showPreview, onDismissRequest = { showPreview = false }) {
         if (idleImageName != null) {
-            val previewEffect = remember(vibrationDistance, vibrationSpeed, glowIntensity, scaleX, scaleY, scaleSpeed, spinSpeed, spinDirection) {
+            val previewEffect = remember(vibrationDistance, vibrationSpeed, glowIntensity, glowColor, scaleX, scaleY, scaleSpeed, spinSpeed, spinDirection) {
                 SpecialEffect(
                     name = "preview",
                     vibrationDistance = vibrationDistance,
                     vibrationSpeed = vibrationSpeed,
                     glowIntensity = glowIntensity,
+                    glowColor = glowColor.toArgb(),
                     scaleX = scaleX,
                     scaleY = scaleY,
                     scaleSpeed = scaleSpeed,
@@ -113,6 +124,15 @@ fun SpecialEffectsUI(
                 )
             }
         }
+    }
+
+    if (showGlowColorPicker) {
+        AlertDialog(
+            onDismissRequest = { showGlowColorPicker = false },
+            title = { Text("Select Glow Color") },
+            text = { ColorPicker(true) { glowColor = it; showGlowColorPicker = false } },
+            confirmButton = { Button(onClick = { showGlowColorPicker = false }) { Text("Close") } }
+        )
     }
 
     Column {
@@ -224,18 +244,24 @@ fun SpecialEffectsUI(
                 }
             }
 
-            Text("Glow (Luminance)")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Glow (Luminance)")
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(glowColor)
+                        .clickable { showGlowColorPicker = true }
+                )
+            }
             Slider(
                 value = glowIntensity,
                 onValueChange = { glowIntensity = it },
-                valueRange = 0f..1f
+                valueRange = 0f..6f
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Spin Speed")
-                IconButton(onClick = { spinDirection *= -1 }) {
-                    Icon(if (spinDirection > 0) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Toggle Spin Direction")
-                }
             }
             Slider(
                 value = spinSpeed,
@@ -244,12 +270,20 @@ fun SpecialEffectsUI(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Spin Direction")
+                IconButton(onClick = { spinDirection *= -1 }) {
+                    Icon(if (spinDirection > 0) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Toggle Spin Direction")
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = {
                         effect.name = effectName
                         effect.vibrationDistance = vibrationDistance
                         effect.vibrationSpeed = vibrationSpeed
                         effect.glowIntensity = glowIntensity
+                        effect.glowColor = glowColor.toArgb()
                         effect.scaleX = scaleX
                         effect.scaleY = scaleY
                         effect.scaleSpeed = scaleSpeed

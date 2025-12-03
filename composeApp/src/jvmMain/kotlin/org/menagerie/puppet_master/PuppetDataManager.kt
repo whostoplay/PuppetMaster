@@ -41,6 +41,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    actual suspend fun getImageData(imageName: String): ByteArray? {
+        val file = File(uploadsDir, imageName)
+        return if (file.exists()) file.readBytes() else null
+    }
+
     actual fun setOperatingMode(mode: OperatingMode) {
         operatingMode = mode
     }
