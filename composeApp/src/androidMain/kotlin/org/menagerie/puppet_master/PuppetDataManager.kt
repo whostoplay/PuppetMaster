@@ -1,5 +1,6 @@
 package org.menagerie.puppet_master
 
+import android.content.Context
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -16,7 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
 
-actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, context: Any) {
+actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, private val context: Any) {
 
     actual val uploadsDir = getUploadsDir(context)
     private val uploader = Uploader()
@@ -53,6 +54,24 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         operatingMode = mode
     }
 
+    actual fun saveTroupe(troupe: PuppetTroupe) {
+        // Create a new list of new puppet/state objects to ensure StateFlow emits the update
+        val newPuppets = troupe.puppets.map { puppet ->
+            val newStates = puppet.states.map { state -> state.copy() }
+            puppet.copy(states = newStates)
+        }
+        val newSpecialEffectsManager = troupe.specialEffectsManager.copy(
+            effects = troupe.specialEffectsManager.effects.map { it.copy() }
+        )
+        val newTroupe = troupe.copy(puppets = newPuppets, specialEffectsManager = newSpecialEffectsManager)
+        _troupe.value = newTroupe
+        _activePuppet.value = newTroupe.puppets.find { it.name == newTroupe.activePuppetName }
+        saveLocalTroupe(newTroupe)
+        if (operatingMode == OperatingMode.ONLINE) {
+            publishTroupe(SettingsRepository(context as Context).loadIp())
+        }
+    }
+
     actual fun connectAndSync(serverIp: String) {
         scope.launch {
             try {
@@ -81,7 +100,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                             }
                         }
                     }
-                    
+
                     _troupe.value = serverTroupe
                     _activePuppet.value = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
                     saveLocalTroupe(serverTroupe)

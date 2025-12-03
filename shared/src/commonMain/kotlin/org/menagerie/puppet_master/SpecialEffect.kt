@@ -4,14 +4,14 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class SpecialEffect(
-    var name: String = "New Effect",
-    var vibrationDistance: Float = 0f,
-    var vibrationSpeed: Float = 0f,
-    var glowIntensity: Float = 1f,
-    var glowColor: Int = 0xFFFFFFFF.toInt(),
-    var scaleX: Float = 1f,
-    var scaleY: Float = 1f,
-    var scaleSpeed: Float = 0f,
-    var spinSpeed: Float = 0f,
-    var spinDirection: Int = 1
+    val name: String = "New Effect",
+    val vibrationDistance: Float = 0f,
+    val vibrationSpeed: Float = 0f,
+    val glowIntensity: Float = 1f,
+    val glowColor: Int = 0xFFFFFFFF.toInt(),
+    val scaleX: Float = 1f,
+    val scaleY: Float = 1f,
+    val scaleSpeed: Float = 0f,
+    val spinSpeed: Float = 0f,
+    val spinDirection: Int = 1
 )

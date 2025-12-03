@@ -20,7 +20,9 @@ expect class PuppetDataManager(scope: CoroutineScope, context: Any) {
         localBlinkImageName: String?,
         serverIp: String
     )
+
     fun updatePuppet(puppetName: String, update: (PuppetCharacter) -> PuppetCharacter)
     fun publishTroupe(serverIp: String)
     suspend fun getImageData(imageName: String): ByteArray?
+    fun saveTroupe(troupe: PuppetTroupe)
 }

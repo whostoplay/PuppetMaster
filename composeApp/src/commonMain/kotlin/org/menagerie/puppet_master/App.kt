@@ -286,6 +286,7 @@ fun App() {
                                 item {
                                     SpecialEffectsUI(
                                         specialEffectsManager = currentTroupe.specialEffectsManager,
+                                        onSpecialEffectsManagerChanged = viewModel::onSpecialEffectsManagerChanged,
                                         onSaveEffect = { viewModel.onSpecialEffectUpdated() },
                                         activePuppet = currentPuppet,
                                         uploadsDir = viewModel.uploadsDir,
@@ -403,6 +404,7 @@ fun App() {
                                 item {
                                     SpecialEffectsUI(
                                         specialEffectsManager = currentTroupe.specialEffectsManager,
+                                        onSpecialEffectsManagerChanged = viewModel::onSpecialEffectsManagerChanged,
                                         onSaveEffect = { viewModel.onSpecialEffectUpdated() },
                                         activePuppet = currentPuppet,
                                         uploadsDir = viewModel.uploadsDir,

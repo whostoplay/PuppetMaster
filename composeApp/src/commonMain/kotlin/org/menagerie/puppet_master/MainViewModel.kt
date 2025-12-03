@@ -301,12 +301,16 @@ class MainViewModel(context: Any) : ViewModel() {
         hideStateAssignmentDialog()
     }
 
+    fun onSpecialEffectsManagerChanged(manager: SpecialEffectsManager) {
+        troupe.value?.let { currentTroupe ->
+            val newTroupe = currentTroupe.copy(specialEffectsManager = manager)
+            dataManager.saveTroupe(newTroupe)
+        }
+    }
+
     fun onSpecialEffectUpdated() {
-        val currentTroupe = troupe.value
-        if (currentTroupe != null) {
-            if (isPublishing.value) {
-                dataManager.publishTroupe(serverIpAddress.value)
-            }
+        viewModelScope.launch {
+            troupe.value?.let { dataManager.saveTroupe(it) }
         }
     }
 

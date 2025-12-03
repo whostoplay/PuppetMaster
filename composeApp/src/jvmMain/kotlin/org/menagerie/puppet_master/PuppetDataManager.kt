@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
 
-actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, context: Any) {
+actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, private val context: Any) {
 
     actual val uploadsDir = getUploadsDir(context)
     private val uploader = Uploader()
@@ -43,11 +43,29 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
     actual suspend fun getImageData(imageName: String): ByteArray? {
         val file = File(uploadsDir, imageName)
-        return if (file.exists()) file.readBytes() else null
+        return if (file.exists() && file.isFile) file.readBytes() else null
     }
 
     actual fun setOperatingMode(mode: OperatingMode) {
         operatingMode = mode
+    }
+
+    actual fun saveTroupe(troupe: PuppetTroupe) {
+        // Create a new list of new puppet/state objects to ensure StateFlow emits the update
+        val newPuppets = troupe.puppets.map { puppet ->
+            val newStates = puppet.states.map { state -> state.copy() }
+            puppet.copy(states = newStates)
+        }
+        val newSpecialEffectsManager = troupe.specialEffectsManager.copy(
+            effects = troupe.specialEffectsManager.effects.map { it.copy() }
+        )
+        val newTroupe = troupe.copy(puppets = newPuppets, specialEffectsManager = newSpecialEffectsManager)
+        _troupe.value = newTroupe
+        _activePuppet.value = newTroupe.puppets.find { it.name == newTroupe.activePuppetName }
+        saveLocalTroupe(newTroupe)
+        if (operatingMode == OperatingMode.ONLINE) {
+            publishTroupe(SettingsRepository(context).loadIp())
+        }
     }
 
     actual fun connectAndSync(serverIp: String) {

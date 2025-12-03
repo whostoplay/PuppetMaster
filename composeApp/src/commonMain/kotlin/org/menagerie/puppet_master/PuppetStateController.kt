@@ -41,7 +41,8 @@ class PuppetStateController(
     init {
         scope.launch {
             dataManager.activePuppet.collect { puppet ->
-                _activeState.value = puppet?.states?.find { it.name == "idle" }
+                val currentActiveStateName = _activeState.value?.name
+                _activeState.value = puppet?.states?.find { it.name == currentActiveStateName } ?: puppet?.states?.find { it.name == "idle" }
                 _audioLevel.value = 0f
             }
         }

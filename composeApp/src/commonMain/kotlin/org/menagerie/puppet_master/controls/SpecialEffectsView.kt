@@ -50,15 +50,17 @@ import org.menagerie.puppet_master.previews.LivePreview
 @Composable
 fun SpecialEffectsUI(
     specialEffectsManager: SpecialEffectsManager,
+    onSpecialEffectsManagerChanged: (SpecialEffectsManager) -> Unit,
     onSaveEffect: () -> Unit,
     activePuppet: PuppetCharacter?,
     uploadsDir: String,
     preserveState: Boolean,
     onPreserveStateChanged: (Boolean) -> Unit
 ) {
-    var activeEffect by remember(specialEffectsManager.activeEffectIndex, specialEffectsManager.effects.size) {
-        mutableStateOf(specialEffectsManager.getActiveEffect())
+    val activeEffect = remember(specialEffectsManager.activeEffectIndex, specialEffectsManager.effects) {
+        specialEffectsManager.getActiveEffect()
     }
+
     var effectName by remember { mutableStateOf(activeEffect?.name ?: "") }
     var vibrationDistance by remember { mutableStateOf(activeEffect?.vibrationDistance ?: 0f) }
     var vibrationSpeed by remember { mutableStateOf(activeEffect?.vibrationSpeed ?: 0f) }
@@ -139,14 +141,12 @@ fun SpecialEffectsUI(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Special Effects")
             IconButton(onClick = {
-                specialEffectsManager.addEffect()
-                activeEffect = specialEffectsManager.getActiveEffect()
+                onSpecialEffectsManagerChanged(specialEffectsManager.addEffect())
             }) {
                 Icon(Icons.Filled.Add, contentDescription = "Add Effect")
             }
             IconButton(onClick = {
-                specialEffectsManager.deleteEffect(specialEffectsManager.activeEffectIndex)
-                activeEffect = specialEffectsManager.getActiveEffect()
+                onSpecialEffectsManagerChanged(specialEffectsManager.deleteEffect(specialEffectsManager.activeEffectIndex))
             }, enabled = activeEffect != null) {
                 Icon(Icons.Filled.Delete, contentDescription = "Delete Effect")
             }
@@ -164,8 +164,7 @@ fun SpecialEffectsUI(
         activeEffect?.let { effect ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = {
-                    specialEffectsManager.previousEffect()
-                    activeEffect = specialEffectsManager.getActiveEffect()
+                    onSpecialEffectsManagerChanged(specialEffectsManager.previousEffect())
                 }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Effect")
                 }
@@ -181,8 +180,7 @@ fun SpecialEffectsUI(
                     })
                 }
                 IconButton(onClick = {
-                    specialEffectsManager.nextEffect()
-                    activeEffect = specialEffectsManager.getActiveEffect()
+                    onSpecialEffectsManagerChanged(specialEffectsManager.nextEffect())
                 }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Effect")
                 }
@@ -279,20 +277,23 @@ fun SpecialEffectsUI(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Button(
                     onClick = {
-                        effect.name = effectName
-                        effect.vibrationDistance = vibrationDistance
-                        effect.vibrationSpeed = vibrationSpeed
-                        effect.glowIntensity = glowIntensity
-                        effect.glowColor = glowColor.toArgb()
-                        effect.scaleX = scaleX
-                        effect.scaleY = scaleY
-                        effect.scaleSpeed = scaleSpeed
-                        effect.spinSpeed = spinSpeed
-                        effect.spinDirection = spinDirection
+                        val updatedEffect = effect.copy(
+                            name = effectName,
+                            vibrationDistance = vibrationDistance,
+                            vibrationSpeed = vibrationSpeed,
+                            glowIntensity = glowIntensity,
+                            glowColor = glowColor.toArgb(),
+                            scaleX = scaleX,
+                            scaleY = scaleY,
+                            scaleSpeed = scaleSpeed,
+                            spinSpeed = spinSpeed,
+                            spinDirection = spinDirection
+                        )
+                        onSpecialEffectsManagerChanged(specialEffectsManager.updateEffect(specialEffectsManager.activeEffectIndex, updatedEffect))
                         onSaveEffect()
                         isEditingName = false
                     },
-                    enabled = effectName.isNotBlank() && effectName != "New Effect" && (specialEffectsManager.isNameUnique(effectName) || effectName == effect.name)
+                    enabled = effectName.isNotBlank() && effectName != "New Effect" && (specialEffectsManager.isNameUnique(effectName, specialEffectsManager.activeEffectIndex) || effectName == effect.name)
                 ) {
                     Text("Save Effect")
                 }

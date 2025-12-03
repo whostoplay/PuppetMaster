@@ -17,10 +17,18 @@
             background-size: contain;
             background-position: center;
             background-repeat: no-repeat;
+            transform-origin: center;
         }
     </style>
 </head>
 <body>
+<svg style="display: none;">
+    <defs>
+        <filter id="color-tint-filter">
+            <feColorMatrix id="color-matrix" type="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" />
+        </filter>
+    </defs>
+</svg>
 <div id="puppet"></div>
 <script>
     const puppetElement = document.getElementById('puppet');
@@ -51,6 +59,7 @@
         newImg.onload = () => {
             puppetElement.style.backgroundImage = `url(${newImg.src})`;
             if (puppetStateInfo.appliedEffect) {
+                console.log("Received effect:", puppetStateInfo.appliedEffect);
                 if (!activeEffect || activeEffect.name !== puppetStateInfo.appliedEffect.name) {
                     startTime = Date.now();
                 }
@@ -92,45 +101,55 @@
             let offsetX = 0;
             let offsetY = 0;
             if (activeEffect.vibrationDistance > 0) {
-                const maxOffset = puppetElement.clientWidth / 50;
+                const maxOffset = puppetElement.clientWidth / 5;
                 const offset = activeEffect.vibrationDistance * maxOffset;
-                const angle = (elapsedTime / (100 / (activeEffect.vibrationSpeed + 1))) * 2 * Math.PI;
+                const angle = (elapsedTime / (1000 / (activeEffect.vibrationSpeed * 2 + 1))) * 2 * Math.PI;
                 offsetX = Math.sin(angle) * offset;
-                offsetY = Math.sin(angle * 2) * offset;
+                offsetY = Math.cos(angle) * offset;
             }
 
             transform = `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg) translate(${offsetX}px, ${offsetY}px)`;
 
             // Filters
             const filters = [];
+            const colorMatrixElement = document.getElementById('color-matrix');
 
-            // Glow
-            if (activeEffect.glowIntensity > 0) {
-                const glowBlur = activeEffect.glowIntensity * 5;
-                const glowColor = intToCssColor(activeEffect.glowColor);
-                filters.push(`drop-shadow(0 0 ${glowBlur}px ${glowColor})`);
+            if (activeEffect.glowIntensity > 0 && typeof activeEffect.glowColor !== 'undefined' && colorMatrixElement) {
+                const glowIntensity = activeEffect.glowIntensity;
+                const colorInt = activeEffect.glowColor;
+
+                // For color matrix (tint)
+                const r = ((colorInt >> 16) & 0xFF) / 255;
+                const g = ((colorInt >> 8) & 0xFF) / 255;
+                const b = (colorInt & 0xFF) / 255;
+
+                const redScale = glowIntensity * r;
+                const greenScale = glowIntensity * g;
+                const blueScale = glowIntensity * b;
+
+                const matrix = `${redScale} 0 0 0 0 ` +
+                               `0 ${greenScale} 0 0 0 ` +
+                               `0 0 ${blueScale} 0 0 ` +
+                               `0 0 0 1 0`;
+                colorMatrixElement.setAttribute('values', matrix);
+                filters.push('url(#color-tint-filter)');
+
+                // For glow effect (drop-shadow)
+                const glowBlur = glowIntensity * 5;
+                const glowColorCss = intToCssColor(colorInt);
+                filters.push(`drop-shadow(0 0 ${glowBlur}px ${glowColorCss})`);
             }
-
-            // Brightness
-            filters.push(`brightness(${activeEffect.brightness})`);
-
-            // Hue Shift
-            filters.push(`hue-rotate(${activeEffect.hueShift}deg)`);
 
             if (filters.length > 0) {
                 filter = filters.join(' ');
             }
-            
-            // Color Tint & Transparency
-            const color = intToCssColor(activeEffect.colorTint);
-            puppetElement.style.backgroundColor = color;
-            puppetElement.style.backgroundBlendMode = 'color';
-            puppetElement.style.opacity = activeEffect.transparency;
-
         } else {
-             puppetElement.style.backgroundColor = 'transparent';
+             // Resetting styles
              puppetElement.style.opacity = 1;
-             puppetElement.style.backgroundBlendMode = 'normal';
+             const colorMatrixElement = document.getElementById('color-matrix');
+             if (colorMatrixElement) {
+                colorMatrixElement.setAttribute('values', '1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0');
+             }
         }
 
         puppetElement.style.transform = transform;
