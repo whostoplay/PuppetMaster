@@ -56,7 +56,7 @@ fun LivePreview(
 ) {
     var frame by remember { mutableStateOf(0L) }
 
-    val displayedImageName = puppetState?.imageName
+    val displayedImageName = if (isBlinking) puppetState?.blinkImageName else  puppetState?.imageName
     val eyeState = puppetState?.eyeState
 
     LaunchedEffect(activeSpecialEffect) {
