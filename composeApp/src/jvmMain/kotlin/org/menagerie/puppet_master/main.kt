@@ -12,6 +12,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import org.menagerie.puppet_master.navigation.AppNavigator
 import java.io.File
 import java.util.Properties
 
@@ -53,7 +54,7 @@ fun main() = application {
         state = windowState
     ) {
         Box(modifier = Modifier.fillMaxSize().padding(WindowInsets.captionBar.asPaddingValues())) {
-            App()
+            AppNavigator()
         }
     }
 }

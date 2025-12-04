@@ -278,6 +278,18 @@ class MainViewModel(context: Any) : ViewModel() {
         }
     }
 
+    fun updateEyeState(stateName: String, eyeState: EyeState) {
+        dataManager.updatePuppet(dataManager.activePuppet.value!!.name) { character ->
+            val newStates = character.states.map {
+                if (it.name == stateName) it.copy(eyeState = eyeState) else it
+            }
+            val newThresholds = character.thresholds.mapValues { (_, value) ->
+                if (value?.name == stateName) value.copy(eyeState = eyeState) else value
+            }
+            character.copy(states = newStates, thresholds = newThresholds)
+        }
+    }
+
     fun addThreshold(value: Float) {
         val newThresholds = _thresholds.value.toMutableMap()
         newThresholds[value] = null

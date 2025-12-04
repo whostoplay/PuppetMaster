@@ -25,6 +25,7 @@ kotlin {
             api(libs.kotlinx.serialization.json)
             api(libs.ktor.client.contentnegotiation)
             implementation(libs.compose.ui)
+            implementation(libs.compose.foundation)
         }
         androidMain.dependencies {
             implementation(libs.androidx.core)

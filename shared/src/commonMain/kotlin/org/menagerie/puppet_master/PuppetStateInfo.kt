@@ -12,6 +12,7 @@ import kotlinx.serialization.Transient
  * @property minBlinkRate The minimum time in milliseconds between blinks.
  * @property maxBlinkRate The maximum time in milliseconds between blinks.
  * @property appliedEffect The special effect applied to this state.
+ * @property eyeState The eye state for this puppet state.
  */
 @Serializable
 data class PuppetStateInfo(
@@ -20,7 +21,8 @@ data class PuppetStateInfo(
     val blinkImageName: String? = null,
     val minBlinkRate: Long = 1500L,
     val maxBlinkRate: Long = 6000L,
-    val appliedEffect: SpecialEffect? = null
+    val appliedEffect: SpecialEffect? = null,
+    val eyeState: EyeState? = null
 ) {
     @Transient
     private var lastUpdated: Long = System.currentTimeMillis()

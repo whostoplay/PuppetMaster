@@ -38,6 +38,9 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.gson)
+            implementation(libs.voyager.navigator)
+            implementation(libs.voyager.screenmodel)
+            implementation(libs.voyager.transitions)
 
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.contentnegotiation)

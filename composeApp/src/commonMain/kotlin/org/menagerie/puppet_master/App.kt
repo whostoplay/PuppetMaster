@@ -29,10 +29,18 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -44,6 +52,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import cafe.adriel.voyager.navigator.LocalNavigator
+import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.ControlDrawer
@@ -52,13 +62,21 @@ import org.menagerie.puppet_master.controls.PuppetControls
 import org.menagerie.puppet_master.controls.ServerControls
 import org.menagerie.puppet_master.controls.SpecialEffectsUI
 import org.menagerie.puppet_master.controls.VolumeIndicator
+import org.menagerie.puppet_master.navigation.AppNavigator
+import org.menagerie.puppet_master.navigation.EyeContactScreen
 import org.menagerie.puppet_master.previews.LivePreview
 import org.menagerie.puppet_master.states.StateCreation
 import org.menagerie.puppet_master.states.StateEditor
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun App() {
+    AppNavigator()
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
+@Composable
+fun AppContent() {
+    val navigator = LocalNavigator.currentOrThrow
     val context = getContext()
     val viewModel = remember { MainViewModel(context) }
     val troupe by viewModel.troupe.collectAsState()
@@ -151,49 +169,50 @@ fun App() {
         )
     }
 
-    MaterialTheme {
-        @OptIn(ExperimentalComposeUiApi::class)
-        BoxWithConstraints(
-            modifier = Modifier.fillMaxSize()
-                .windowInsetsPadding(WindowInsets.safeDrawing)
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onDoubleTap = { controlsLocked = !controlsLocked },
-                        onTap = { showControls = true } // Always show on single tap
-                    )
-                }
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            if (event.type == PointerEventType.Move) {
-                                showControls = true
-                            }
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing)
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = { controlsLocked = !controlsLocked },
+                    onTap = { showControls = true } // Always show on single tap
+                )
+            }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.type == PointerEventType.Move) {
+                            showControls = true
                         }
                     }
                 }
-        ) {
-            val isLandscape = maxWidth > maxHeight
-            val panelWeight = 1 / 3f
+            }
+    ) {
+        val isLandscape = maxWidth > maxHeight
+        val panelWeight = 1 / 3f
 
-            val imageName = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverImageName else displayedImageName
-            val specialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect
+        val imageName = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverImageName else displayedImageName
+        val specialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect
 
-            LivePreview(
-                operatingMode = operatingMode,
-                displayedImageName = imageName,
-                uploadsDir = viewModel.uploadsDir,
-                backgroundColor = uiState.backgroundColor,
-                serverIp = serverIpAddress,
-                activeSpecialEffect = specialEffect
-            )
+        LivePreview(
+            operatingMode = operatingMode,
+            displayedImageName = imageName,
+            uploadsDir = viewModel.uploadsDir,
+            backgroundColor = uiState.backgroundColor,
+            serverIp = serverIpAddress,
+            activeSpecialEffect = specialEffect
+        )
 
-            Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {
-                if (isLandscape || isDesktop) {
-                    Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {
+            if (isLandscape || isDesktop) {
+                Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Surface(
+                        modifier = Modifier.fillMaxHeight().weight(panelWeight),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
                         Column(
-                            modifier = Modifier.fillMaxHeight().weight(panelWeight)
-                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                            modifier = Modifier
                                 .verticalScroll(rememberScrollState())
                                 .onHover { isHoveringOn["leftPanel"] = it }
                         ) {
@@ -234,14 +253,21 @@ fun App() {
                             }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            Button(onClick = { navigator.push(EyeContactScreen(activePuppet, serverIpAddress, viewModel::updateEyeState, viewModel::getImageData)) }) {
+                                Text("Eye Contact")
+                            }
                         }
+                    }
 
-                        Spacer(modifier = Modifier.fillMaxHeight().weight(1f - (2 * panelWeight)))
+                    Spacer(modifier = Modifier.fillMaxHeight().weight(1f - (2 * panelWeight)))
 
+                    Surface(
+                        modifier = Modifier.fillMaxHeight().weight(panelWeight),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
                         LazyColumn(
-                            modifier = Modifier.fillMaxHeight().weight(panelWeight)
-                                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
-                                .onHover { isHoveringOn["rightPanel"] = it }
+                            modifier = Modifier.onHover { isHoveringOn["rightPanel"] = it }
                         ) {
                             val currentPuppet = activePuppet
                             val currentTroupe = troupe
@@ -303,133 +329,134 @@ fun App() {
                             }
                         }
                     }
-                } else { // Portrait
-                    var showLeftDrawer by remember { mutableStateOf(false) }
-                    var showRightDrawer by remember { mutableStateOf(false) }
+                }
+            } else { // Portrait
+                var showLeftDrawer by remember { mutableStateOf(false) }
+                var showRightDrawer by remember { mutableStateOf(false) }
 
-                    ControlDrawer(
-                        show = showLeftDrawer,
-                        onDismissRequest = { showLeftDrawer = false }
+                ControlDrawer(
+                    show = showLeftDrawer,
+                    onDismissRequest = { showLeftDrawer = false }
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp)
-                        ) {
-                            PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet)
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ModeControls(operatingMode, viewModel::setOperatingMode)
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            TextField(
-                                value = serverIpAddress,
-                                onValueChange = viewModel::onServerIpAddressChanged,
-                                label = { Text("Server IP Address") },
-                                singleLine = true,
-                                enabled = operatingMode == OperatingMode.OFFLINE,
-                                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                                modifier = Modifier.fillMaxWidth().padding(8.dp)
+                        PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet)
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        ModeControls(operatingMode, viewModel::setOperatingMode)
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        TextField(
+                            value = serverIpAddress,
+                            onValueChange = viewModel::onServerIpAddressChanged,
+                            label = { Text("Server IP Address") },
+                            singleLine = true,
+                            enabled = operatingMode == OperatingMode.OFFLINE,
+                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                            modifier = Modifier.fillMaxWidth().padding(8.dp)
+                        )
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        ServerControls(operatingMode, isPublishing, isListening, { viewModel.setPublishing(it) }, { 
+                            if (hasAudioPermission(context)) {
+                                viewModel.toggleListening()
+                            } else {
+                                showPermissionRequest = true
+                            }
+                        })
+                        if (isListening) {
+                            VolumeIndicator(
+                                level = audioLevel,
+                                modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
+                                thresholds = thresholds,
+                                onAddThreshold = { newThreshold ->
+                                    viewModel.addThreshold(newThreshold)
+                                    viewModel.showStateAssignmentDialog(newThreshold)
+                                },
+                                onUpdateThreshold = viewModel::updateThreshold,
+                                onThresholdSelected = { threshold -> viewModel.showStateAssignmentDialog(threshold) }
                             )
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ServerControls(operatingMode, isPublishing, isListening, { viewModel.setPublishing(it) }, { 
-                                if (hasAudioPermission(context)) {
-                                    viewModel.toggleListening()
-                                } else {
-                                    showPermissionRequest = true
-                                }
-                            })
-                            if (isListening) {
-                                VolumeIndicator(
-                                    level = audioLevel,
-                                    modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
-                                    thresholds = thresholds,
-                                    onAddThreshold = { newThreshold ->
-                                        viewModel.addThreshold(newThreshold)
-                                        viewModel.showStateAssignmentDialog(newThreshold)
-                                    },
-                                    onUpdateThreshold = viewModel::updateThreshold,
-                                    onThresholdSelected = { threshold -> viewModel.showStateAssignmentDialog(threshold) }
+                        }
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
+                    }
+                }
+
+                ControlDrawer(
+                    show = showRightDrawer,
+                    onDismissRequest = { showRightDrawer = false }
+                ) {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp)
+                    ) {
+                        val currentPuppet = activePuppet
+                        val currentTroupe = troupe
+                        if (currentPuppet != null && currentTroupe != null) {
+                            item {
+                                StateCreation(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    viewModel = viewModel,
+                                    selectedImage = uiState.selectedImage,
+                                    selectedImageName = uiState.selectedImageName,
+                                    selectedBlinkImage = uiState.selectedBlinkImage,
+                                    selectedBlinkImageName = uiState.selectedBlinkImageName,
+                                    newStateName = uiState.newStateName,
+                                    onStateChange = viewModel::onStateCreationChange
                                 )
                             }
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
-                        }
-                    }
-
-                    ControlDrawer(
-                        show = showRightDrawer,
-                        onDismissRequest = { showRightDrawer = false }
-                    ) {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxWidth().padding(16.dp)
-                        ) {
-                            val currentPuppet = activePuppet
-                            val currentTroupe = troupe
-                            if (currentPuppet != null && currentTroupe != null) {
-                                item {
-                                    StateCreation(
+                            item { HorizontalDivider() }
+                            item { Text(text = "States") }
+                            item { HorizontalDivider() }
+                            items(currentPuppet.states) { state ->
+                                Text(
+                                    text = state.name,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { viewModel.selectState(state) }
+                                        .background(if (state == selectedState) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                        .padding(8.dp)
+                                )
+                            }
+                            item {
+                                selectedState?.let { state ->
+                                    StateEditor(
                                         modifier = Modifier.fillMaxWidth(),
-                                        viewModel = viewModel,
-                                        selectedImage = uiState.selectedImage,
-                                        selectedImageName = uiState.selectedImageName,
-                                        selectedBlinkImage = uiState.selectedBlinkImage,
-                                        selectedBlinkImageName = uiState.selectedBlinkImageName,
-                                        newStateName = uiState.newStateName,
-                                        onStateChange = viewModel::onStateCreationChange
-                                    )
-                                }
-                                item { HorizontalDivider() }
-                                item { Text(text = "States") }
-                                item { HorizontalDivider() }
-                                items(currentPuppet.states) { state ->
-                                    Text(
-                                        text = state.name,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { viewModel.selectState(state) }
-                                            .background(if (state == selectedState) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                                            .padding(8.dp)
-                                    )
-                                }
-                                item {
-                                    selectedState?.let { state ->
-                                        StateEditor(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            selectedState = state,
-                                            specialEffectsManager = currentTroupe.specialEffectsManager,
-                                            onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
-                                            onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
-                                        )
-                                    }
-                                }
-                                item { HorizontalDivider() }
-                                item {
-                                    SpecialEffectsUI(
+                                        selectedState = state,
                                         specialEffectsManager = currentTroupe.specialEffectsManager,
-                                        onSpecialEffectsManagerChanged = viewModel::onSpecialEffectsManagerChanged,
-                                        onSaveEffect = { viewModel.onSpecialEffectUpdated() },
-                                        activePuppet = currentPuppet,
-                                        uploadsDir = viewModel.uploadsDir,
-                                        preserveState = uiState.preserveState,
-                                        onPreserveStateChanged = viewModel::onPreserveStateChanged
+                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
+                                        onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
                                     )
                                 }
-                            } else {
-                                item {
-                                    Box(modifier = Modifier.fillParentMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                                        Text("Create or select a puppet to get started.")
-                                    }
+                            }
+                            item { HorizontalDivider() }
+                            item {
+                                SpecialEffectsUI(
+                                    specialEffectsManager = currentTroupe.specialEffectsManager,
+                                    onSpecialEffectsManagerChanged = viewModel::onSpecialEffectsManagerChanged,
+                                    onSaveEffect = { viewModel.onSpecialEffectUpdated() },
+                                    activePuppet = currentPuppet,
+                                    uploadsDir = viewModel.uploadsDir,
+                                    preserveState = uiState.preserveState,
+                                    onPreserveStateChanged = viewModel::onPreserveStateChanged
+                                )
+                            }
+                        } else {
+                            item {
+                                Box(modifier = Modifier.fillParentMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text("Create or select a puppet to get started.")
                                 }
                             }
                         }
                     }
-                    
-                    Row(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        Button(onClick = { showLeftDrawer = true }) { Text("Puppet Controls") }
-                        Button(onClick = { showRightDrawer = true }) { Text("State Controls") }
-                    }
+                }
+                
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Button(onClick = { showLeftDrawer = true }) { Text("Puppet Controls") }
+                    Button(onClick = { showRightDrawer = true }) { Text("State Controls") }
+                    Button(onClick = { navigator.push(EyeContactScreen(activePuppet, serverIpAddress, viewModel::updateEyeState, viewModel::getImageData)) }) { Text("Eye Contact") }
                 }
             }
         }
