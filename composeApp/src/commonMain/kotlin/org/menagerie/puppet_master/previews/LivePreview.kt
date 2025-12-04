@@ -207,6 +207,40 @@ fun LivePreview(
                             )
                         }
                     } else {
+                        val finalPointerInImage: Offset? =
+                            if (it.eyes.followCursor && pointerPosition != null) {
+                                val rotationInDegrees = activeSpecialEffect?.getRotation() ?: 0f
+
+                                val pointerInImageXUnrotated = (pointerPosition.x - imageTopLeftX) / imageScaleFactor
+                                val pointerInImageYUnrotated = (pointerPosition.y - imageTopLeftY) / imageScaleFactor
+
+                                if (rotationInDegrees == 0f) {
+                                    Offset(pointerInImageXUnrotated, pointerInImageYUnrotated)
+                                } else {
+                                    val rotationInRadians = Math.toRadians(rotationInDegrees.toDouble())
+
+                                    val imageCenterX = image.width / 2f
+                                    val imageCenterY = image.height / 2f
+
+                                    val pointerRelToCenterX = pointerInImageXUnrotated - imageCenterX
+                                    val pointerRelToCenterY = pointerInImageYUnrotated - imageCenterY
+
+                                    val cosAngle = cos(-rotationInRadians).toFloat()
+                                    val sinAngle = sin(-rotationInRadians).toFloat()
+
+                                    val rotatedPointerRelToCenterX =
+                                        pointerRelToCenterX * cosAngle - pointerRelToCenterY * sinAngle
+                                    val rotatedPointerRelToCenterY =
+                                        pointerRelToCenterX * sinAngle + pointerRelToCenterY * cosAngle
+
+                                    val finalPointerInImageX = rotatedPointerRelToCenterX + imageCenterX
+                                    val finalPointerInImageY = rotatedPointerRelToCenterY + imageCenterY
+                                    Offset(finalPointerInImageX, finalPointerInImageY)
+                                }
+                            } else {
+                                null
+                            }
+
                         // Open state - show open eyes and pupils
                         val leftEyeOpenImageUrl =
                             when {
@@ -235,10 +269,11 @@ fun LivePreview(
                             val leftEyePupilImage = rememberImageFromUrl(leftEyePupilImageUrl)
 
                             var pupilModifier = leftEyeModifier
-                            if (it.eyes.followCursor && pointerPosition != null && leftEyePupilImage != null) {
-                                val pointerInImageX = (pointerPosition.x - imageTopLeftX) / imageScaleFactor
-                                val pointerInImageY = (pointerPosition.y - imageTopLeftY) / imageScaleFactor
-                                val angle = atan2(pointerInImageY - leftEye.position.y, pointerInImageX - leftEye.position.x)
+                            if (finalPointerInImage != null && leftEyePupilImage != null) {
+                                val angle = atan2(
+                                    finalPointerInImage.y - leftEye.position.y,
+                                    finalPointerInImage.x - leftEye.position.x
+                                )
                                 val x = leftEye.position.x + cos(angle) * (maxPupilRadius * leftEye.scale)
                                 val y = leftEye.position.y + sin(angle) * (maxPupilRadius * leftEye.scale)
 
@@ -288,12 +323,13 @@ fun LivePreview(
                                     else -> "file://$uploadsDir/$pupilImageName"
                                 }
                             val rightEyePupilImage = rememberImageFromUrl(rightEyePupilImageUrl)
-                            
+
                             var pupilModifier = rightEyeModifier
-                            if (it.eyes.followCursor && pointerPosition != null && rightEyePupilImage != null) {
-                                val pointerInImageX = (pointerPosition.x - imageTopLeftX) / imageScaleFactor
-                                val pointerInImageY = (pointerPosition.y - imageTopLeftY) / imageScaleFactor
-                                val angle = atan2(pointerInImageY - rightEye.position.y, pointerInImageX - rightEye.position.x)
+                            if (finalPointerInImage != null && rightEyePupilImage != null) {
+                                val angle = atan2(
+                                    finalPointerInImage.y - rightEye.position.y,
+                                    finalPointerInImage.x - rightEye.position.x
+                                )
                                 val x = rightEye.position.x + cos(angle) * (maxPupilRadius * rightEye.scale)
                                 val y = rightEye.position.y + sin(angle) * (maxPupilRadius * rightEye.scale)
 
