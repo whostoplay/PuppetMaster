@@ -50,7 +50,7 @@ fun StateEditor(
     Column(modifier = modifier.padding(8.dp)) {
         Text(text = "Edit State: ${selectedState?.name ?: ""}")
         selectedState?.let { state ->
-            if (state.blinkImageName != null) {
+            if (state.blinkImageName != null || state.eyeState?.eyes?.left?.closedState != null) {
                 Text(text = "Blink Rate Range: ${blinkRateRange.start.toLong()} - ${blinkRateRange.endInclusive.toLong()} ms")
                 RangeSlider(
                     value = blinkRateRange,

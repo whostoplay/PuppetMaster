@@ -166,6 +166,10 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             saveLocalTroupe(newTroupe)
         }
     }
+    
+    actual fun saveImage(name: String, data: ByteArray) {
+        File(uploadsDir, name).writeBytes(data)
+    }
 
     private fun loadLocalTroupe(): PuppetTroupe? = try {
         if (!localTroupeFile.exists()) null

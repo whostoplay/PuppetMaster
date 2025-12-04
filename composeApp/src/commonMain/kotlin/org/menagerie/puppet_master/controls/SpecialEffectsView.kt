@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetCharacter
+import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SpecialEffect
 import org.menagerie.puppet_master.SpecialEffectsManager
 import org.menagerie.puppet_master.previews.EffectPreview
@@ -92,12 +93,12 @@ fun SpecialEffectsUI(
         }
     }
 
-    val idleImageName = remember(activePuppet) {
-        activePuppet?.states?.find { it.name == "idle" }?.imageName
+    val idleState = remember(activePuppet) {
+        activePuppet?.states?.find { it.name == "idle" }
     }
 
     EffectPreview(show = showPreview, onDismissRequest = { showPreview = false }) {
-        if (idleImageName != null) {
+        if (idleState != null) {
             val previewEffect = remember(vibrationDistance, vibrationSpeed, glowIntensity, glowColor, scaleX, scaleY, scaleSpeed, spinSpeed, spinDirection) {
                 SpecialEffect(
                     name = "preview",
@@ -118,7 +119,8 @@ fun SpecialEffectsUI(
             Box(Modifier.height(300.dp).fillMaxWidth()) {
                 LivePreview(
                     operatingMode = OperatingMode.OFFLINE,
-                    displayedImageName = idleImageName,
+                    puppetState = idleState,
+                    isBlinking = false,
                     uploadsDir = uploadsDir,
                     backgroundColor = Color.Green,
                     serverIp = "",
@@ -156,7 +158,7 @@ fun SpecialEffectsUI(
             Checkbox(
                 checked = showPreview,
                 onCheckedChange = { showPreview = it },
-                enabled = idleImageName != null
+                enabled = idleState != null
             )
             Text("Display Preview")
         }
@@ -290,18 +292,16 @@ fun SpecialEffectsUI(
                             spinDirection = spinDirection
                         )
                         onSpecialEffectsManagerChanged(specialEffectsManager.updateEffect(specialEffectsManager.activeEffectIndex, updatedEffect))
-                        onSaveEffect()
                         isEditingName = false
-                    },
-                    enabled = effectName.isNotBlank() && effectName != "New Effect" && (specialEffectsManager.isNameUnique(effectName, specialEffectsManager.activeEffectIndex) || effectName == effect.name)
+                        onSaveEffect()
+                    }
                 ) {
                     Text("Save Effect")
                 }
-                Checkbox(
-                    checked = preserveState,
-                    onCheckedChange = onPreserveStateChanged
-                )
-                Text("Preserve State")
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(checked = preserveState, onCheckedChange = onPreserveStateChanged)
+                    Text("Preserve on change")
+                }
             }
         }
     }

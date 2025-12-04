@@ -195,4 +195,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             }
         }
     }
+
+    actual fun saveImage(name: String, data: ByteArray) {
+    }
 }

@@ -37,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -81,7 +82,6 @@ fun AppContent() {
     val viewModel = remember { MainViewModel(context) }
     val troupe by viewModel.troupe.collectAsState()
     val activePuppet by viewModel.activePuppet.collectAsState()
-    val displayedImageName by viewModel.displayedImageName.collectAsState()
     val operatingMode by viewModel.operatingMode.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
@@ -90,9 +90,11 @@ fun AppContent() {
     val thresholds by viewModel.thresholds.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val serverIpAddress by viewModel.serverIpAddress.collectAsState()
-    val activeSpecialEffect by viewModel.activeSpecialEffect.collectAsState()
     val serverImageName by viewModel.serverImageName.collectAsState()
     val serverSpecialEffect by viewModel.serverSpecialEffect.collectAsState()
+    val activeState by viewModel.activeState.collectAsState()
+    val isBlinking by viewModel.isBlinking.collectAsState()
+    val activeSpecialEffect by viewModel.activeSpecialEffect.collectAsState()
     val focusManager = LocalFocusManager.current
 
     var showPermissionRequest by remember { mutableStateOf(false) }
@@ -192,17 +194,30 @@ fun AppContent() {
         val isLandscape = maxWidth > maxHeight
         val panelWeight = 1 / 3f
 
-        val imageName = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverImageName else displayedImageName
-        val specialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect
+        val puppetState = if (operatingMode == OperatingMode.ONLINE && !isPublishing) {
+            serverImageName?.let { 
+                PuppetStateInfo(
+                    name = "server-state",
+                    imageName = it,
+                    appliedEffect = serverSpecialEffect?.effect,
+                    eyeState = activeState?.eyeState // carry over eye state for now
+                )
+            } 
+        } else {
+            activeState
+        }
 
-        LivePreview(
-            operatingMode = operatingMode,
-            displayedImageName = imageName,
-            uploadsDir = viewModel.uploadsDir,
-            backgroundColor = uiState.backgroundColor,
-            serverIp = serverIpAddress,
-            activeSpecialEffect = specialEffect
-        )
+        key(puppetState, puppetState?.eyeState) {
+            LivePreview(
+                operatingMode = operatingMode,
+                puppetState = puppetState,
+                isBlinking = isBlinking,
+                uploadsDir = viewModel.uploadsDir,
+                backgroundColor = uiState.backgroundColor,
+                serverIp = serverIpAddress,
+                activeSpecialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect
+            )
+        }
 
         Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {
             if (isLandscape || isDesktop) {
@@ -254,7 +269,7 @@ fun AppContent() {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            Button(onClick = { navigator.push(EyeContactScreen(activePuppet, serverIpAddress, viewModel::updateEyeState, viewModel::getImageData)) }) {
+                            Button(onClick = { navigator.push(EyeContactScreen(activePuppet, serverIpAddress, viewModel::updateEyeState, viewModel::getImageData, viewModel::uploadImageData)) }) {
                                 Text("Eye Contact")
                             }
                         }
@@ -456,7 +471,7 @@ fun AppContent() {
                 ) {
                     Button(onClick = { showLeftDrawer = true }) { Text("Puppet Controls") }
                     Button(onClick = { showRightDrawer = true }) { Text("State Controls") }
-                    Button(onClick = { navigator.push(EyeContactScreen(activePuppet, serverIpAddress, viewModel::updateEyeState, viewModel::getImageData)) }) { Text("Eye Contact") }
+                    Button(onClick = { navigator.push(EyeContactScreen(activePuppet, serverIpAddress, viewModel::updateEyeState, viewModel::getImageData, viewModel::uploadImageData)) }) { Text("Eye Contact") }
                 }
             }
         }

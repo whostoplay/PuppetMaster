@@ -93,6 +93,7 @@ class MainViewModel(context: Any) : ViewModel() {
     val displayedImageName: StateFlow<String?> = stateController.displayedImageName
     val isListening: StateFlow<Boolean> = stateController.isListening
     val audioLevel: StateFlow<Float> = stateController.audioLevel
+    val isBlinking: StateFlow<Boolean> = stateController.isBlinking
 
     private val _serverImageName = MutableStateFlow<String?>(null)
     val serverImageName: StateFlow<String?> = _serverImageName.asStateFlow()
@@ -130,6 +131,12 @@ class MainViewModel(context: Any) : ViewModel() {
 
     suspend fun getImageData(imageName: String): ByteArray? {
         return dataManager.getImageData(imageName)
+    }
+
+    fun uploadImageData(name: String, data: ByteArray) {
+        viewModelScope.launch {
+            dataManager.saveImage(name, data)
+        }
     }
 
     fun onStateCreationChange(
@@ -287,6 +294,9 @@ class MainViewModel(context: Any) : ViewModel() {
                 if (value?.name == stateName) value.copy(eyeState = eyeState) else value
             }
             character.copy(states = newStates, thresholds = newThresholds)
+        }
+        if (isPublishing.value) {
+            dataManager.publishTroupe(serverIpAddress.value)
         }
     }
 

@@ -26,6 +26,9 @@ class PuppetStateController(
     private val _activeSpecialEffect = MutableStateFlow<ActiveSpecialEffect?>(null)
     val activeSpecialEffect: StateFlow<ActiveSpecialEffect?> = _activeSpecialEffect.asStateFlow()
 
+    private val _isBlinking = MutableStateFlow(false)
+    val isBlinking: StateFlow<Boolean> = _isBlinking.asStateFlow()
+
     private val _isListening = MutableStateFlow(false)
     val isListening: StateFlow<Boolean> = _isListening.asStateFlow()
 
@@ -63,7 +66,7 @@ class PuppetStateController(
                     _activeSpecialEffect.value = null
                 }
 
-                if (state?.blinkImageName != null) {
+                if (state != null && (state.blinkImageName != null || state.eyeState?.eyes?.left?.closedState != null)) {
                     clientBlinkingJob = scope.launch {
                         while (true) {
                             val delayTime = if (state.minBlinkRate >= state.maxBlinkRate) {
@@ -76,9 +79,15 @@ class PuppetStateController(
                             val isClientInControl = operatingMode == OperatingMode.OFFLINE || isPublishing
 
                             if (isClientInControl && activeState.value == state) {
-                                _displayedImageName.value = state.blinkImageName
+                                _isBlinking.value = true
+                                if (state.blinkImageName != null) {
+                                    _displayedImageName.value = state.blinkImageName
+                                }
                                 delay(150)
-                                _displayedImageName.value = state.imageName
+                                _isBlinking.value = false
+                                if (state.blinkImageName != null) {
+                                    _displayedImageName.value = state.imageName
+                                }
                             }
                         }
                     }

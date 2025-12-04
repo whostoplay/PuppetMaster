@@ -25,4 +25,5 @@ expect class PuppetDataManager(scope: CoroutineScope, context: Any) {
     fun publishTroupe(serverIp: String)
     suspend fun getImageData(imageName: String): ByteArray?
     fun saveTroupe(troupe: PuppetTroupe)
+    fun saveImage(name: String, data: ByteArray)
 }

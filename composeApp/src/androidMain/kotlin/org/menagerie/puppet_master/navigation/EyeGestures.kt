@@ -1,14 +1,18 @@
 package org.menagerie.puppet_master.navigation
 
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 
-actual fun Modifier.eyeGestures(position: Offset, scale: Float, onUpdate: (Offset, Float) -> Unit): Modifier {
-    return pointerInput(Unit) {
+actual fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Float) -> Unit): Modifier = composed {
+    val currentOnUpdate by rememberUpdatedState(onUpdate)
+    pointerInput(Unit) {
         detectTransformGestures { _, pan, zoom, _ ->
-            onUpdate(position + pan, scale * zoom)
+            currentOnUpdate(pan, zoom)
         }
     }
 }

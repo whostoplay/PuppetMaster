@@ -3,6 +3,7 @@ package org.menagerie.puppet_master.navigation
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -30,23 +32,31 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.Eye
 import org.menagerie.puppet_master.EyePair
 import org.menagerie.puppet_master.EyeState
 import org.menagerie.puppet_master.ImageFilePicker
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetStateInfo
-import org.menagerie.puppet_master.toImageBitmap
+import org.menagerie.puppet_master.decodeToImageBitmap
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 expect fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Float) -> Unit): Modifier
@@ -55,13 +65,15 @@ class EyeContactScreen(
     private val puppet: PuppetCharacter?,
     private val serverIp: String,
     private val onSave: (String, EyeState) -> Unit,
-    private val getImageData: suspend (String) -> ByteArray?
+    private val getImageData: suspend (String) -> ByteArray?,
+    private val uploadImageData: suspend (String, ByteArray) -> Unit
 ) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val scope = rememberCoroutineScope()
 
         var selectedState by remember { mutableStateOf<PuppetStateInfo?>(null) }
         var isStateSelectorExpanded by remember { mutableStateOf(false) }
@@ -76,6 +88,37 @@ class EyeContactScreen(
         var rightEyeOpenData by remember { mutableStateOf<ByteArray?>(null) }
         var rightEyePupilData by remember { mutableStateOf<ByteArray?>(null) }
         var rightEyeClosedData by remember { mutableStateOf<ByteArray?>(null) }
+
+        LaunchedEffect(selectedState) {
+            selectedState?.eyeState?.let { eyeState ->
+                leftEye = eyeState.eyes.left
+                rightEye = eyeState.eyes.right
+                coroutineScope {
+                    val lOpenData = async { eyeState.eyes.left.openState?.let { getImageData(it) } }
+                    val lPupilData = async { eyeState.eyes.left.pupil?.let { getImageData(it) } }
+                    val lClosedData = async { eyeState.eyes.left.closedState?.let { getImageData(it) } }
+                    val rOpenData = async { eyeState.eyes.right.openState?.let { getImageData(it) } }
+                    val rPupilData = async { eyeState.eyes.right.pupil?.let { getImageData(it) } }
+                    val rClosedData = async { eyeState.eyes.right.closedState?.let { getImageData(it) } }
+
+                    leftEyeOpenData = lOpenData.await()
+                    leftEyePupilData = lPupilData.await()
+                    leftEyeClosedData = lClosedData.await()
+                    rightEyeOpenData = rOpenData.await()
+                    rightEyePupilData = rPupilData.await()
+                    rightEyeClosedData = rClosedData.await()
+                }
+            } ?: run {
+                leftEye = null
+                rightEye = null
+                leftEyeOpenData = null
+                leftEyePupilData = null
+                leftEyeClosedData = null
+                rightEyeOpenData = null
+                rightEyePupilData = null
+                rightEyeClosedData = null
+            }
+        }
 
         Scaffold(
             topBar = {
@@ -118,6 +161,7 @@ class EyeContactScreen(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isStateSelectorExpanded) },
                         modifier = Modifier.menuAnchor().fillMaxWidth()
                     )
+
                     ExposedDropdownMenu(
                         expanded = isStateSelectorExpanded,
                         onDismissRequest = { isStateSelectorExpanded = false }
@@ -159,6 +203,7 @@ class EyeContactScreen(
                         Text("Left Eye")
                         EyePartPicker("Open", leftEye?.openState, true) { images ->
                             images.firstOrNull()?.let { (data, name) ->
+                                scope.launch { uploadImageData(name, data) }
                                 leftEye = leftEye?.copy(openState = name) ?: Eye(openState = name)
                                 leftEyeOpenData = data
                                 if (syncEyes) {
@@ -169,6 +214,7 @@ class EyeContactScreen(
                         }
                         EyePartPicker("Pupil", leftEye?.pupil, true) { images ->
                             images.firstOrNull()?.let { (data, name) ->
+                                scope.launch { uploadImageData(name, data) }
                                 leftEye = leftEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
                                 leftEyePupilData = data
                                 if (syncEyes) {
@@ -179,6 +225,7 @@ class EyeContactScreen(
                         }
                         EyePartPicker("Closed", leftEye?.closedState, true) { images ->
                             images.firstOrNull()?.let { (data, name) ->
+                                scope.launch { uploadImageData(name, data) }
                                 leftEye = leftEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
                                 leftEyeClosedData = data
                                 if (syncEyes) {
@@ -192,18 +239,21 @@ class EyeContactScreen(
                         Text("Right Eye")
                         EyePartPicker("Open", rightEye?.openState, !syncEyes) { images ->
                             images.firstOrNull()?.let { (data, name) ->
+                                scope.launch { uploadImageData(name, data) }
                                 rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name)
                                 rightEyeOpenData = data
                             }
                         }
                         EyePartPicker("Pupil", rightEye?.pupil, !syncEyes) { images ->
                             images.firstOrNull()?.let { (data, name) ->
+                                scope.launch { uploadImageData(name, data) }
                                 rightEye = rightEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
                                 rightEyePupilData = data
                             }
                         }
                         EyePartPicker("Closed", rightEye?.closedState, !syncEyes) { images ->
                             images.firstOrNull()?.let { (data, name) ->
+                                scope.launch { uploadImageData(name, data) }
                                 rightEye = rightEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
                                 rightEyeClosedData = data
                             }
@@ -225,29 +275,87 @@ class EyeContactScreen(
                             stateImage = getImageData(state.imageName)
                         }
 
-                        stateImage?.let {
-                            Image(it.toImageBitmap(), contentDescription = "State preview", modifier = Modifier.fillMaxSize())
-                        }
-
-                        leftEye?.let { eye ->
-                            DraggableEye(leftEyeOpenData, leftEyePupilData, eye.position, eye.scale) { newPosition, newScale ->
-                                leftEye = eye.copy(position = newPosition, scale = newScale)
-                            }
-                        }
-
-                        rightEye?.let { eye ->
-                            DraggableEye(rightEyeOpenData, rightEyePupilData, eye.position, eye.scale) { newPosition, newScale ->
-                                rightEye = eye.copy(position = newPosition, scale = newScale)
-                            }
+                        // Call the dedicated composable here
+                        stateImage?.let { imageData ->
+                            DraggablePreviewSurface(
+                                imageData = imageData,
+                                leftEye = leftEye,
+                                leftEyeOpenData = leftEyeOpenData,
+                                leftEyePupilData = leftEyePupilData,
+                                onLeftEyeUpdate = { leftEye = it },
+                                rightEye = rightEye,
+                                rightEyeOpenData = rightEyeOpenData,
+                                rightEyePupilData = rightEyePupilData,
+                                onRightEyeUpdate = { rightEye = it }
+                            )
                         }
                     } else {
                         Text("Select a state to begin.")
                     }
                 }
+
             }
         }
     }
 }
+
+/**
+ * A dedicated composable responsible for rendering the draggable preview surface.
+ * This ensures all Compose-related calls are made from a valid Composable context.
+ */
+@Composable
+private fun DraggablePreviewSurface(
+    imageData: ByteArray,
+    leftEye: Eye?, leftEyeOpenData: ByteArray?,
+    leftEyePupilData: ByteArray?,
+    onLeftEyeUpdate: (Eye) -> Unit,
+    rightEye: Eye?,
+    rightEyeOpenData: ByteArray?,
+    rightEyePupilData: ByteArray?,
+    onRightEyeUpdate: (Eye) -> Unit
+) {
+    val imageBitmap = remember(imageData) { decodeToImageBitmap(imageData) }
+    val density = LocalDensity.current
+
+    BoxWithConstraints(contentAlignment = Alignment.Center) {
+        if (constraints.maxWidth > 0 && constraints.maxHeight > 0 && imageBitmap.width > 0 && imageBitmap.height > 0) {
+            val imageScaleFactor = min(
+                constraints.maxWidth.toFloat() / imageBitmap.width,
+                constraints.maxHeight.toFloat() / imageBitmap.height
+            )
+
+            // This Box acts as the scaled canvas for the image and eyes
+            Box(
+                modifier = Modifier.size(
+                    width = with(density) { (imageBitmap.width * imageScaleFactor).toDp() },
+                    height = with(density) { (imageBitmap.height * imageScaleFactor).toDp() }
+                )
+            ) {
+                Image(
+                    bitmap = imageBitmap,
+                    contentDescription = "State preview",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Fit
+                )
+
+                leftEye?.let { eye ->
+                    DraggableEye(leftEyeOpenData, leftEyePupilData, eye, imageScaleFactor) { newEye ->
+                        onLeftEyeUpdate(newEye)
+                    }
+                }
+
+                rightEye?.let { eye ->
+                    DraggableEye(rightEyeOpenData, rightEyePupilData, eye, imageScaleFactor) { newEye ->
+                        onRightEyeUpdate(newEye)
+                    }
+                }
+            }
+        }
+        // While waiting for valid constraints, this composable will simply be empty for a frame,
+        // which is visually unnoticeable but prevents the crash.
+    }
+}
+
 
 @Composable
 private fun EyePartPicker(
@@ -272,37 +380,47 @@ private fun EyePartPicker(
 }
 
 @Composable
-fun DraggableEye(openStateImage: ByteArray?, pupilImage: ByteArray?, position: Offset, scale: Float, onUpdate: (Offset, Float) -> Unit) {// Internal state for the draggable eye to manage its own position and scale during gestures.
-    var eyePosition by remember { mutableStateOf(position) }
-    var eyeScale by remember { mutableStateOf(scale) }
-
-    // This effect synchronizes the internal state with the external state passed in as parameters.
-    // This is useful for when the state is loaded or changed from outside the composable.
-    LaunchedEffect(position, scale) {
-        eyePosition = position
-        eyeScale = scale
-    }
-
+fun DraggableEye(
+    openStateImage: ByteArray?,
+    pupilImage: ByteArray?,
+    eye: Eye,
+    imageScaleFactor: Float, // Pass the scale factor
+    onUpdate: (Eye) -> Unit
+) {
     Box(
         modifier = Modifier
-            .offset { IntOffset(eyePosition.x.roundToInt(), eyePosition.y.roundToInt()) }
-            .graphicsLayer(scaleX = eyeScale, scaleY = eyeScale)
+            .offset {
+                // Apply the scale factor for display
+                IntOffset(
+                    (eye.position.x * imageScaleFactor).roundToInt(),
+                    (eye.position.y * imageScaleFactor).roundToInt()
+                )
+            }
+            .graphicsLayer {
+                // Apply the scale factor for display
+                scaleX = eye.scale * imageScaleFactor
+                scaleY = eye.scale * imageScaleFactor
+                transformOrigin = TransformOrigin(0f, 0f)
+            }
             .eyeGestures { positionDelta, scaleDelta ->
-                // Update the internal state directly during the gesture.
-                val newPosition = eyePosition + positionDelta
-                val newScale = (eyeScale + scaleDelta).coerceIn(0.1f, 5.0f) // Added coercion for robustness
-                eyePosition = newPosition
-                eyeScale = newScale
-                // Inform the parent about the final updated state.
-                onUpdate(newPosition, newScale)
+                if (imageScaleFactor > 0.0f && scaleDelta.isFinite() && scaleDelta > 0.0f) {
+                    val newPosition = eye.position + (positionDelta / imageScaleFactor)
+                    val newScale = eye.scale * scaleDelta
+
+                    // Final safety check: ensure the results are not NaN or Infinite
+                    if (newPosition.x.isFinite() && newPosition.y.isFinite() && newScale.isFinite()) {
+                        onUpdate(eye.copy(position = newPosition, scale = newScale))
+                    }
+                }
             }
     ) {
-        openStateImage?.let {
-            Image(it.toImageBitmap(), contentDescription = "Eye open state")
+        val openStateBitmap = remember(openStateImage) { openStateImage?.let { decodeToImageBitmap(it) } }
+        openStateBitmap?.let {
+            Image(bitmap = it, contentDescription = "Draggable open eye")
         }
-
-        pupilImage?.let {
-            Image(it.toImageBitmap(), contentDescription = "Eye pupil")
+        val pupilBitmap = remember(pupilImage) { pupilImage?.let { decodeToImageBitmap(it) } }
+        pupilBitmap?.let {
+            Image(bitmap = it, contentDescription = "Draggable pupil")
         }
     }
 }
