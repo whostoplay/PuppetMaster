@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
@@ -32,7 +33,10 @@ import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SERVER_PORT
 import org.menagerie.puppet_master.rememberImageFromUrl
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.sin
 
 /**
  * A composable that displays a live preview of the puppet.
@@ -53,11 +57,13 @@ fun LivePreview(
     uploadsDir: String,
     backgroundColor: Color,
     serverIp: String,
-    activeSpecialEffect: ActiveSpecialEffect?
+    activeSpecialEffect: ActiveSpecialEffect?,
+    pointerPosition: Offset? = null,
+    maxPupilRadius: Float = 75f
 ) {
     var frame by remember { mutableLongStateOf(0L) }
 
-    val displayedImageName = if (isBlinking) puppetState?.blinkImageName else  puppetState?.imageName
+    val displayedImageName = if (isBlinking) puppetState?.blinkImageName else puppetState?.imageName
     val eyeState = puppetState?.eyeState
 
     LaunchedEffect(activeSpecialEffect) {
@@ -106,6 +112,11 @@ fun LivePreview(
             val density = LocalDensity.current
             val scaledWidth = with(density) { (image.width * imageScaleFactor).toDp() }
             val scaledHeight = with(density) { (image.height * imageScaleFactor).toDp() }
+
+            val scaledWidthPx = image.width * imageScaleFactor
+            val scaledHeightPx = image.height * imageScaleFactor
+            val imageTopLeftX = (with(density) { maxWidth.toPx() } - scaledWidthPx) / 2f
+            val imageTopLeftY = (with(density) { maxHeight.toPx() } - scaledHeightPx) / 2f
 
             val puppetModifier =
                 Modifier
@@ -223,12 +234,31 @@ fun LivePreview(
                                 }
                             val leftEyePupilImage = rememberImageFromUrl(leftEyePupilImageUrl)
 
+                            var pupilModifier = leftEyeModifier
+                            if (it.eyes.followCursor && pointerPosition != null && leftEyePupilImage != null) {
+                                val pointerInImageX = (pointerPosition.x - imageTopLeftX) / imageScaleFactor
+                                val pointerInImageY = (pointerPosition.y - imageTopLeftY) / imageScaleFactor
+                                val angle = atan2(pointerInImageY - leftEye.position.y, pointerInImageX - leftEye.position.x)
+                                val x = leftEye.position.x + cos(angle) * (maxPupilRadius * leftEye.scale)
+                                val y = leftEye.position.y + sin(angle) * (maxPupilRadius * leftEye.scale)
+
+                                pupilModifier = Modifier.offset(
+                                    x = (x * imageScaleFactor).dp,
+                                    y = (y * imageScaleFactor).dp
+                                )
+                                    .graphicsLayer(
+                                        scaleX = leftEye.scale * imageScaleFactor,
+                                        scaleY = leftEye.scale * imageScaleFactor,
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                    )
+                            }
+
                             if (leftEyePupilImage != null) {
                                 Image(
                                     bitmap = leftEyePupilImage,
                                     contentDescription = "Left Eye Pupil",
                                     colorFilter = ColorFilter.colorMatrix(colorMatrix),
-                                    modifier = leftEyeModifier
+                                    modifier = pupilModifier
                                 )
                             }
                         }
@@ -258,13 +288,32 @@ fun LivePreview(
                                     else -> "file://$uploadsDir/$pupilImageName"
                                 }
                             val rightEyePupilImage = rememberImageFromUrl(rightEyePupilImageUrl)
+                            
+                            var pupilModifier = rightEyeModifier
+                            if (it.eyes.followCursor && pointerPosition != null && rightEyePupilImage != null) {
+                                val pointerInImageX = (pointerPosition.x - imageTopLeftX) / imageScaleFactor
+                                val pointerInImageY = (pointerPosition.y - imageTopLeftY) / imageScaleFactor
+                                val angle = atan2(pointerInImageY - rightEye.position.y, pointerInImageX - rightEye.position.x)
+                                val x = rightEye.position.x + cos(angle) * (maxPupilRadius * rightEye.scale)
+                                val y = rightEye.position.y + sin(angle) * (maxPupilRadius * rightEye.scale)
+
+                                pupilModifier = Modifier.offset(
+                                    x = (x * imageScaleFactor).dp,
+                                    y = (y * imageScaleFactor).dp
+                                )
+                                    .graphicsLayer(
+                                        scaleX = rightEye.scale * imageScaleFactor,
+                                        scaleY = rightEye.scale * imageScaleFactor,
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                    )
+                            }
 
                             if (rightEyePupilImage != null) {
                                 Image(
                                     bitmap = rightEyePupilImage,
                                     contentDescription = "Right Eye Pupil",
                                     colorFilter = ColorFilter.colorMatrix(colorMatrix),
-                                    modifier = rightEyeModifier
+                                    modifier = pupilModifier
                                 )
                             }
                         }

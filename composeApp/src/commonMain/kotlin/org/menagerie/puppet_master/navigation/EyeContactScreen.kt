@@ -83,6 +83,7 @@ class EyeContactScreen(
         var leftEye by remember { mutableStateOf<Eye?>(null) }
         var rightEye by remember { mutableStateOf<Eye?>(null) }
         var syncEyes by remember { mutableStateOf(false) }
+        var followCursor by remember { mutableStateOf(false) }
         var isClosedPreview by remember { mutableStateOf(false) }
 
         var leftEyeOpenData by remember { mutableStateOf<ByteArray?>(null) }
@@ -96,6 +97,7 @@ class EyeContactScreen(
             selectedState?.eyeState?.let { eyeState ->
                 leftEye = eyeState.eyes.left
                 rightEye = eyeState.eyes.right
+                followCursor = eyeState.eyes.followCursor
                 coroutineScope {
                     val lOpenData = async { eyeState.eyes.left.openState?.let { getImageData(it) } }
                     val lPupilData = async { eyeState.eyes.left.pupil?.let { getImageData(it) } }
@@ -138,7 +140,10 @@ class EyeContactScreen(
                             val left = leftEye
                             val right = rightEye
                             if (state != null && left != null && right != null) {
-                                onSave(state.name, EyeState(state.name, EyePair(left, right)))
+                                onSave(
+                                    state.name,
+                                    EyeState(state.name, EyePair(left, right, followCursor))
+                                )
                                 navigator.pop()
                             }
                         }) {
@@ -193,6 +198,13 @@ class EyeContactScreen(
                         onCheckedChange = { syncEyes = it }
                     )
                     Text("Sync Eye Parts")
+                    if (leftEye?.pupil != null) {
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Checkbox(
+                            checked = followCursor,
+                            onCheckedChange = { followCursor = it })
+                        Text("Eyes follow cursor")
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

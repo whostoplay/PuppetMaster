@@ -54,7 +54,8 @@ data class Eye(
 @Serializable
 data class EyePair(
     val left: Eye,
-    val right: Eye
+    val right: Eye,
+    val followCursor: Boolean = false
 )
 
 @Serializable

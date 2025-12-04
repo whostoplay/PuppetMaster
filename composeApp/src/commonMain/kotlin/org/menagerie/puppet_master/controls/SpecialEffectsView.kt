@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
@@ -77,6 +78,7 @@ fun SpecialEffectsUI(
     var showScaleDetails by remember { mutableStateOf(false) }
     var showVibrationDetails by remember { mutableStateOf(false) }
     var showGlowColorPicker by remember { mutableStateOf(false) }
+    var pointerPosition by remember { mutableStateOf<Offset?>(null) }
 
     LaunchedEffect(activeEffect) {
         activeEffect?.let {
@@ -116,7 +118,15 @@ fun SpecialEffectsUI(
             val activePreviewEffect = remember(previewEffect) {
                 ActiveSpecialEffect(previewEffect)
             }
-            Box(Modifier.height(300.dp).fillMaxWidth()) {
+            Box(Modifier.height(300.dp).fillMaxWidth()
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            pointerPosition = event.changes.first().position
+                        }
+                    }
+                }) {
                 LivePreview(
                     operatingMode = OperatingMode.OFFLINE,
                     puppetState = idleState,
@@ -124,7 +134,8 @@ fun SpecialEffectsUI(
                     uploadsDir = uploadsDir,
                     backgroundColor = Color.Green,
                     serverIp = "",
-                    activeSpecialEffect = activePreviewEffect
+                    activeSpecialEffect = activePreviewEffect,
+                    pointerPosition = pointerPosition
                 )
             }
         }

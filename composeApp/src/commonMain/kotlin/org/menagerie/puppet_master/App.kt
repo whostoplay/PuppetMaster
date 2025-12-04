@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -171,6 +172,8 @@ fun AppContent() {
         )
     }
 
+    var pointerPosition by remember { mutableStateOf<Offset?>(null) }
+
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -184,6 +187,7 @@ fun AppContent() {
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent()
+                        pointerPosition = event.changes.first().position
                         if (event.type == PointerEventType.Move) {
                             showControls = true
                         }
@@ -215,7 +219,8 @@ fun AppContent() {
                 uploadsDir = viewModel.uploadsDir,
                 backgroundColor = uiState.backgroundColor,
                 serverIp = serverIpAddress,
-                activeSpecialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect
+                activeSpecialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect,
+                pointerPosition = pointerPosition
             )
         }
 
