@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,7 +55,7 @@ fun LivePreview(
     serverIp: String,
     activeSpecialEffect: ActiveSpecialEffect?
 ) {
-    var frame by remember { mutableStateOf(0L) }
+    var frame by remember { mutableLongStateOf(0L) }
 
     val displayedImageName = if (isBlinking) puppetState?.blinkImageName else  puppetState?.imageName
     val eyeState = puppetState?.eyeState

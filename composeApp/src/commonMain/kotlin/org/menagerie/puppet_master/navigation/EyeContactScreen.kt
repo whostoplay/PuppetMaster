@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -24,6 +25,7 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
@@ -81,6 +83,7 @@ class EyeContactScreen(
         var leftEye by remember { mutableStateOf<Eye?>(null) }
         var rightEye by remember { mutableStateOf<Eye?>(null) }
         var syncEyes by remember { mutableStateOf(false) }
+        var isClosedPreview by remember { mutableStateOf(false) }
 
         var leftEyeOpenData by remember { mutableStateOf<ByteArray?>(null) }
         var leftEyePupilData by remember { mutableStateOf<ByteArray?>(null) }
@@ -263,6 +266,19 @@ class EyeContactScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text("Closed Eyes Preview")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Switch(
+                        checked = isClosedPreview,
+                        onCheckedChange = { isClosedPreview = it }
+                    )
+                }
+
                 // Preview Area
                 Box(
                     modifier = Modifier.fillMaxSize(),
@@ -271,8 +287,11 @@ class EyeContactScreen(
                     val state = selectedState
                     if (state != null) {
                         var stateImage by remember { mutableStateOf<ByteArray?>(null) }
-                        LaunchedEffect(state) {
-                            stateImage = getImageData(state.imageName)
+                        LaunchedEffect(state, isClosedPreview) {
+
+                            val name = if (isClosedPreview) state.blinkImageName ?: state.imageName else state.imageName
+
+                            stateImage = getImageData(name)
                         }
 
                         // Call the dedicated composable here
@@ -282,11 +301,14 @@ class EyeContactScreen(
                                 leftEye = leftEye,
                                 leftEyeOpenData = leftEyeOpenData,
                                 leftEyePupilData = leftEyePupilData,
+                                leftEyeClosedData = leftEyeClosedData,
                                 onLeftEyeUpdate = { leftEye = it },
                                 rightEye = rightEye,
                                 rightEyeOpenData = rightEyeOpenData,
                                 rightEyePupilData = rightEyePupilData,
-                                onRightEyeUpdate = { rightEye = it }
+                                rightEyeClosedData = rightEyeClosedData,
+                                onRightEyeUpdate = { rightEye = it },
+                                showClosedEyes = isClosedPreview
                             )
                         }
                     } else {
@@ -308,11 +330,14 @@ private fun DraggablePreviewSurface(
     imageData: ByteArray,
     leftEye: Eye?, leftEyeOpenData: ByteArray?,
     leftEyePupilData: ByteArray?,
+    leftEyeClosedData: ByteArray?,
     onLeftEyeUpdate: (Eye) -> Unit,
     rightEye: Eye?,
     rightEyeOpenData: ByteArray?,
     rightEyePupilData: ByteArray?,
-    onRightEyeUpdate: (Eye) -> Unit
+    rightEyeClosedData: ByteArray?,
+    onRightEyeUpdate: (Eye) -> Unit,
+    showClosedEyes: Boolean
 ) {
     val imageBitmap = remember(imageData) { decodeToImageBitmap(imageData) }
     val density = LocalDensity.current
@@ -339,13 +364,27 @@ private fun DraggablePreviewSurface(
                 )
 
                 leftEye?.let { eye ->
-                    DraggableEye(leftEyeOpenData, leftEyePupilData, eye, imageScaleFactor) { newEye ->
+                    DraggableEye(
+                        openStateImage = leftEyeOpenData,
+                        closedStateImage = leftEyeClosedData,
+                        pupilImage = leftEyePupilData,
+                        eye = eye,
+                        imageScaleFactor = imageScaleFactor,
+                        showClosed = showClosedEyes
+                    ) { newEye ->
                         onLeftEyeUpdate(newEye)
                     }
                 }
 
                 rightEye?.let { eye ->
-                    DraggableEye(rightEyeOpenData, rightEyePupilData, eye, imageScaleFactor) { newEye ->
+                    DraggableEye(
+                        openStateImage = rightEyeOpenData,
+                        closedStateImage = rightEyeClosedData,
+                        pupilImage = rightEyePupilData,
+                        eye = eye,
+                        imageScaleFactor = imageScaleFactor,
+                        showClosed = showClosedEyes
+                    ) { newEye ->
                         onRightEyeUpdate(newEye)
                     }
                 }
@@ -382,9 +421,11 @@ private fun EyePartPicker(
 @Composable
 fun DraggableEye(
     openStateImage: ByteArray?,
+    closedStateImage: ByteArray?,
     pupilImage: ByteArray?,
     eye: Eye,
     imageScaleFactor: Float, // Pass the scale factor
+    showClosed: Boolean,
     onUpdate: (Eye) -> Unit
 ) {
     Box(
@@ -415,12 +456,20 @@ fun DraggableEye(
             }
     ) {
         val openStateBitmap = remember(openStateImage) { openStateImage?.let { decodeToImageBitmap(it) } }
-        openStateBitmap?.let {
-            Image(bitmap = it, contentDescription = "Draggable open eye")
-        }
+        val closedStateBitmap = remember(closedStateImage) { closedStateImage?.let { decodeToImageBitmap(it) } }
         val pupilBitmap = remember(pupilImage) { pupilImage?.let { decodeToImageBitmap(it) } }
-        pupilBitmap?.let {
-            Image(bitmap = it, contentDescription = "Draggable pupil")
+
+        if (showClosed) {
+            closedStateBitmap?.let {
+                Image(bitmap = it, contentDescription = "Draggable closed eye")
+            }
+        } else {
+            openStateBitmap?.let {
+                Image(bitmap = it, contentDescription = "Draggable open eye")
+            }
+            pupilBitmap?.let {
+                Image(bitmap = it, contentDescription = "Draggable pupil")
+            }
         }
     }
 }
