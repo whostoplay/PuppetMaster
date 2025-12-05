@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master
 
 import android.content.Context
+import android.net.Uri
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileOutputStream
 
 actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, private val context: Any) {
 
@@ -46,8 +48,19 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     }
 
     actual suspend fun getImageData(imageName: String): ByteArray? {
-        val file = File(uploadsDir, imageName)
-        return if (file.exists()) file.readBytes() else null
+        val androidContext = context as Context
+        return try {
+            val uri = Uri.parse(imageName)
+            if (uri.scheme == "content") {
+                androidContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            } else {
+                val file = File(uploadsDir, imageName)
+                if (file.exists()) file.readBytes() else null
+            }
+        } catch (e: Exception) {
+            val file = File(uploadsDir, imageName)
+            if (file.exists()) file.readBytes() else null
+        }
     }
 
     actual fun setOperatingMode(mode: OperatingMode) {
@@ -143,12 +156,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     ) {
         scope.launch {
             val serverImageName = if (operatingMode == OperatingMode.ONLINE) uploader.upload(imageBytes, localImageName, serverIp) else localImageName
-            File(uploadsDir, serverImageName).writeBytes(imageBytes)
+            saveImage(serverImageName, imageBytes)
 
             var serverBlinkImageName: String? = null
             if (blinkImageBytes != null && localBlinkImageName != null) {
                 serverBlinkImageName = if (operatingMode == OperatingMode.ONLINE) uploader.upload(blinkImageBytes, localBlinkImageName, serverIp) else localBlinkImageName
-                File(uploadsDir, serverBlinkImageName).writeBytes(blinkImageBytes)
+                saveImage(serverBlinkImageName, blinkImageBytes)
             }
 
             val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
@@ -197,5 +210,9 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     }
 
     actual fun saveImage(name: String, data: ByteArray) {
+        val file = File(uploadsDir, name)
+        FileOutputStream(file).use {
+            it.write(data)
+        }
     }
 }

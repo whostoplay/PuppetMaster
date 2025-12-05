@@ -69,11 +69,11 @@ expect fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Fl
 expect fun Modifier.radiusGestures(onUpdate: (scaleDelta: Offset) -> Unit): Modifier
 
 class EyeContactScreen(
-    private val puppet: PuppetCharacter?,
+    @Transient private val puppet: PuppetCharacter?,
     private val serverIp: String,
-    private val onSave: (String, EyeState) -> Unit,
-    private val getImageData: suspend (String) -> ByteArray?,
-    private val uploadImageData: suspend (String, ByteArray) -> Unit
+    @Transient private val onSave: (String, EyeState) -> Unit,
+    @Transient private val getImageData: suspend (String) -> ByteArray?,
+    @Transient private val uploadImageData: suspend (String, ByteArray) -> Unit
 ) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -200,7 +200,25 @@ class EyeContactScreen(
                 ) {
                     Checkbox(
                         checked = syncEyes,
-                        onCheckedChange = { syncEyes = it }
+                        onCheckedChange = { isChecked ->
+                            syncEyes = isChecked
+                            if (isChecked) {
+                                leftEye?.let { lEye ->
+                                    rightEye = rightEye?.copy(
+                                        openState = lEye.openState,
+                                        pupil = lEye.pupil,
+                                        closedState = lEye.closedState
+                                    ) ?: Eye(
+                                        openState = lEye.openState,
+                                        pupil = lEye.pupil,
+                                        closedState = lEye.closedState
+                                    )
+                                    rightEyeOpenData = leftEyeOpenData
+                                    rightEyePupilData = leftEyePupilData
+                                    rightEyeClosedData = leftEyeClosedData
+                                }
+                            }
+                        }
                     )
                     Text("Sync Eye Parts")
                     if (leftEye?.pupil != null) {
