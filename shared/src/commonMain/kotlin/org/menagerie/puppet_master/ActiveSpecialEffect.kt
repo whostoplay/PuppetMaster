@@ -3,9 +3,6 @@ package org.menagerie.puppet_master
 import kotlinx.serialization.Serializable
 import kotlin.math.sin
 
-@Serializable
-data class SerializableOffset(val x: Float, val y: Float)
-
 /**
  * Represents the currently active special effect, and calculates its visual properties over time.
  */

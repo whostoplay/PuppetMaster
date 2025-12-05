@@ -32,6 +32,7 @@ import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SERVER_PORT
+import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.rememberImageFromUrl
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -206,7 +207,7 @@ fun LivePreview(
                             )
                         }
                     } else {
-                        val finalPointerInImage: Offset? =
+                        val finalPointerInImage: SerializableOffset? =
                             if (it.eyes.followCursor && pointerPosition != null) {
                                 val rotationInDegrees = activeSpecialEffect?.getRotation() ?: 0f
 
@@ -214,7 +215,7 @@ fun LivePreview(
                                 val pointerInImageYUnrotated = (pointerPosition.y - imageTopLeftY) / imageScaleFactor
 
                                 if (rotationInDegrees == 0f) {
-                                    Offset(pointerInImageXUnrotated, pointerInImageYUnrotated)
+                                    SerializableOffset(pointerInImageXUnrotated, pointerInImageYUnrotated)
                                 } else {
                                     val rotationInRadians = Math.toRadians(rotationInDegrees.toDouble())
 
@@ -234,7 +235,7 @@ fun LivePreview(
 
                                     val finalPointerInImageX = rotatedPointerRelToCenterX + imageCenterX
                                     val finalPointerInImageY = rotatedPointerRelToCenterY + imageCenterY
-                                    Offset(finalPointerInImageX, finalPointerInImageY)
+                                    SerializableOffset(finalPointerInImageX, finalPointerInImageY)
                                 }
                             } else {
                                 null

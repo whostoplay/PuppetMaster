@@ -1,8 +1,8 @@
 package org.menagerie.puppet_master
 
 import androidx.compose.ui.graphics.Color
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
+import cafe.adriel.voyager.core.model.ScreenModel
+import cafe.adriel.voyager.core.model.screenModelScope
 import io.ktor.client.*
 import io.ktor.client.plugins.websocket.*
 import io.ktor.http.*
@@ -68,19 +68,19 @@ data class UiState(
     }
 }
 
-class MainViewModel(context: Any) : ViewModel() {
+class MainViewModel(context: Any) : ScreenModel {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
 
-    private val dataManager = PuppetDataManager(viewModelScope, context)
+    private val dataManager = PuppetDataManager(screenModelScope, context)
     val uploadsDir = dataManager.uploadsDir
 
     private val _thresholds = MutableStateFlow<Map<Float, PuppetStateInfo?>>(emptyMap())
     val thresholds: StateFlow<Map<Float, PuppetStateInfo?>> = _thresholds.asStateFlow()
 
     private val stateController = PuppetStateController(
-        viewModelScope, dataManager, AudioProcessor(context),
+        screenModelScope, dataManager, AudioProcessor(context),
         getUiState = { uiState.value },
         thresholds = thresholds
     )
@@ -119,7 +119,7 @@ class MainViewModel(context: Any) : ViewModel() {
 
     init {
         _serverIpAddress.value = settingsRepository.loadIp()
-        viewModelScope.launch {
+        screenModelScope.launch {
             activePuppet.collect { puppet ->
                 _thresholds.value = puppet?.thresholds ?: emptyMap()
                 _selectedState.value?.let { selected ->
@@ -134,7 +134,7 @@ class MainViewModel(context: Any) : ViewModel() {
     }
 
     fun uploadImageData(name: String, data: ByteArray) {
-        viewModelScope.launch {
+        screenModelScope.launch {
             dataManager.saveImage(name, data)
         }
     }
@@ -331,7 +331,7 @@ class MainViewModel(context: Any) : ViewModel() {
     }
 
     fun onSpecialEffectUpdated() {
-        viewModelScope.launch {
+        screenModelScope.launch {
             troupe.value?.let { dataManager.saveTroupe(it) }
         }
     }
@@ -349,7 +349,7 @@ class MainViewModel(context: Any) : ViewModel() {
 
     private fun observeServerState() {
         stateController.stopBlinking()
-        serverStateJob = viewModelScope.launch {
+        serverStateJob = screenModelScope.launch {
             try {
                 client.webSocket(method = HttpMethod.Get, host = serverIpAddress.value, port = SERVER_PORT, path = "/obs") {
                     for (frame in incoming) {
@@ -368,7 +368,7 @@ class MainViewModel(context: Any) : ViewModel() {
     }
 
     private fun startClientControl() {
-        clientControlSocketJob = viewModelScope.launch {
+        clientControlSocketJob = screenModelScope.launch {
             try {
                 client.webSocket(
                     method = HttpMethod.Get,

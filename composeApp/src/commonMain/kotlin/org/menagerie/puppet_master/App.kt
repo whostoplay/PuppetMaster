@@ -77,10 +77,9 @@ fun App() {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
-fun AppContent() {
+fun AppContent(viewModel: MainViewModel) {
     val navigator = LocalNavigator.currentOrThrow
     val context = getContext()
-    val viewModel = remember { MainViewModel(context) }
     val troupe by viewModel.troupe.collectAsState()
     val activePuppet by viewModel.activePuppet.collectAsState()
     val operatingMode by viewModel.operatingMode.collectAsState()
@@ -274,7 +273,7 @@ fun AppContent() {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            Button(onClick = { navigator.push(EyeContactScreen(activePuppet, serverIpAddress, viewModel::updateEyeState, viewModel::getImageData, viewModel::uploadImageData)) }) {
+                            Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }) {
                                 Text("Eye Contact")
                             }
                         }
@@ -434,7 +433,7 @@ fun AppContent() {
                                         .clickable { viewModel.selectState(state) }
                                         .background(if (state == selectedState) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                                         .padding(8.dp)
-                                )
+                                    )
                             }
                             item {
                                 selectedState?.let { state ->
@@ -476,7 +475,7 @@ fun AppContent() {
                 ) {
                     Button(onClick = { showLeftDrawer = true }) { Text("Puppet Controls") }
                     Button(onClick = { showRightDrawer = true }) { Text("State Controls") }
-                    Button(onClick = { navigator.push(EyeContactScreen(activePuppet, serverIpAddress, viewModel::updateEyeState, viewModel::getImageData, viewModel::uploadImageData)) }) { Text("Eye Contact") }
+                    Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }) { Text("Eye Contact") }
                 }
             }
         }

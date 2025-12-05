@@ -32,6 +32,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,9 +60,12 @@ import org.menagerie.puppet_master.Eye
 import org.menagerie.puppet_master.EyePair
 import org.menagerie.puppet_master.EyeState
 import org.menagerie.puppet_master.ImageFilePicker
+import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.decodeToImageBitmap
+import org.menagerie.puppet_master.toOffset
+import org.menagerie.puppet_master.toSerializableOffset
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -70,10 +74,7 @@ expect fun Modifier.radiusGestures(onUpdate: (scaleDelta: Offset) -> Unit): Modi
 
 class EyeContactScreen(
     @Transient private val puppet: PuppetCharacter?,
-    private val serverIp: String,
-    @Transient private val onSave: (String, EyeState) -> Unit,
-    @Transient private val getImageData: suspend (String) -> ByteArray?,
-    @Transient private val uploadImageData: suspend (String, ByteArray) -> Unit
+    @Transient private val viewModel: MainViewModel
 ) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -81,6 +82,8 @@ class EyeContactScreen(
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
+
+        val serverIp by viewModel.serverIpAddress.collectAsState()
 
         var selectedState by remember { mutableStateOf<PuppetStateInfo?>(null) }
         var isStateSelectorExpanded by remember { mutableStateOf(false) }
@@ -104,12 +107,12 @@ class EyeContactScreen(
                 rightEye = eyeState.eyes.right
                 followCursor = eyeState.eyes.followCursor
                 coroutineScope {
-                    val lOpenData = async { eyeState.eyes.left.openState?.let { getImageData(it) } }
-                    val lPupilData = async { eyeState.eyes.left.pupil?.let { getImageData(it) } }
-                    val lClosedData = async { eyeState.eyes.left.closedState?.let { getImageData(it) } }
-                    val rOpenData = async { eyeState.eyes.right.openState?.let { getImageData(it) } }
-                    val rPupilData = async { eyeState.eyes.right.pupil?.let { getImageData(it) } }
-                    val rClosedData = async { eyeState.eyes.right.closedState?.let { getImageData(it) } }
+                    val lOpenData = async { eyeState.eyes.left.openState?.let { viewModel.getImageData(it) } }
+                    val lPupilData = async { eyeState.eyes.left.pupil?.let { viewModel.getImageData(it) } }
+                    val lClosedData = async { eyeState.eyes.left.closedState?.let { viewModel.getImageData(it) } }
+                    val rOpenData = async { eyeState.eyes.right.openState?.let { viewModel.getImageData(it) } }
+                    val rPupilData = async { eyeState.eyes.right.pupil?.let { viewModel.getImageData(it) } }
+                    val rClosedData = async { eyeState.eyes.right.closedState?.let { viewModel.getImageData(it) } }
 
                     leftEyeOpenData = lOpenData.await()
                     leftEyePupilData = lPupilData.await()
@@ -145,7 +148,7 @@ class EyeContactScreen(
                             val left = leftEye
                             val right = rightEye
                             if (state != null && left != null && right != null) {
-                                onSave(
+                                viewModel.updateEyeState(
                                     state.name,
                                     EyeState(state.name, EyePair(left, right, followCursor))
                                 )
@@ -241,34 +244,40 @@ class EyeContactScreen(
                         Text("Left Eye")
                         EyePartPicker("Open", leftEye?.openState, true) { images ->
                             images.firstOrNull()?.let { (data, name) ->
-                                scope.launch { uploadImageData(name, data) }
-                                leftEye = leftEye?.copy(openState = name) ?: Eye(openState = name)
-                                leftEyeOpenData = data
-                                if (syncEyes) {
-                                    rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name)
-                                    rightEyeOpenData = data
+                                scope.launch {
+                                    viewModel.uploadImageData(name, data)
+                                    leftEye = leftEye?.copy(openState = name) ?: Eye(openState = name)
+                                    leftEyeOpenData = data
+                                    if (syncEyes) {
+                                        rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name)
+                                        rightEyeOpenData = data
+                                    }
                                 }
                             }
                         }
                         EyePartPicker("Pupil", leftEye?.pupil, true) { images ->
                             images.firstOrNull()?.let { (data, name) ->
-                                scope.launch { uploadImageData(name, data) }
-                                leftEye = leftEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
-                                leftEyePupilData = data
-                                if (syncEyes) {
-                                    rightEye = rightEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
-                                    rightEyePupilData = data
+                                scope.launch {
+                                    viewModel.uploadImageData(name, data)
+                                    leftEye = leftEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
+                                    leftEyePupilData = data
+                                    if (syncEyes) {
+                                        rightEye = rightEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
+                                        rightEyePupilData = data
+                                    }
                                 }
                             }
                         }
                         EyePartPicker("Closed", leftEye?.closedState, true) { images ->
                             images.firstOrNull()?.let { (data, name) ->
-                                scope.launch { uploadImageData(name, data) }
-                                leftEye = leftEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
-                                leftEyeClosedData = data
-                                if (syncEyes) {
-                                    rightEye = rightEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
-                                    rightEyeClosedData = data
+                                scope.launch {
+                                    viewModel.uploadImageData(name, data)
+                                    leftEye = leftEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
+                                    leftEyeClosedData = data
+                                    if (syncEyes) {
+                                        rightEye = rightEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
+                                        rightEyeClosedData = data
+                                    }
                                 }
                             }
                         }
@@ -277,23 +286,29 @@ class EyeContactScreen(
                         Text("Right Eye")
                         EyePartPicker("Open", rightEye?.openState, !syncEyes) { images ->
                             images.firstOrNull()?.let { (data, name) ->
-                                scope.launch { uploadImageData(name, data) }
-                                rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name)
-                                rightEyeOpenData = data
+                                scope.launch {
+                                    viewModel.uploadImageData(name, data)
+                                    rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name)
+                                    rightEyeOpenData = data
+                                }
                             }
                         }
                         EyePartPicker("Pupil", rightEye?.pupil, !syncEyes) { images ->
                             images.firstOrNull()?.let { (data, name) ->
-                                scope.launch { uploadImageData(name, data) }
-                                rightEye = rightEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
-                                rightEyePupilData = data
+                                scope.launch {
+                                    viewModel.uploadImageData(name, data)
+                                    rightEye = rightEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
+                                    rightEyePupilData = data
+                                }
                             }
                         }
                         EyePartPicker("Closed", rightEye?.closedState, !syncEyes) { images ->
                             images.firstOrNull()?.let { (data, name) ->
-                                scope.launch { uploadImageData(name, data) }
-                                rightEye = rightEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
-                                rightEyeClosedData = data
+                                scope.launch {
+                                    viewModel.uploadImageData(name, data)
+                                    rightEye = rightEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
+                                    rightEyeClosedData = data
+                                }
                             }
                         }
                     }
@@ -326,7 +341,7 @@ class EyeContactScreen(
 
                             val name = if (isClosedPreview) state.blinkImageName ?: state.imageName else state.imageName
 
-                            stateImage = getImageData(name)
+                            stateImage = viewModel.getImageData(name)
                         }
 
                         // Call the dedicated composable here
@@ -485,12 +500,12 @@ fun DraggableEye(
             }
             .eyeGestures { positionDelta, scaleDelta ->
                 if (imageScaleFactor > 0.0f && scaleDelta.isFinite() && scaleDelta > 0.0f) {
-                    val newPosition = eye.position + (positionDelta / imageScaleFactor)
+                    val newPosition = eye.position.toOffset() + (positionDelta / imageScaleFactor)
                     val newScale = eye.scale * scaleDelta
 
                     // Final safety check: ensure the results are not NaN or Infinite
                     if (newPosition.x.isFinite() && newPosition.y.isFinite() && newScale.isFinite()) {
-                        onUpdate(eye.copy(position = newPosition, scale = newScale))
+                        onUpdate(eye.copy(position = newPosition.toSerializableOffset(), scale = newScale))
                     }
                 }
             }

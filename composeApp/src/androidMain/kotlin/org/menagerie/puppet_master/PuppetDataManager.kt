@@ -211,8 +211,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
     actual fun saveImage(name: String, data: ByteArray) {
         val file = File(uploadsDir, name)
-        FileOutputStream(file).use {
-            it.write(data)
+        FileOutputStream(file).use { it.write(data) }
+        if (operatingMode == OperatingMode.ONLINE) {
+            scope.launch {
+                uploader.upload(data, name, SettingsRepository(context as Context).loadIp())
+            }
         }
     }
 }

@@ -139,12 +139,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     ) {
         scope.launch {
             val serverImageName = if (operatingMode == OperatingMode.ONLINE) uploader.upload(imageBytes, localImageName, serverIp) else localImageName
-            File(uploadsDir, serverImageName).writeBytes(imageBytes)
+            saveImage(serverImageName, imageBytes)
 
             var serverBlinkImageName: String? = null
             if (blinkImageBytes != null && localBlinkImageName != null) {
                 serverBlinkImageName = if (operatingMode == OperatingMode.ONLINE) uploader.upload(blinkImageBytes, localBlinkImageName, serverIp) else localBlinkImageName
-                File(uploadsDir, serverBlinkImageName).writeBytes(blinkImageBytes)
+                saveImage(serverBlinkImageName, blinkImageBytes)
             }
 
             val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
@@ -169,6 +169,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     
     actual fun saveImage(name: String, data: ByteArray) {
         File(uploadsDir, name).writeBytes(data)
+        if (operatingMode == OperatingMode.ONLINE) {
+            scope.launch {
+                uploader.upload(data, name, SettingsRepository(context).loadIp())
+            }
+        }
     }
 
     private fun loadLocalTroupe(): PuppetTroupe? = try {
@@ -188,6 +193,26 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                         File(uploadsDir, state.imageName).takeIf { it.exists() }?.let { uploader.upload(it.readBytes(), state.imageName, serverIp) }
                         state.blinkImageName?.let { blinkName ->
                             File(uploadsDir, blinkName).takeIf { it.exists() }?.let { uploader.upload(it.readBytes(), blinkName, serverIp) }
+                        }
+                        state.eyeState?.let { eyeState ->
+                            val leftEye = eyeState.eyes.left
+                            val rightEye = eyeState.eyes.right
+
+                            File(uploadsDir, leftEye.openState).takeIf { it.exists() }?.let { uploader.upload(it.readBytes(), leftEye.openState, serverIp) }
+                            leftEye.closedState?.let { closedState ->
+                                File(uploadsDir, closedState).takeIf { it.exists() }?.let { uploader.upload(it.readBytes(), closedState, serverIp) }
+                            }
+                            leftEye.pupil?.let { pupil ->
+                                File(uploadsDir, pupil).takeIf { it.exists() }?.let { uploader.upload(it.readBytes(), pupil, serverIp) }
+                            }
+
+                            File(uploadsDir, rightEye.openState).takeIf { it.exists() }?.let { uploader.upload(it.readBytes(), rightEye.openState, serverIp) }
+                            rightEye.closedState?.let { closedState ->
+                                File(uploadsDir, closedState).takeIf { it.exists() }?.let { uploader.upload(it.readBytes(), closedState, serverIp) }
+                            }
+                            rightEye.pupil?.let { pupil ->
+                                File(uploadsDir, pupil).takeIf { it.exists() }?.let { uploader.upload(it.readBytes(), pupil, serverIp) }
+                            }
                         }
                     }
                 }

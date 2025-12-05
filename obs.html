@@ -18,6 +18,12 @@
             background-position: center;
             background-repeat: no-repeat;
             transform-origin: center;
+            position: relative;
+        }
+        .eye, .pupil {
+            position: absolute;
+            background-size: contain;
+            background-repeat: no-repeat;
         }
     </style>
 </head>
@@ -29,13 +35,32 @@
         </filter>
     </defs>
 </svg>
-<div id="puppet"></div>
+<div id="puppet">
+    <div id="left-eye" class="eye">
+        <div id="left-pupil" class="pupil"></div>
+    </div>
+    <div id="right-eye" class="eye">
+        <div id="right-pupil" class="pupil"></div>
+    </div>
+</div>
 <script>
     const puppetElement = document.getElementById('puppet');
+    const leftEyeElement = document.getElementById('left-eye');
+    const rightEyeElement = document.getElementById('right-eye');
+    const leftPupilElement = document.getElementById('left-pupil');
+    const rightPupilElement = document.getElementById('right-pupil');
     const socket = new WebSocket('ws://127.0.0.1:8080/obs');
 
     let activeEffect = null;
     let startTime = 0;
+    let pointerPosition = null;
+    let currentPuppetStateInfo = null;
+    let baseImage = { width: 0, height: 0 };
+
+    // This function will be called by our OBS script
+    function updatePointerPositionFromOBS(x, y) {
+        pointerPosition = { x: x, y: y };
+    }
 
     function intToCssColor(colorInt) {
         const a = ((colorInt >> 24) & 0xFF) / 255;
@@ -47,29 +72,128 @@
 
     socket.onmessage = function(event) {
         const serverState = JSON.parse(event.data);
-        const puppetStateInfo = serverState.puppetStateInfo;
+        currentPuppetStateInfo = serverState.puppetStateInfo;
 
-        if (!puppetStateInfo || !puppetStateInfo.imageName) {
+        if (!currentPuppetStateInfo || !currentPuppetStateInfo.imageName) {
             puppetElement.style.backgroundImage = '';
+            leftEyeElement.style.backgroundImage = '';
+            rightEyeElement.style.backgroundImage = '';
+            leftPupilElement.style.backgroundImage = '';
+            rightPupilElement.style.backgroundImage = '';
             activeEffect = null;
             return;
         }
 
         const newImg = new Image();
         newImg.onload = () => {
+            baseImage.width = newImg.width;
+            baseImage.height = newImg.height;
             puppetElement.style.backgroundImage = `url(${newImg.src})`;
-            if (puppetStateInfo.appliedEffect) {
-                console.log("Received effect:", puppetStateInfo.appliedEffect);
-                if (!activeEffect || activeEffect.name !== puppetStateInfo.appliedEffect.name) {
+            if (currentPuppetStateInfo.appliedEffect) {
+                console.log("Received effect:", currentPuppetStateInfo.appliedEffect);
+                if (!activeEffect || activeEffect.name !== currentPuppetStateInfo.appliedEffect.name) {
                     startTime = Date.now();
                 }
-                activeEffect = puppetStateInfo.appliedEffect;
+                activeEffect = currentPuppetStateInfo.appliedEffect;
             } else {
                 activeEffect = null;
             }
+            updateEyes(currentPuppetStateInfo, newImg.width, newImg.height);
         }
-        newImg.src = `http://127.0.0.1:8080/uploads/${puppetStateInfo.imageName}`;
+        newImg.src = `http://127.0.0.1:8080/uploads/${currentPuppetStateInfo.imageName}`;
     };
+
+    function updateEyes(puppetStateInfo, imageWidth, imageHeight) {
+        const eyeState = puppetStateInfo.eyeState;
+        if (!eyeState) {
+            leftEyeElement.style.backgroundImage = '';
+            rightEyeElement.style.backgroundImage = '';
+            leftPupilElement.style.backgroundImage = '';
+            rightPupilElement.style.backgroundImage = '';
+            return;
+        }
+
+        const isBlinking = puppetStateInfo.imageName === puppetStateInfo.blinkImageName;
+        const leftEye = eyeState.eyes.left;
+        const rightEye = eyeState.eyes.right;
+
+        const containerWidth = puppetElement.clientWidth;
+        const containerHeight = puppetElement.clientHeight;
+        const imageScaleFactor = Math.min(containerWidth / imageWidth, containerHeight / imageHeight);
+
+        const imageTopLeftX = (containerWidth - (imageWidth * imageScaleFactor)) / 2;
+        const imageTopLeftY = (containerHeight - (imageHeight * imageScaleFactor)) / 2;
+
+        const setEyeProperties = (element, eye, eyeImage) => {
+            element.style.left = `${imageTopLeftX + (eye.position.x * imageScaleFactor)}px`;
+            element.style.top = `${imageTopLeftY + (eye.position.y * imageScaleFactor)}px`;
+            element.style.width = `${eyeImage.width * eye.scale * imageScaleFactor}px`;
+            element.style.height = `${eyeImage.height * eye.scale * imageScaleFactor}px`;
+            element.style.backgroundImage = `url(${eyeImage.src})`;
+        };
+
+        if (isBlinking && leftEye.closedState && rightEye.closedState) {
+            const leftEyeClosedImage = new Image();
+            leftEyeClosedImage.onload = () => setEyeProperties(leftEyeElement, leftEye, leftEyeClosedImage);
+            leftEyeClosedImage.src = `http://127.0.0.1:8080/uploads/${leftEye.closedState}`;
+
+            const rightEyeClosedImage = new Image();
+            rightEyeClosedImage.onload = () => setEyeProperties(rightEyeElement, rightEye, rightEyeClosedImage);
+            rightEyeClosedImage.src = `http://127.0.0.1:8080/uploads/${rightEye.closedState}`;
+
+            leftPupilElement.style.backgroundImage = '';
+            rightPupilElement.style.backgroundImage = '';
+        } else {
+            const leftEyeOpenImage = new Image();
+            leftEyeOpenImage.onload = () => setEyeProperties(leftEyeElement, leftEye, leftEyeOpenImage);
+            leftEyeOpenImage.src = `http://127.0.0.1:8080/uploads/${leftEye.openState}`;
+
+            const rightEyeOpenImage = new Image();
+            rightEyeOpenImage.onload = () => setEyeProperties(rightEyeElement, rightEye, rightEyeOpenImage);
+            rightEyeOpenImage.src = `http://127.0.0.1:8080/uploads/${rightEye.openState}`;
+
+            if (leftEye.pupil) {
+                const leftPupilImage = new Image();
+                leftPupilImage.onload = () => {
+                    updatePupil(leftPupilElement, leftEye, leftPupilImage, imageWidth, imageHeight, imageScaleFactor);
+                };
+                leftPupilImage.src = `http://127.0.0.1:8080/uploads/${leftEye.pupil}`;
+            }
+
+            if (rightEye.pupil) {
+                const rightPupilImage = new Image();
+                rightPupilImage.onload = () => {
+                    updatePupil(rightPupilElement, rightEye, rightPupilImage, imageWidth, imageHeight, imageScaleFactor);
+                };
+                rightPupilImage.src = `http://127.0.0.1:8080/uploads/${rightEye.pupil}`;
+            }
+        }
+    }
+
+    function updatePupil(element, eye, pupilImage, imageWidth, imageHeight, imageScaleFactor) {
+        element.style.width = `${pupilImage.width * eye.scale * imageScaleFactor}px`;
+        element.style.height = `${pupilImage.height * eye.scale * imageScaleFactor}px`;
+        element.style.backgroundImage = `url(${pupilImage.src})`;
+
+        if (currentPuppetStateInfo && currentPuppetStateInfo.eyeState && currentPuppetStateInfo.eyeState.eyes.followCursor && pointerPosition) {
+            const imageTopLeftX = (puppetElement.clientWidth - (imageWidth * imageScaleFactor)) / 2;
+            const imageTopLeftY = (puppetElement.clientHeight - (imageHeight * imageScaleFactor)) / 2;
+
+            const pointerInImageX = (pointerPosition.x - imageTopLeftX) / imageScaleFactor;
+            const pointerInImageY = (pointerPosition.y - imageTopLeftY) / imageScaleFactor;
+
+            const angle = Math.atan2(
+                pointerInImageY - eye.position.y,
+                pointerInImageX - eye.position.x
+            );
+            const x = Math.cos(angle) * (eye.maxPupilRadiusX * eye.scale);
+            const y = Math.sin(angle) * (eye.maxPupilRadiusY * eye.scale);
+
+            element.style.transform = `translate(${x * imageScaleFactor}px, ${y * imageScaleFactor}px)`;
+        } else {
+            element.style.transform = 'translate(0, 0)';
+        }
+    }
 
     function getAnimatedScale(targetScale, scaleSpeed, elapsedTime) {
         if (scaleSpeed === 0) {
@@ -154,6 +278,21 @@
 
         puppetElement.style.transform = transform;
         puppetElement.style.filter = filter;
+
+        if (currentPuppetStateInfo) {
+            const imageScaleFactor = Math.min(puppetElement.clientWidth / baseImage.width, puppetElement.clientHeight / baseImage.height);
+            if (currentPuppetStateInfo.eyeState) {
+                const leftEye = currentPuppetStateInfo.eyeState.eyes.left;
+                const rightEye = currentPuppetStateInfo.eyeState.eyes.right;
+
+                if (leftEye.pupil) {
+                    updatePupil(leftPupilElement, leftEye, {src: `http://127.0.0.1:8080/uploads/${leftEye.pupil}`, width: leftPupilElement.width, height: leftPupilElement.height}, baseImage.width, baseImage.height, imageScaleFactor);
+                }
+                if (rightEye.pupil) {
+                    updatePupil(rightPupilElement, rightEye, {src: `http://127.0.0.1:8080/uploads/${rightEye.pupil}`, width: rightPupilElement.width, height: rightPupilElement.height}, baseImage.width, baseImage.height, imageScaleFactor);
+                }
+            }
+        }
 
         requestAnimationFrame(animate);
     }

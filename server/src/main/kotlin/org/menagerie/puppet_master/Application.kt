@@ -8,14 +8,15 @@ import io.ktor.server.engine.*
 import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
-import io.ktor.utils.io.core.readBytes
 import io.ktor.utils.io.readRemaining
 import io.ktor.websocket.*
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.io.readByteArray
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -29,6 +30,11 @@ fun main() {
 fun Application.module() {
     val troupeManager = TroupeManager()
     val stateManager = PuppetStateManager(this, troupeManager)
+
+    install(CORS) {
+        anyHost()
+        allowHeader(HttpHeaders.ContentType)
+    }
 
     install(ContentNegotiation) {
         json(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true })
@@ -61,7 +67,7 @@ fun Application.module() {
             multipart.forEachPart { part ->
                 if (part is PartData.FileItem) {
                     fileName = part.originalFileName as String
-                    val fileBytes = part.provider().readRemaining().readBytes()
+                    val fileBytes = part.provider().readRemaining().readByteArray()
                     File(uploadsDir, fileName).writeBytes(fileBytes)
                 }
                 part.dispose()
