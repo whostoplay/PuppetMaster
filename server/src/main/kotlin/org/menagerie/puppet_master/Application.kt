@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.io.readByteArray
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
@@ -30,6 +32,7 @@ fun main() {
 fun Application.module() {
     val troupeManager = TroupeManager()
     val stateManager = PuppetStateManager(this, troupeManager)
+    val jsonDecoder = Json { ignoreUnknownKeys = true }
 
     install(CORS) {
         anyHost()
@@ -73,6 +76,25 @@ fun Application.module() {
                 part.dispose()
             }
             call.respondText(fileName)
+        }
+
+        webSocket("/mouse") {
+            for (frame in incoming) {
+                if (frame is Frame.Text) {
+                    val text = frame.readText()
+                    val jsonElement = jsonDecoder.parseToJsonElement(text).jsonObject
+                    when (jsonElement["type"]?.jsonPrimitive?.content) {
+                        "pointer" -> {
+                            val position = jsonDecoder.decodeFromJsonElement(MousePosition.serializer(), jsonElement)
+                            stateManager.onMousePositionChanged(position)
+                        }
+                        "calibration" -> {
+                            val calibrationData = jsonDecoder.decodeFromJsonElement(CalibrationData.serializer(), jsonElement)
+                            stateManager.onCalibrationReceived(calibrationData)
+                        }
+                    }
+                }
+            }
         }
 
         webSocket("/audio-input") {

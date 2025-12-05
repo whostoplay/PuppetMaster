@@ -79,14 +79,25 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
+    fun onMousePositionChanged(mousePosition: MousePosition) {
+        val currentState = _stateToSend.value
+        _stateToSend.value = currentState?.copy(mousePosition = mousePosition)
+    }
+
+    fun onCalibrationReceived(calibrationData: CalibrationData) {
+        val currentState = _stateToSend.value
+        _stateToSend.value = currentState?.copy(calibrationData = calibrationData)
+    }
+
     fun onClientSentState(stateJson: String) {
         val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true }
         try {
-            val serverState = json.decodeFromString<ServerState>(stateJson)
-            _stateToSend.value = serverState
+            val receivedState = json.decodeFromString<ServerState>(stateJson)
+            // Preserve mouse and calibration data from the current state
+            _stateToSend.value = _stateToSend.value?.copy(puppetStateInfo = receivedState.puppetStateInfo) ?: receivedState
 
             // Also update the internal active state for blinking logic
-            serverState.puppetStateInfo?.let { stateInfo ->
+            receivedState.puppetStateInfo?.let { stateInfo ->
                 val baseState = troupeManager.activePuppet?.states?.find { it.imageName == stateInfo.imageName || it.blinkImageName == stateInfo.imageName }
                 if (baseState != null && _activeState.value != baseState) {
                     _activeState.value = baseState
@@ -131,6 +142,11 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
     }
 
     private fun updateStateToSend(state: PuppetStateInfo?) {
-        _stateToSend.value = ServerState(state)
+        val currentData = _stateToSend.value
+        _stateToSend.value = ServerState(
+            puppetStateInfo = state,
+            mousePosition = currentData?.mousePosition,
+            calibrationData = currentData?.calibrationData
+        )
     }
 }

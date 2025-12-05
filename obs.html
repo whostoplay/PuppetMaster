@@ -43,6 +43,7 @@
         <div id="right-pupil" class="pupil"></div>
     </div>
 </div>
+
 <script>
     const puppetElement = document.getElementById('puppet');
     const leftEyeElement = document.getElementById('left-eye');
@@ -56,10 +57,15 @@
     let pointerPosition = null;
     let currentPuppetStateInfo = null;
     let baseImage = { width: 0, height: 0 };
+    
+    // Calibration data, will be loaded from localStorage or received from server
+    let calibrationData = null;
 
-    // This function will be called by our OBS script
-    function updatePointerPositionFromOBS(x, y) {
-        pointerPosition = { x: x, y: y };
+    // Load calibration from localStorage on startup
+    const savedCalibration = localStorage.getItem('calibration');
+    if (savedCalibration) {
+        calibrationData = JSON.parse(savedCalibration);
+        console.log("Loaded calibration from localStorage:", calibrationData);
     }
 
     function intToCssColor(colorInt) {
@@ -73,6 +79,15 @@
     socket.onmessage = function(event) {
         const serverState = JSON.parse(event.data);
         currentPuppetStateInfo = serverState.puppetStateInfo;
+        pointerPosition = serverState.mousePosition;
+
+        // Check for new calibration data from the server
+        if (serverState.calibrationData) {
+            console.log("Received new calibration data from server:", serverState.calibrationData);
+            calibrationData = serverState.calibrationData;
+            // Save new calibration to localStorage
+            localStorage.setItem('calibration', JSON.stringify(calibrationData));
+        }
 
         if (!currentPuppetStateInfo || !currentPuppetStateInfo.imageName) {
             puppetElement.style.backgroundImage = '';
@@ -90,7 +105,6 @@
             baseImage.height = newImg.height;
             puppetElement.style.backgroundImage = `url(${newImg.src})`;
             if (currentPuppetStateInfo.appliedEffect) {
-                console.log("Received effect:", currentPuppetStateInfo.appliedEffect);
                 if (!activeEffect || activeEffect.name !== currentPuppetStateInfo.appliedEffect.name) {
                     startTime = Date.now();
                 }
@@ -155,7 +169,7 @@
             if (leftEye.pupil) {
                 const leftPupilImage = new Image();
                 leftPupilImage.onload = () => {
-                    updatePupil(leftPupilElement, leftEye, leftPupilImage, imageWidth, imageHeight, imageScaleFactor);
+                    updatePupil(leftPupilElement, leftEye, leftPupilImage, imageWidth, imageHeight, imageScaleFactor, 0);
                 };
                 leftPupilImage.src = `http://127.0.0.1:8080/uploads/${leftEye.pupil}`;
             }
@@ -163,31 +177,48 @@
             if (rightEye.pupil) {
                 const rightPupilImage = new Image();
                 rightPupilImage.onload = () => {
-                    updatePupil(rightPupilElement, rightEye, rightPupilImage, imageWidth, imageHeight, imageScaleFactor);
+                    updatePupil(rightPupilElement, rightEye, rightPupilImage, imageWidth, imageHeight, imageScaleFactor, 0);
                 };
                 rightPupilImage.src = `http://127.0.0.1:8080/uploads/${rightEye.pupil}`;
             }
         }
     }
 
-    function updatePupil(element, eye, pupilImage, imageWidth, imageHeight, imageScaleFactor) {
+    function updatePupil(element, eye, pupilImage, imageWidth, imageHeight, imageScaleFactor, rotation) {
         element.style.width = `${pupilImage.width * eye.scale * imageScaleFactor}px`;
         element.style.height = `${pupilImage.height * eye.scale * imageScaleFactor}px`;
         element.style.backgroundImage = `url(${pupilImage.src})`;
 
-        if (currentPuppetStateInfo && currentPuppetStateInfo.eyeState && currentPuppetStateInfo.eyeState.eyes.followCursor && pointerPosition) {
-            const imageTopLeftX = (puppetElement.clientWidth - (imageWidth * imageScaleFactor)) / 2;
-            const imageTopLeftY = (puppetElement.clientHeight - (imageHeight * imageScaleFactor)) / 2;
+        if (currentPuppetStateInfo && currentPuppetStateInfo.eyeState && currentPuppetStateInfo.eyeState.eyes.followCursor && pointerPosition && calibrationData) {
+            const screenWidth = calibrationData.bottomRight.x - calibrationData.topLeft.x;
+            const screenHeight = calibrationData.bottomRight.y - calibrationData.topLeft.y;
 
-            const pointerInImageX = (pointerPosition.x - imageTopLeftX) / imageScaleFactor;
-            const pointerInImageY = (pointerPosition.y - imageTopLeftY) / imageScaleFactor;
+            if (screenWidth === 0 || screenHeight === 0) {
+                element.style.transform = 'translate(0, 0)';
+                return;
+            }
+
+            // Calculate normalized position (0.0 to 1.0) of the mouse within the calibrated screen area
+            const normalizedX = (pointerPosition.x - calibrationData.topLeft.x) / screenWidth;
+            const normalizedY = (pointerPosition.y - calibrationData.topLeft.y) / screenHeight;
+
+            // Translate normalized position to the coordinate system of the base puppet image
+            const pointerInImageX = normalizedX * imageWidth;
+            const pointerInImageY = normalizedY * imageHeight;
 
             const angle = Math.atan2(
                 pointerInImageY - eye.position.y,
                 pointerInImageX - eye.position.x
             );
-            const x = Math.cos(angle) * (eye.maxPupilRadiusX * eye.scale);
-            const y = Math.sin(angle) * (eye.maxPupilRadiusY * eye.scale);
+            
+            // Convert puppet rotation from degrees to radians
+            const rotationInRadians = (rotation || 0) * (Math.PI / 180);
+
+            // Adjust the pupil angle by subtracting the puppet's rotation
+            const finalAngle = angle - rotationInRadians;
+
+            const x = Math.cos(finalAngle) * (eye.maxPupilRadiusX * eye.scale);
+            const y = Math.sin(finalAngle) * (eye.maxPupilRadiusY * eye.scale);
 
             element.style.transform = `translate(${x * imageScaleFactor}px, ${y * imageScaleFactor}px)`;
         } else {
@@ -206,6 +237,7 @@
     function animate() {
         let transform = 'scale(1) rotate(0deg) translate(0px, 0px)';
         let filter = 'none';
+        let rotation = 0;
 
         if (activeEffect) {
             const elapsedTime = Date.now() - startTime;
@@ -215,7 +247,6 @@
             const scaleY = getAnimatedScale(activeEffect.scaleY, activeEffect.scaleSpeed, elapsedTime);
 
             // Rotation
-            let rotation = 0;
             if (activeEffect.spinSpeed > 0) {
                 rotation = (elapsedTime * activeEffect.spinSpeed * 10 / 50) % 360;
                 rotation *= activeEffect.spinDirection;
@@ -286,10 +317,10 @@
                 const rightEye = currentPuppetStateInfo.eyeState.eyes.right;
 
                 if (leftEye.pupil) {
-                    updatePupil(leftPupilElement, leftEye, {src: `http://127.0.0.1:8080/uploads/${leftEye.pupil}`, width: leftPupilElement.width, height: leftPupilElement.height}, baseImage.width, baseImage.height, imageScaleFactor);
+                    updatePupil(leftPupilElement, leftEye, {src: `http://127.0.0.1:8080/uploads/${leftEye.pupil}`, width: leftPupilElement.width, height: leftPupilElement.height}, baseImage.width, baseImage.height, imageScaleFactor, rotation);
                 }
                 if (rightEye.pupil) {
-                    updatePupil(rightPupilElement, rightEye, {src: `http://127.0.0.1:8080/uploads/${rightEye.pupil}`, width: rightPupilElement.width, height: rightPupilElement.height}, baseImage.width, baseImage.height, imageScaleFactor);
+                    updatePupil(rightPupilElement, rightEye, {src: `http://127.0.0.1:8080/uploads/${rightEye.pupil}`, width: rightPupilElement.width, height: rightPupilElement.height}, baseImage.width, baseImage.height, imageScaleFactor, rotation);
                 }
             }
         }
