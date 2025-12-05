@@ -48,7 +48,9 @@ data class Eye(
     val closedState: String? = null,
     @Serializable(with = OffsetSerializer::class)
     val position: Offset = Offset.Zero,
-    val scale: Float = 1f
+    val scale: Float = 1f,
+    val maxPupilRadiusX: Float = 75f,
+    val maxPupilRadiusY: Float = 75f
 )
 
 @Serializable

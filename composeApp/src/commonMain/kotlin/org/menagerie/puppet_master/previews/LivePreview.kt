@@ -58,8 +58,7 @@ fun LivePreview(
     backgroundColor: Color,
     serverIp: String,
     activeSpecialEffect: ActiveSpecialEffect?,
-    pointerPosition: Offset? = null,
-    maxPupilRadius: Float = 75f
+    pointerPosition: Offset? = null
 ) {
     var frame by remember { mutableLongStateOf(0L) }
 
@@ -274,8 +273,8 @@ fun LivePreview(
                                     finalPointerInImage.y - leftEye.position.y,
                                     finalPointerInImage.x - leftEye.position.x
                                 )
-                                val x = leftEye.position.x + cos(angle) * (maxPupilRadius * leftEye.scale)
-                                val y = leftEye.position.y + sin(angle) * (maxPupilRadius * leftEye.scale)
+                                val x = leftEye.position.x + cos(angle) * (leftEye.maxPupilRadiusX * leftEye.scale)
+                                val y = leftEye.position.y + sin(angle) * (leftEye.maxPupilRadiusY * leftEye.scale)
 
                                 pupilModifier = Modifier.offset(
                                     x = (x * imageScaleFactor).dp,
@@ -330,8 +329,8 @@ fun LivePreview(
                                     finalPointerInImage.y - rightEye.position.y,
                                     finalPointerInImage.x - rightEye.position.x
                                 )
-                                val x = rightEye.position.x + cos(angle) * (maxPupilRadius * rightEye.scale)
-                                val y = rightEye.position.y + sin(angle) * (maxPupilRadius * rightEye.scale)
+                                val x = rightEye.position.x + cos(angle) * (rightEye.maxPupilRadiusX * rightEye.scale)
+                                val y = rightEye.position.y + sin(angle) * (rightEye.maxPupilRadiusY * rightEye.scale)
 
                                 pupilModifier = Modifier.offset(
                                     x = (x * imageScaleFactor).dp,

@@ -1,5 +1,6 @@
 package org.menagerie.puppet_master.navigation
 
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberUpdatedState
@@ -13,6 +14,17 @@ actual fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Fl
     pointerInput(Unit) {
         detectTransformGestures { _, pan, zoom, _ ->
             currentOnUpdate(pan, zoom)
+        }
+    }
+}
+
+actual fun Modifier.radiusGestures(onUpdate: (scaleDelta: Offset) -> Unit): Modifier = composed {
+    val currentOnUpdate by rememberUpdatedState(onUpdate)
+    pointerInput(Unit) {
+        detectDragGestures {
+            change, dragAmount ->
+            change.consume()
+            currentOnUpdate(dragAmount)
         }
     }
 }

@@ -37,3 +37,22 @@ actual fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Fl
         }
     }
 }
+
+actual fun Modifier.radiusGestures(onUpdate: (scaleDelta: Offset) -> Unit): Modifier = composed {
+    val currentOnUpdate by rememberUpdatedState(onUpdate)
+    pointerInput(Unit) {
+        forEachGesture {
+            coroutineScope {
+                awaitPointerEventScope {
+                    val down = awaitPointerEvent()
+                    down.changes.forEach { it.consume() }
+
+                    drag(down.changes.first().id) {
+                        currentOnUpdate(it.positionChange())
+                        it.consume()
+                    }
+                }
+            }
+        }
+    }
+}

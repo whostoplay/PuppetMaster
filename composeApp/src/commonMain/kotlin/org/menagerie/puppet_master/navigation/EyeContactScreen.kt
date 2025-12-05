@@ -1,5 +1,6 @@
 package org.menagerie.puppet_master.navigation
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,7 +40,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
@@ -62,6 +66,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 expect fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Float) -> Unit): Modifier
+expect fun Modifier.radiusGestures(onUpdate: (scaleDelta: Offset) -> Unit): Modifier
 
 class EyeContactScreen(
     private val puppet: PuppetCharacter?,
@@ -320,7 +325,8 @@ class EyeContactScreen(
                                 rightEyePupilData = rightEyePupilData,
                                 rightEyeClosedData = rightEyeClosedData,
                                 onRightEyeUpdate = { rightEye = it },
-                                showClosedEyes = isClosedPreview
+                                showClosedEyes = isClosedPreview,
+                                followCursor = followCursor
                             )
                         }
                     } else {
@@ -349,7 +355,8 @@ private fun DraggablePreviewSurface(
     rightEyePupilData: ByteArray?,
     rightEyeClosedData: ByteArray?,
     onRightEyeUpdate: (Eye) -> Unit,
-    showClosedEyes: Boolean
+    showClosedEyes: Boolean,
+    followCursor: Boolean
 ) {
     val imageBitmap = remember(imageData) { decodeToImageBitmap(imageData) }
     val density = LocalDensity.current
@@ -382,7 +389,8 @@ private fun DraggablePreviewSurface(
                         pupilImage = leftEyePupilData,
                         eye = eye,
                         imageScaleFactor = imageScaleFactor,
-                        showClosed = showClosedEyes
+                        showClosed = showClosedEyes,
+                        followCursor = followCursor
                     ) { newEye ->
                         onLeftEyeUpdate(newEye)
                     }
@@ -395,7 +403,8 @@ private fun DraggablePreviewSurface(
                         pupilImage = rightEyePupilData,
                         eye = eye,
                         imageScaleFactor = imageScaleFactor,
-                        showClosed = showClosedEyes
+                        showClosed = showClosedEyes,
+                        followCursor = followCursor
                     ) { newEye ->
                         onRightEyeUpdate(newEye)
                     }
@@ -438,6 +447,7 @@ fun DraggableEye(
     eye: Eye,
     imageScaleFactor: Float, // Pass the scale factor
     showClosed: Boolean,
+    followCursor: Boolean,
     onUpdate: (Eye) -> Unit
 ) {
     Box(
@@ -481,6 +491,42 @@ fun DraggableEye(
             }
             pupilBitmap?.let {
                 Image(bitmap = it, contentDescription = "Draggable pupil")
+            }
+        }
+
+        if (followCursor && pupilImage != null) {
+            openStateBitmap?.let {
+                val density = LocalDensity.current
+                Canvas(
+                    modifier = Modifier
+                        .size(
+                            width = with(density) { it.width.toDp() },
+                            height = with(density) { it.height.toDp() }
+                        )
+                        .radiusGestures { dragAmount ->
+                            if (imageScaleFactor > 0f) {
+                                onUpdate(
+                                    eye.copy(
+                                        maxPupilRadiusX = (eye.maxPupilRadiusX + dragAmount.x / imageScaleFactor).coerceAtLeast(1f),
+                                        maxPupilRadiusY = (eye.maxPupilRadiusY + dragAmount.y / imageScaleFactor).coerceAtLeast(1f)
+                                    )
+                                )
+                            }
+                        }
+                ) {
+                    val pupilRadiusX = eye.maxPupilRadiusX
+                    val pupilRadiusY = eye.maxPupilRadiusY
+
+                    val eyeCenterX = size.width / 2f
+                    val eyeCenterY = size.height / 2f
+
+                    drawOval(
+                        color = Color.Red,
+                        topLeft = Offset(eyeCenterX - pupilRadiusX, eyeCenterY - pupilRadiusY),
+                        size = Size(pupilRadiusX * 2, pupilRadiusY * 2),
+                        style = Stroke(width = 2f)
+                    )
+                }
             }
         }
     }
