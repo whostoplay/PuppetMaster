@@ -9,6 +9,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.RangeSlider
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SpecialEffect
 import org.menagerie.puppet_master.SpecialEffectsManager
+import kotlin.math.roundToLong
 
 /**
  * A composable that provides a UI for editing the properties of a puppet state.
@@ -27,8 +29,7 @@ import org.menagerie.puppet_master.SpecialEffectsManager
  * @param modifier The modifier to be applied to the composable.
  * @param selectedState The currently selected puppet state.
  * @param specialEffectsManager The manager for special effects.
- * @param onBlinkRateChanged A callback that is invoked when the blink rate is changed.
- * @param onApplyEffect A callback that is invoked when a special effect is applied.
+ * @param onStateUpdated A callback that is invoked when any property of the state is changed.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -36,15 +37,25 @@ fun StateEditor(
     modifier: Modifier,
     selectedState: PuppetStateInfo?,
     specialEffectsManager: SpecialEffectsManager,
-    onBlinkRateChanged: (LongRange) -> Unit,
-    onApplyEffect: (SpecialEffect?) -> Unit
+    onStateUpdated: (PuppetStateInfo) -> Unit
 ) {
-    val sliderValueRange = 200f..10000f
+    val blinkSliderValueRange = 200f..10000f
     var blinkRateRange by remember(selectedState) {
-        val start = selectedState?.minBlinkRate?.toFloat()?.coerceIn(sliderValueRange) ?: 2000f
-        val end = selectedState?.maxBlinkRate?.toFloat()?.coerceIn(sliderValueRange) ?: 8000f
+        val start = selectedState?.minBlinkRate?.toFloat()?.coerceIn(blinkSliderValueRange) ?: 2000f
+        val end = selectedState?.maxBlinkRate?.toFloat()?.coerceIn(blinkSliderValueRange) ?: 8000f
         mutableStateOf(start..end)
     }
+
+    val audienceCheckRateRange = 1000f..20000f
+    var audienceCheckRate by remember(selectedState) {
+        mutableStateOf(selectedState?.eyeState?.eyes?.audienceCheckRate?.toFloat()?.coerceIn(audienceCheckRateRange) ?: 8000f)
+    }
+
+    val audienceCheckDurationRange = 500f..5000f
+    var audienceCheckDuration by remember(selectedState) {
+        mutableStateOf(selectedState?.eyeState?.eyes?.audienceCheckDuration?.toFloat()?.coerceIn(audienceCheckDurationRange) ?: 1500f)
+    }
+
     var showEffectDropdown by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.padding(8.dp)) {
@@ -55,9 +66,52 @@ fun StateEditor(
                 RangeSlider(
                     value = blinkRateRange,
                     onValueChange = { newRange -> blinkRateRange = newRange },
-                    onValueChangeFinished = { onBlinkRateChanged(blinkRateRange.start.toLong()..blinkRateRange.endInclusive.toLong()) },
-                    valueRange = sliderValueRange
+                    onValueChangeFinished = {
+                        onStateUpdated(
+                            state.copy(
+                                minBlinkRate = blinkRateRange.start.roundToLong(),
+                                maxBlinkRate = blinkRateRange.endInclusive.roundToLong()
+                            )
+                        )
+                    },
+                    valueRange = blinkSliderValueRange
                 )
+            }
+
+            state.eyeState?.let { eyeState ->
+                if (eyeState.eyes.checkOnAudience) {
+                    Text(text = "Audience Check Rate: ${audienceCheckRate.roundToLong()} ms")
+                    Slider(
+                        value = audienceCheckRate,
+                        onValueChange = { audienceCheckRate = it },
+                        onValueChangeFinished = {
+                            onStateUpdated(
+                                state.copy(
+                                    eyeState = eyeState.copy(
+                                        eyes = eyeState.eyes.copy(audienceCheckRate = audienceCheckRate.roundToLong())
+                                    )
+                                )
+                            )
+                        },
+                        valueRange = audienceCheckRateRange
+                    )
+
+                    Text(text = "Audience Check Duration: ${audienceCheckDuration.roundToLong()} ms")
+                    Slider(
+                        value = audienceCheckDuration,
+                        onValueChange = { audienceCheckDuration = it },
+                        onValueChangeFinished = {
+                            onStateUpdated(
+                                state.copy(
+                                    eyeState = eyeState.copy(
+                                        eyes = eyeState.eyes.copy(audienceCheckDuration = audienceCheckDuration.roundToLong())
+                                    )
+                                )
+                            )
+                        },
+                        valueRange = audienceCheckDurationRange
+                    )
+                }
             }
 
             Box {
@@ -72,7 +126,7 @@ fun StateEditor(
                     DropdownMenuItem(
                         text = { Text("None") },
                         onClick = {
-                            onApplyEffect(null)
+                            onStateUpdated(state.copy(appliedEffect = null))
                             showEffectDropdown = false
                         }
                     )
@@ -80,7 +134,7 @@ fun StateEditor(
                         DropdownMenuItem(
                             text = { Text(effect.name) },
                             onClick = {
-                                onApplyEffect(effect)
+                                onStateUpdated(state.copy(appliedEffect = effect))
                                 showEffectDropdown = false
                             }
                         )

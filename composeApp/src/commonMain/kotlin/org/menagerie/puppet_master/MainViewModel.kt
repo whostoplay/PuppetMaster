@@ -300,6 +300,21 @@ class MainViewModel(context: Any) : ScreenModel {
         }
     }
 
+    fun updatePuppetState(newState: PuppetStateInfo) {
+        dataManager.updatePuppet(dataManager.activePuppet.value!!.name) { character ->
+            val newStates = character.states.map {
+                if (it.name == newState.name) newState else it
+            }
+            val newThresholds = character.thresholds.mapValues { (_, value) ->
+                if (value?.name == newState.name) newState else value
+            }
+            character.copy(states = newStates, thresholds = newThresholds)
+        }
+        if (isPublishing.value) {
+            dataManager.publishTroupe(serverIpAddress.value)
+        }
+    }
+
     fun addThreshold(value: Float) {
         val newThresholds = _thresholds.value.toMutableMap()
         newThresholds[value] = null

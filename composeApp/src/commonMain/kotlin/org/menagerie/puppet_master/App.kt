@@ -322,8 +322,7 @@ fun AppContent(viewModel: MainViewModel) {
                                             modifier = Modifier.fillMaxWidth(),
                                             selectedState = state,
                                             specialEffectsManager = currentTroupe.specialEffectsManager,
-                                            onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
-                                            onApplyEffect = { effect -> viewModel.updateAppliedEffect(state, effect) }
+                                            onStateUpdated = { viewModel.updatePuppetState(it) }
                                         )
                                     }
                                 }
@@ -441,8 +440,7 @@ fun AppContent(viewModel: MainViewModel) {
                                         modifier = Modifier.fillMaxWidth(),
                                         selectedState = state,
                                         specialEffectsManager = currentTroupe.specialEffectsManager,
-                                        onBlinkRateChanged = { newBlinkRate -> viewModel.updateBlinkRate(state, newBlinkRate) },
-                                        onApplyEffect = { effectName -> viewModel.updateAppliedEffect(state, effectName) }
+                                        onStateUpdated = { viewModel.updatePuppetState(it) }
                                     )
                                 }
                             }

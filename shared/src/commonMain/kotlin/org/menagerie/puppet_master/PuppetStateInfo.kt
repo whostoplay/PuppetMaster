@@ -19,8 +19,8 @@ data class PuppetStateInfo(
     val name: String,
     val imageName: String,
     val blinkImageName: String? = null,
-    val minBlinkRate: Long = 1500L,
-    val maxBlinkRate: Long = 6000L,
+    val minBlinkRate: Long = 100L,
+    val maxBlinkRate: Long = 5000L,
     val appliedEffect: SpecialEffect? = null,
     val eyeState: EyeState? = null
 ) {

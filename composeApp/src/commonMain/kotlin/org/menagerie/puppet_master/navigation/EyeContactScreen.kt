@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.navigation
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +26,9 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -46,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -63,6 +67,7 @@ import org.menagerie.puppet_master.ImageFilePicker
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetStateInfo
+import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.decodeToImageBitmap
 import org.menagerie.puppet_master.toOffset
 import org.menagerie.puppet_master.toSerializableOffset
@@ -71,6 +76,7 @@ import kotlin.math.roundToInt
 
 expect fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Float) -> Unit): Modifier
 expect fun Modifier.radiusGestures(onUpdate: (scaleDelta: Offset) -> Unit): Modifier
+expect fun Modifier.gameScreenGestures(onUpdate: (positionDelta: Offset) -> Unit): Modifier
 
 class EyeContactScreen(
     @Transient private val puppet: PuppetCharacter?,
@@ -94,6 +100,15 @@ class EyeContactScreen(
         var followCursor by remember { mutableStateOf(false) }
         var isClosedPreview by remember { mutableStateOf(false) }
 
+        // New state variables
+        var focusOnGame by remember { mutableStateOf(false) }
+        var checkOnAudience by remember { mutableStateOf(false) }
+        var gameScreenLocation by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
+        var minBlinkRate by remember { mutableStateOf(100f) }
+        var maxBlinkRate by remember { mutableStateOf(5000f) }
+        var audienceCheckRate by remember { mutableStateOf(8000f) }
+        var audienceCheckDuration by remember { mutableStateOf(1500f) }
+
         var leftEyeOpenData by remember { mutableStateOf<ByteArray?>(null) }
         var leftEyePupilData by remember { mutableStateOf<ByteArray?>(null) }
         var leftEyeClosedData by remember { mutableStateOf<ByteArray?>(null) }
@@ -102,36 +117,48 @@ class EyeContactScreen(
         var rightEyeClosedData by remember { mutableStateOf<ByteArray?>(null) }
 
         LaunchedEffect(selectedState) {
-            selectedState?.eyeState?.let { eyeState ->
-                leftEye = eyeState.eyes.left
-                rightEye = eyeState.eyes.right
-                followCursor = eyeState.eyes.followCursor
-                coroutineScope {
-                    val lOpenData = async { eyeState.eyes.left.openState?.let { viewModel.getImageData(it) } }
-                    val lPupilData = async { eyeState.eyes.left.pupil?.let { viewModel.getImageData(it) } }
-                    val lClosedData = async { eyeState.eyes.left.closedState?.let { viewModel.getImageData(it) } }
-                    val rOpenData = async { eyeState.eyes.right.openState?.let { viewModel.getImageData(it) } }
-                    val rPupilData = async { eyeState.eyes.right.pupil?.let { viewModel.getImageData(it) } }
-                    val rClosedData = async { eyeState.eyes.right.closedState?.let { viewModel.getImageData(it) } }
+            selectedState?.let { state ->
+                minBlinkRate = state.minBlinkRate.toFloat()
+                maxBlinkRate = state.maxBlinkRate.toFloat()
 
-                    leftEyeOpenData = lOpenData.await()
-                    leftEyePupilData = lPupilData.await()
-                    leftEyeClosedData = lClosedData.await()
-                    rightEyeOpenData = rOpenData.await()
-                    rightEyePupilData = rPupilData.await()
-                    rightEyeClosedData = rClosedData.await()
+                state.eyeState?.let { eyeState ->
+                    leftEye = eyeState.eyes.left
+                    rightEye = eyeState.eyes.right
+                    followCursor = eyeState.eyes.followCursor
+                    focusOnGame = eyeState.eyes.focusOnGame
+                    checkOnAudience = eyeState.eyes.checkOnAudience
+                    gameScreenLocation = eyeState.eyes.gameScreenLocation.toOffset()
+                    audienceCheckRate = eyeState.eyes.audienceCheckRate.toFloat()
+                    audienceCheckDuration = eyeState.eyes.audienceCheckDuration.toFloat()
+
+                    coroutineScope {
+                        val lOpenData = async { eyeState.eyes.left.openState.let { viewModel.getImageData(it) } }
+                        val lPupilData = async { eyeState.eyes.left.pupil?.let { viewModel.getImageData(it) } }
+                        val lClosedData = async { eyeState.eyes.left.closedState?.let { viewModel.getImageData(it) } }
+                        val rOpenData = async { eyeState.eyes.right.openState.let { viewModel.getImageData(it) } }
+                        val rPupilData = async { eyeState.eyes.right.pupil?.let { viewModel.getImageData(it) } }
+                        val rClosedData = async { eyeState.eyes.right.closedState?.let { viewModel.getImageData(it) } }
+
+                        leftEyeOpenData = lOpenData.await()
+                        leftEyePupilData = lPupilData.await()
+                        leftEyeClosedData = lClosedData.await()
+                        rightEyeOpenData = rOpenData.await()
+                        rightEyePupilData = rPupilData.await()
+                        rightEyeClosedData = rClosedData.await()
+                    }
+                } ?: run {
+                    leftEye = null
+                    rightEye = null
+                    leftEyeOpenData = null
+                    leftEyePupilData = null
+                    leftEyeClosedData = null
+                    rightEyeOpenData = null
+                    rightEyePupilData = null
+                    rightEyeClosedData = null
                 }
-            } ?: run {
-                leftEye = null
-                rightEye = null
-                leftEyeOpenData = null
-                leftEyePupilData = null
-                leftEyeClosedData = null
-                rightEyeOpenData = null
-                rightEyePupilData = null
-                rightEyeClosedData = null
             }
         }
+
 
         Scaffold(
             topBar = {
@@ -148,10 +175,22 @@ class EyeContactScreen(
                             val left = leftEye
                             val right = rightEye
                             if (state != null && left != null && right != null) {
-                                viewModel.updateEyeState(
-                                    state.name,
-                                    EyeState(state.name, EyePair(left, right, followCursor))
+                                val newEyePair = EyePair(
+                                    left = left,
+                                    right = right,
+                                    followCursor = followCursor,
+                                    focusOnGame = focusOnGame,
+                                    gameScreenLocation = gameScreenLocation.toSerializableOffset(),
+                                    checkOnAudience = checkOnAudience,
+                                    audienceCheckRate = audienceCheckRate.toLong(),
+                                    audienceCheckDuration = audienceCheckDuration.toLong()
                                 )
+                                val updatedState = state.copy(
+                                    minBlinkRate = minBlinkRate.toLong(),
+                                    maxBlinkRate = maxBlinkRate.toLong(),
+                                    eyeState = EyeState(state.name, newEyePair)
+                                )
+                                viewModel.updatePuppetState(updatedState)
                                 navigator.pop()
                             }
                         }) {
@@ -160,9 +199,9 @@ class EyeContactScreen(
                     }
                 )
             }
-        ) {
+        ) { innerPadding ->
             Column(
-                modifier = Modifier.fillMaxSize().padding(it).padding(16.dp),
+                modifier = Modifier.fillMaxSize().padding(innerPadding).padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // State Selector
@@ -224,13 +263,62 @@ class EyeContactScreen(
                         }
                     )
                     Text("Sync Eye Parts")
-                    if (leftEye?.pupil != null) {
-                        Spacer(modifier = Modifier.width(16.dp))
+                }
+
+                if (leftEye?.pupil != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
                         Checkbox(
                             checked = followCursor,
                             onCheckedChange = { followCursor = it })
-                        Text("Eyes follow cursor")
+                        Text("Follow Cursor")
+                        Spacer(Modifier.width(8.dp))
+                        Checkbox(
+                            checked = focusOnGame,
+                            onCheckedChange = { focusOnGame = it })
+                        Text("Focus on Game")
+                        Spacer(Modifier.width(8.dp))
+                        Checkbox(
+                            checked = checkOnAudience,
+                            onCheckedChange = { checkOnAudience = it })
+                        Text("Check on Audience")
                     }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (selectedState?.blinkImageName != null) {
+                    var blinkRateRange by remember(minBlinkRate, maxBlinkRate) { mutableStateOf(minBlinkRate..maxBlinkRate) }
+                    Column(modifier = Modifier.fillMaxWidth(0.8f)) {
+                        Text("Blink Rate Range: ${blinkRateRange.start.roundToInt()}ms - ${blinkRateRange.endInclusive.roundToInt()}ms")
+                        RangeSlider(
+                            value = blinkRateRange,
+                            onValueChange = {
+                                blinkRateRange = it
+                                minBlinkRate = it.start
+                                maxBlinkRate = it.endInclusive
+                            },
+                            valueRange = 100f..10000f,
+                        )
+                    }
+                }
+
+                if (checkOnAudience) {
+                    LabeledSlider(
+                        label = "Audience Check Rate",
+                        value = audienceCheckRate,
+                        onValueChange = { audienceCheckRate = it },
+                        range = 1000f..20000f
+                    )
+                    LabeledSlider(
+                        label = "Audience Check Duration",
+                        value = audienceCheckDuration,
+                        onValueChange = { audienceCheckDuration = it },
+                        range = 500f..5000f
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -359,7 +447,10 @@ class EyeContactScreen(
                                 rightEyeClosedData = rightEyeClosedData,
                                 onRightEyeUpdate = { rightEye = it },
                                 showClosedEyes = isClosedPreview,
-                                followCursor = followCursor
+                                followCursor = followCursor,
+                                gameScreenLocation = gameScreenLocation,
+                                onGameScreenLocationChange = { gameScreenLocation = it },
+                                showGameScreenTarget = focusOnGame
                             )
                         }
                     } else {
@@ -372,14 +463,28 @@ class EyeContactScreen(
     }
 }
 
-/**
- * A dedicated composable responsible for rendering the draggable preview surface.
- * This ensures all Compose-related calls are made from a valid Composable context.
- */
+@Composable
+private fun LabeledSlider(
+    label: String,
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    range: ClosedFloatingPointRange<Float>
+) {
+    Column(modifier = Modifier.fillMaxWidth(0.8f)) {
+        Text("$label: ${value.roundToInt()}ms")
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = range,
+        )
+    }
+}
+
 @Composable
 private fun DraggablePreviewSurface(
     imageData: ByteArray,
-    leftEye: Eye?, leftEyeOpenData: ByteArray?,
+    leftEye: Eye?,
+    leftEyeOpenData: ByteArray?,
     leftEyePupilData: ByteArray?,
     leftEyeClosedData: ByteArray?,
     onLeftEyeUpdate: (Eye) -> Unit,
@@ -389,7 +494,10 @@ private fun DraggablePreviewSurface(
     rightEyeClosedData: ByteArray?,
     onRightEyeUpdate: (Eye) -> Unit,
     showClosedEyes: Boolean,
-    followCursor: Boolean
+    followCursor: Boolean,
+    gameScreenLocation: Offset,
+    onGameScreenLocationChange: (Offset) -> Unit,
+    showGameScreenTarget: Boolean
 ) {
     val imageBitmap = remember(imageData) { decodeToImageBitmap(imageData) }
     val density = LocalDensity.current
@@ -442,12 +550,58 @@ private fun DraggablePreviewSurface(
                         onRightEyeUpdate(newEye)
                     }
                 }
+
+                if (showGameScreenTarget) {
+                    val markerSize = 24.dp
+                    val markerSizePx = with(density) { markerSize.toPx() }
+                    Box(
+                        modifier = Modifier
+                            .offset {
+                                // Convert normalized offset to pixel offset within the scaled image box
+                                IntOffset(
+                                    (gameScreenLocation.x * imageBitmap.width * imageScaleFactor - markerSizePx / 2).roundToInt(),
+                                    (gameScreenLocation.y * imageBitmap.height * imageScaleFactor - markerSizePx / 2).roundToInt()
+                                )
+                            }
+                            .size(markerSize)
+                            .gameScreenGestures { dragAmount ->
+                                val imageWidthPx = imageBitmap.width * imageScaleFactor
+                                val imageHeightPx = imageBitmap.height * imageScaleFactor
+
+                                if (imageWidthPx > 0 && imageHeightPx > 0) {
+                                    // Normalize the drag amount based on the scaled image size
+                                    val normalizedDragX = dragAmount.x / imageWidthPx
+                                    val normalizedDragY = dragAmount.y / imageHeightPx
+
+                                    // Add the normalized drag amount to the CURRENT location
+                                    val newLocation = gameScreenLocation + Offset(
+                                        normalizedDragX,
+                                        normalizedDragY
+                                    )
+
+                                    // Coerce the new location to stay within the 0f..1f bounds and update the state
+                                    onGameScreenLocationChange(
+                                        Offset(
+                                            x = newLocation.x.coerceIn(0f, 1f),
+                                            y = newLocation.y.coerceIn(0f, 1f)
+                                        )
+                                    )
+                                }
+                            }
+                    ) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            val strokeWidth = 2.dp.toPx()
+                            drawLine(Color.Red, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), strokeWidth)
+                            drawLine(Color.Red, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), strokeWidth)
+                        }
+                        Text("Game Screen", color = Color.Red, modifier = Modifier.align(Alignment.BottomCenter).offset(y = markerSize))
+                    }
+                }
             }
         }
-        // While waiting for valid constraints, this composable will simply be empty for a frame,
-        // which is visually unnoticeable but prevents the crash.
     }
 }
+
 
 
 @Composable
