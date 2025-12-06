@@ -38,6 +38,7 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.random.Random
 
 /**
  * A composable that displays a live preview of the puppet.
@@ -62,6 +63,8 @@ fun LivePreview(
     pointerPosition: Offset? = null
 ) {
     var frame by remember { mutableLongStateOf(0L) }
+    var jitter by remember { mutableStateOf(Offset.Zero) }
+    var isCheckingAudience by remember { mutableStateOf(false) }
 
     val displayedImageName = if (isBlinking) puppetState?.blinkImageName else puppetState?.imageName
     val eyeState = puppetState?.eyeState
@@ -72,6 +75,39 @@ fun LivePreview(
                 frame = System.currentTimeMillis()
                 delay(16) // roughly 60 fps
             }
+        }
+    }
+
+    LaunchedEffect(
+        eyeState?.eyes?.checkOnAudience, eyeState?.eyes?.audienceCheckRate, eyeState?.eyes?.audienceCheckDuration
+    ) {
+        if (eyeState?.eyes?.checkOnAudience == true) {
+            val audienceCheckRate = eyeState.eyes.audienceCheckRate
+            val audienceCheckDuration = eyeState.eyes.audienceCheckDuration
+            if (audienceCheckRate > 0 && audienceCheckDuration > 0) {
+                while (true) {
+                    delay(audienceCheckRate)
+                    isCheckingAudience = true
+                    delay(audienceCheckDuration)
+                    isCheckingAudience = false
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(eyeState?.eyes?.focusOnGame, isCheckingAudience) {
+        if (eyeState?.eyes?.focusOnGame == true && !isCheckingAudience) {
+            while (true) {
+                val randomAngle = Random.nextFloat() * 2 * Math.PI
+                val randomRadius = Random.nextFloat() * 10f
+                jitter = Offset(
+                    x = (cos(randomAngle) * randomRadius).toFloat(),
+                    y = (sin(randomAngle) * randomRadius).toFloat()
+                )
+                delay(100)
+            }
+        } else {
+            jitter = Offset.Zero
         }
     }
 
@@ -207,35 +243,46 @@ fun LivePreview(
                             )
                         }
                     } else {
-                        val finalPointerInImage: SerializableOffset? =
-                            if (it.eyes.followCursor && pointerPosition != null) {
+                        val focusPointOnScreen: Offset? = when {
+                            isCheckingAudience -> null
+                            it.eyes.focusOnGame -> {
+                                Offset(
+                                    x = imageTopLeftX + (it.eyes.gameScreenLocation.x * scaledWidthPx),
+                                    y = imageTopLeftY + (it.eyes.gameScreenLocation.y * scaledHeightPx)
+                                )
+                            }
+                            it.eyes.followCursor && pointerPosition != null -> pointerPosition
+                            else -> null
+                        }
+
+                        val finalFocusPointInImage: SerializableOffset? =
+                            if (focusPointOnScreen != null) {
                                 val rotationInDegrees = activeSpecialEffect?.getRotation() ?: 0f
 
-                                val pointerInImageXUnrotated = (pointerPosition.x - imageTopLeftX) / imageScaleFactor
-                                val pointerInImageYUnrotated = (pointerPosition.y - imageTopLeftY) / imageScaleFactor
+                                val pointInImageXUnrotated = (focusPointOnScreen.x - imageTopLeftX) / imageScaleFactor
+                                val pointInImageYUnrotated = (focusPointOnScreen.y - imageTopLeftY) / imageScaleFactor
 
                                 if (rotationInDegrees == 0f) {
-                                    SerializableOffset(pointerInImageXUnrotated, pointerInImageYUnrotated)
+                                    SerializableOffset(pointInImageXUnrotated, pointInImageYUnrotated)
                                 } else {
                                     val rotationInRadians = Math.toRadians(rotationInDegrees.toDouble())
-
                                     val imageCenterX = image.width / 2f
                                     val imageCenterY = image.height / 2f
 
-                                    val pointerRelToCenterX = pointerInImageXUnrotated - imageCenterX
-                                    val pointerRelToCenterY = pointerInImageYUnrotated - imageCenterY
+                                    val pointRelToCenterX = pointInImageXUnrotated - imageCenterX
+                                    val pointRelToCenterY = pointInImageYUnrotated - imageCenterY
 
                                     val cosAngle = cos(-rotationInRadians).toFloat()
                                     val sinAngle = sin(-rotationInRadians).toFloat()
+                                    val rotatedPointRelToCenterX =
+                                        pointRelToCenterX * cosAngle - pointRelToCenterY * sinAngle
+                                    val rotatedPointRelToCenterY =
+                                        pointRelToCenterX * sinAngle + pointRelToCenterY * cosAngle
 
-                                    val rotatedPointerRelToCenterX =
-                                        pointerRelToCenterX * cosAngle - pointerRelToCenterY * sinAngle
-                                    val rotatedPointerRelToCenterY =
-                                        pointerRelToCenterX * sinAngle + pointerRelToCenterY * cosAngle
+                                    val finalPointInImageX = rotatedPointRelToCenterX + imageCenterX
+                                    val finalPointInImageY = rotatedPointRelToCenterY + imageCenterY
 
-                                    val finalPointerInImageX = rotatedPointerRelToCenterX + imageCenterX
-                                    val finalPointerInImageY = rotatedPointerRelToCenterY + imageCenterY
-                                    SerializableOffset(finalPointerInImageX, finalPointerInImageY)
+                                    SerializableOffset(finalPointInImageX, finalPointInImageY)
                                 }
                             } else {
                                 null
@@ -269,10 +316,10 @@ fun LivePreview(
                             val leftEyePupilImage = rememberImageFromUrl(leftEyePupilImageUrl)
 
                             var pupilModifier = leftEyeModifier
-                            if (finalPointerInImage != null && leftEyePupilImage != null) {
+                            if (finalFocusPointInImage != null && leftEyePupilImage != null) {
                                 val angle = atan2(
-                                    finalPointerInImage.y - leftEye.position.y,
-                                    finalPointerInImage.x - leftEye.position.x
+                                    finalFocusPointInImage.y - leftEye.position.y + jitter.y,
+                                    finalFocusPointInImage.x - leftEye.position.x + jitter.x
                                 )
                                 val x = leftEye.position.x + cos(angle) * (leftEye.maxPupilRadiusX * leftEye.scale)
                                 val y = leftEye.position.y + sin(angle) * (leftEye.maxPupilRadiusY * leftEye.scale)
@@ -325,10 +372,10 @@ fun LivePreview(
                             val rightEyePupilImage = rememberImageFromUrl(rightEyePupilImageUrl)
 
                             var pupilModifier = rightEyeModifier
-                            if (finalPointerInImage != null && rightEyePupilImage != null) {
+                            if (finalFocusPointInImage != null && rightEyePupilImage != null) {
                                 val angle = atan2(
-                                    finalPointerInImage.y - rightEye.position.y,
-                                    finalPointerInImage.x - rightEye.position.x
+                                    finalFocusPointInImage.y - rightEye.position.y + jitter.y,
+                                    finalFocusPointInImage.x - rightEye.position.x + jitter.x
                                 )
                                 val x = rightEye.position.x + cos(angle) * (rightEye.maxPupilRadiusX * rightEye.scale)
                                 val y = rightEye.position.y + sin(angle) * (rightEye.maxPupilRadiusY * rightEye.scale)
