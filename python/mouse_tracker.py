@@ -42,13 +42,8 @@ class MouseTracker:
         final_x, final_y = x, y
         if self.top_left and self.bottom_right:
             tl_x, tl_y = self.top_left
-            br_x, br_y = self.bottom_right
-
-            if br_x < tl_x:
-                final_x = tl_x - (x - br_x)
-            
-            if br_y < tl_y:
-                final_y = tl_y - (y - br_y)
+            final_x = x - tl_x
+            final_y = y - tl_y
 
         if self.calibration_step is None:
             self.send_message_threadsafe({"type": "pointer", "x": final_x, "y": final_y})
@@ -60,16 +55,18 @@ class MouseTracker:
                 print(f"Top-left corner set to {self.top_left}. Please click the BOTTOM-RIGHT corner.")
                 self.calibration_step = CalibrationState.AWAITING_BOTTOM_RIGHT
             elif self.calibration_step == CalibrationState.AWAITING_BOTTOM_RIGHT:
-                self.bottom_right = (x, y)
                 tl_x, tl_y = self.top_left
-                br_x, br_y = self.bottom_right
+                br_x, br_y = x, y
 
                 final_tl_x = min(tl_x, br_x)
                 final_br_x = max(tl_x, br_x)
                 final_tl_y = min(tl_y, br_y)
                 final_br_y = max(tl_y, br_y)
 
-                print(f"Bottom-right corner set to {self.bottom_right}.")
+                self.top_left = (final_tl_x, final_tl_y)
+                self.bottom_right = (final_br_x, final_br_y)
+
+                print(f"Bottom-right corner set to {(x, y)}.")
                 calibration_data = {
                     "type": "calibration",
                     "topLeft": {"x": final_tl_x, "y": final_tl_y},
