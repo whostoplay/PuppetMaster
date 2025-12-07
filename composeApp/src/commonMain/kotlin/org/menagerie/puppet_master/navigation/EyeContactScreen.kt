@@ -272,11 +272,13 @@ class EyeContactScreen(
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Checkbox(
+                            enabled = !focusOnGame,
                             checked = followCursor,
                             onCheckedChange = { followCursor = it })
                         Text("Follow Cursor")
                         Spacer(Modifier.width(8.dp))
                         Checkbox(
+                            enabled = !followCursor,
                             checked = focusOnGame,
                             onCheckedChange = { focusOnGame = it })
                         Text("Focus on Game")

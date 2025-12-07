@@ -19,6 +19,7 @@ actual class AudioProcessor actual constructor(private val context: Any) {
 
     @SuppressLint("MissingPermission")
     actual fun start(onLevelChange: (Float) -> Unit) {
+        audioJob?.cancel()
         val androidContext = context as Context
         if (ActivityCompat.checkSelfPermission(androidContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             println("RECORD_AUDIO permission not granted.")
