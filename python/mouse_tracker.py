@@ -17,6 +17,7 @@ class MouseTracker:
         self.loop = loop
         self.calibration_step = None
         self.top_left = None
+        self.bottom_right = None
         self.websocket = None
         self.current_pressed_keys = set()
 
@@ -38,8 +39,19 @@ class MouseTracker:
             asyncio.run_coroutine_threadsafe(self.websocket.send(json.dumps(message)), self.loop)
 
     def on_move(self, x, y):
+        final_x, final_y = x, y
+        if self.top_left and self.bottom_right:
+            tl_x, tl_y = self.top_left
+            br_x, br_y = self.bottom_right
+
+            if br_x < tl_x:
+                final_x = tl_x - (x - br_x)
+            
+            if br_y < tl_y:
+                final_y = tl_y - (y - br_y)
+
         if self.calibration_step is None:
-            self.send_message_threadsafe({"type": "pointer", "x": x, "y": y})
+            self.send_message_threadsafe({"type": "pointer", "x": final_x, "y": final_y})
 
     def on_click(self, x, y, button, pressed):
         if pressed and self.calibration_step is not None:
@@ -48,15 +60,23 @@ class MouseTracker:
                 print(f"Top-left corner set to {self.top_left}. Please click the BOTTOM-RIGHT corner.")
                 self.calibration_step = CalibrationState.AWAITING_BOTTOM_RIGHT
             elif self.calibration_step == CalibrationState.AWAITING_BOTTOM_RIGHT:
-                bottom_right = (x, y)
-                print(f"Bottom-right corner set to {bottom_right}.")
+                self.bottom_right = (x, y)
+                tl_x, tl_y = self.top_left
+                br_x, br_y = self.bottom_right
+
+                final_tl_x = min(tl_x, br_x)
+                final_br_x = max(tl_x, br_x)
+                final_tl_y = min(tl_y, br_y)
+                final_br_y = max(tl_y, br_y)
+
+                print(f"Bottom-right corner set to {self.bottom_right}.")
                 calibration_data = {
                     "type": "calibration",
-                    "topLeft": {"x": self.top_left[0], "y": self.top_left[1]},
-                    "bottomRight": {"x": bottom_right[0], "y": bottom_right[1]}
+                    "topLeft": {"x": final_tl_x, "y": final_tl_y},
+                    "bottomRight": {"x": final_br_x, "y": final_br_y}
                 }
                 self.send_message_threadsafe(calibration_data)
-                print("Calibration complete. Sent data to server.")
+                print("Calibration complete. Sent normalized data to server.")
                 self.calibration_step = None
 
     def on_press(self, key):

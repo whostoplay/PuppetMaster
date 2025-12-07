@@ -84,8 +84,12 @@
 
     socket.onmessage = function(event) {
         const serverState = JSON.parse(event.data);
-        currentPuppetStateInfo = serverState.puppetStateInfo;
-        pointerPosition = serverState.mousePosition;
+        if (serverState.puppetStateInfo) {
+            currentPuppetStateInfo = serverState.puppetStateInfo;
+        }
+        if (serverState.mousePosition) {
+            pointerPosition = serverState.mousePosition;
+        }
 
         if (!currentPuppetStateInfo || !currentPuppetStateInfo.imageName) {
             puppetElement.style.backgroundImage = '';
@@ -101,7 +105,7 @@
             const newImg = new Image();
             newImg.onload = () => {
                 baseImage = { width: newImg.width, height: newImg.height, src: newImgSrc };
-                puppetElement.style.backgroundImage = `url(${newImg.src})`;
+                puppetElement.style.backgroundImage = `url(${newImgSrc})`;
             }
             newImg.src = newImgSrc;
         }
@@ -177,9 +181,10 @@
         const imageTopLeftY = (containerHeight - scaledHeight) / 2;
 
         let focusPointOnScreen = null;
+
         if (!isCheckingAudience) {
             if (eyeState.focusOnGame) {
-                focusPointOnScreen = {
+                 focusPointOnScreen = {
                     x: imageTopLeftX + (eyeState.gameScreenLocation.x * scaledWidth),
                     y: imageTopLeftY + (eyeState.gameScreenLocation.y * scaledHeight)
                 };
@@ -234,7 +239,7 @@
         positionPupil(rightPupilElement, eyeState.right);
     }
     
-    function setElementBase(element, eyeData, imageCache, imageScaleFactor, imageTopLeftX, imageTopLeftY) {
+    function setElementBase(element, eyeData, imageCache, pupilCache, imageScaleFactor, imageTopLeftX, imageTopLeftY) {
         if (!eyeData) return;
         element.style.left = `${imageTopLeftX + (eyeData.position.x * imageScaleFactor)}px`;
         element.style.top = `${imageTopLeftY + (eyeData.position.y * imageScaleFactor)}px`;
@@ -244,8 +249,8 @@
         if (eyeData.pupil) {
              const pupilEl = element.querySelector('.pupil');
              if (pupilEl) {
-                pupilEl.style.width = `${leftPupilImage.width * eyeData.scale * imageScaleFactor}px`;
-                pupilEl.style.height = `${leftPupilImage.height * eyeData.scale * imageScaleFactor}px`;
+                pupilEl.style.width = `${pupilCache.width * eyeData.scale * imageScaleFactor}px`;
+                pupilEl.style.height = `${pupilCache.height * eyeData.scale * imageScaleFactor}px`;
              }
         }
     }
@@ -336,8 +341,8 @@
             const imageTopLeftX = (containerWidth - (baseImage.width * imageScaleFactor)) / 2;
             const imageTopLeftY = (containerHeight - (baseImage.height * imageScaleFactor)) / 2;
 
-            setElementBase(leftEyeElement, eyeState.left, leftEyeImage, imageScaleFactor, imageTopLeftX, imageTopLeftY);
-            setElementBase(rightEyeElement, eyeState.right, rightEyeImage, imageScaleFactor, imageTopLeftX, imageTopLeftY);
+            setElementBase(leftEyeElement, eyeState.left, leftEyeImage, leftPupilImage, imageScaleFactor, imageTopLeftX, imageTopLeftY);
+            setElementBase(rightEyeElement, eyeState.right, rightEyeImage, rightPupilImage, imageScaleFactor, imageTopLeftX, imageTopLeftY);
             updatePupilPositions(rotation);
         }
     }
