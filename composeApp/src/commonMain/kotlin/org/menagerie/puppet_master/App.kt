@@ -48,7 +48,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
@@ -112,6 +111,12 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val isHoveringOn = remember { mutableStateMapOf<String, Boolean>() }
     val isHoveringOnControls = isHoveringOn.values.any { it }
     val controlsAlpha by animateFloatAsState(if (showControls || controlsLocked) 1f else 0f)
+
+    LaunchedEffect(isHoveringOnControls) {
+        if (isHoveringOnControls) {
+            showControls = true
+        }
+    }
 
     LaunchedEffect(showControls, isHoveringOnControls, controlsLocked) {
         if (showControls && !isHoveringOnControls && !controlsLocked) {
@@ -178,16 +183,6 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                     onDoubleTap = { controlsLocked = !controlsLocked },
                     onTap = { showControls = true } // Always show on single tap
                 )
-            }
-            .pointerInput(Unit) {
-                awaitPointerEventScope {
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        if (event.type == PointerEventType.Move) {
-                            showControls = true
-                        }
-                    }
-                }
             }
     ) {
         val isLandscape = maxWidth > maxHeight
@@ -332,7 +327,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         uploadsDir = viewModel.uploadsDir,
                                         preserveState = uiState.preserveState,
                                         onPreserveStateChanged = viewModel::onPreserveStateChanged,
-                                        window = window,
+                                        window = window
                                     )
                                 }
                             } else {
@@ -450,7 +445,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                     uploadsDir = viewModel.uploadsDir,
                                     preserveState = uiState.preserveState,
                                     onPreserveStateChanged = viewModel::onPreserveStateChanged,
-                                    window = window,
+                                    window = window
                                 )
                             }
                         } else {
