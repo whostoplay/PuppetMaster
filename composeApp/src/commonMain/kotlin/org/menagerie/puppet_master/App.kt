@@ -38,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +58,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.ControlDrawer
+import org.menagerie.puppet_master.controls.DraggableSplitter
 import org.menagerie.puppet_master.controls.ModeControls
 import org.menagerie.puppet_master.controls.PuppetControls
 import org.menagerie.puppet_master.controls.ServerControls
@@ -186,7 +188,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             }
     ) {
         val isLandscape = maxWidth > maxHeight
-        val panelWeight = 1 / 3f
+        var leftPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
+        var rightPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
 
         val puppetState = if (operatingMode == OperatingMode.ONLINE && !isPublishing) {
             serverImageName?.let { 
@@ -218,7 +221,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             if (isLandscape || isDesktop) {
                 Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Surface(
-                        modifier = Modifier.fillMaxHeight().weight(panelWeight),
+                        modifier = Modifier.fillMaxHeight().weight(leftPanelWidth),
                         color = MaterialTheme.colorScheme.background
                     ) {
                         Column(
@@ -270,10 +273,23 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                         }
                     }
 
-                    Spacer(modifier = Modifier.fillMaxHeight().weight(1f - (2 * panelWeight)))
+                    DraggableSplitter(onDelta = { delta ->
+                        val newWidth =
+                            leftPanelWidth + (delta / this@BoxWithConstraints.maxWidth.value)
+                        leftPanelWidth = newWidth.coerceIn(0.2f, 0.5f)
+                    },
+                        modifier = Modifier.onHover { isHoveringOn["leftDrag"] = it })
+
+                    Spacer(modifier = Modifier.fillMaxHeight().weight((1f - leftPanelWidth - rightPanelWidth).coerceAtLeast(0.05f)))
+
+                    DraggableSplitter(onDelta = { delta ->
+                        val newWidth = rightPanelWidth - (delta / (this@BoxWithConstraints.maxWidth.value /2))
+                        rightPanelWidth = newWidth.coerceIn(0.2f, 0.5f)
+                    },
+                        modifier = Modifier.onHover { isHoveringOn["rightDrag"] = it })
 
                     Surface(
-                        modifier = Modifier.fillMaxHeight().weight(panelWeight),
+                        modifier = Modifier.fillMaxHeight().weight(rightPanelWidth),
                         color = MaterialTheme.colorScheme.background
                     ) {
                         LazyColumn(
