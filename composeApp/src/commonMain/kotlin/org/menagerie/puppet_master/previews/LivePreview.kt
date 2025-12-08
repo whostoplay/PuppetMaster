@@ -60,12 +60,13 @@ fun LivePreview(
     uploadsDir: String,
     backgroundColor: Color,
     serverIp: String,
-    activeSpecialEffect: ActiveSpecialEffect?
+    activeSpecialEffect: ActiveSpecialEffect?,
+    window: Any?
 ) {
     var frame by remember { mutableLongStateOf(0L) }
     var jitter by remember { mutableStateOf(Offset.Zero) }
     var isCheckingAudience by remember { mutableStateOf(false) }
-    val pointerPosition = rememberGlobalPointerPosition()
+    val pointerPosition = rememberGlobalPointerPosition(window)
 
     val displayedImageName = if (isBlinking) puppetState?.blinkImageName else puppetState?.imageName
     val eyeState = puppetState?.eyeState

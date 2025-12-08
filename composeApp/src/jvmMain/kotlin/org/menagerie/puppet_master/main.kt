@@ -54,7 +54,7 @@ fun main() = application {
         state = windowState
     ) {
         Box(modifier = Modifier.fillMaxSize().padding(WindowInsets.captionBar.asPaddingValues())) {
-            AppNavigator()
+            AppNavigator(window)
         }
     }
 }

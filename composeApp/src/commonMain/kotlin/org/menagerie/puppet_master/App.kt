@@ -45,7 +45,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -77,7 +76,7 @@ fun App() {
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
-fun AppContent(viewModel: MainViewModel) {
+fun AppContent(viewModel: MainViewModel, window: Any?) {
     val navigator = LocalNavigator.currentOrThrow
     val context = getContext()
     val troupe by viewModel.troupe.collectAsState()
@@ -171,8 +170,6 @@ fun AppContent(viewModel: MainViewModel) {
         )
     }
 
-    var pointerPosition by remember { mutableStateOf<Offset?>(null) }
-
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -186,7 +183,6 @@ fun AppContent(viewModel: MainViewModel) {
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent()
-                        pointerPosition = event.changes.first().position
                         if (event.type == PointerEventType.Move) {
                             showControls = true
                         }
@@ -219,6 +215,7 @@ fun AppContent(viewModel: MainViewModel) {
                 backgroundColor = uiState.backgroundColor,
                 serverIp = serverIpAddress,
                 activeSpecialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect,
+                window = window
             )
         }
 
@@ -334,7 +331,8 @@ fun AppContent(viewModel: MainViewModel) {
                                         activePuppet = currentPuppet,
                                         uploadsDir = viewModel.uploadsDir,
                                         preserveState = uiState.preserveState,
-                                        onPreserveStateChanged = viewModel::onPreserveStateChanged
+                                        onPreserveStateChanged = viewModel::onPreserveStateChanged,
+                                        window = window,
                                     )
                                 }
                             } else {
@@ -443,7 +441,6 @@ fun AppContent(viewModel: MainViewModel) {
                                     )
                                 }
                             }
-                            item { HorizontalDivider() }
                             item {
                                 SpecialEffectsUI(
                                     specialEffectsManager = currentTroupe.specialEffectsManager,
@@ -452,7 +449,8 @@ fun AppContent(viewModel: MainViewModel) {
                                     activePuppet = currentPuppet,
                                     uploadsDir = viewModel.uploadsDir,
                                     preserveState = uiState.preserveState,
-                                    onPreserveStateChanged = viewModel::onPreserveStateChanged
+                                    onPreserveStateChanged = viewModel::onPreserveStateChanged,
+                                    window = window,
                                 )
                             }
                         } else {

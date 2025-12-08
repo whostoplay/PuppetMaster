@@ -7,12 +7,12 @@ import org.menagerie.puppet_master.AppContent
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.getContext
 
-class HomeScreen : Screen {
+data class HomeScreen(val window: Any?) : Screen {
 
     @Composable
     override fun Content() {
         val context = getContext()
         val viewModel = rememberScreenModel { MainViewModel(context) }
-        AppContent(viewModel)
+        AppContent(viewModel, window)
     }
 }

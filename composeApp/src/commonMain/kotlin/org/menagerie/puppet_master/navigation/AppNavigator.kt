@@ -7,9 +7,9 @@ import cafe.adriel.voyager.transitions.SlideTransition
 import org.menagerie.puppet_master.ui.theme.MainTheme
 
 @Composable
-fun AppNavigator() {
+fun AppNavigator(window: Any? = null) {
     MainTheme {
-        Navigator(screen = SplashScreen()) {
+        Navigator(screen = SplashScreen(window)) {
             SlideTransition(it, orientation = SlideOrientation.Vertical)
         }
     }

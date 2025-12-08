@@ -57,7 +57,8 @@ fun SpecialEffectsUI(
     activePuppet: PuppetCharacter?,
     uploadsDir: String,
     preserveState: Boolean,
-    onPreserveStateChanged: (Boolean) -> Unit
+    onPreserveStateChanged: (Boolean) -> Unit,
+    window: Any?,
 ) {
     val activeEffect = remember(specialEffectsManager.activeEffectIndex, specialEffectsManager.effects) {
         specialEffectsManager.getActiveEffect()
@@ -118,15 +119,7 @@ fun SpecialEffectsUI(
             val activePreviewEffect = remember(previewEffect) {
                 ActiveSpecialEffect(previewEffect)
             }
-            Box(Modifier.height(300.dp).fillMaxWidth()
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            pointerPosition = event.changes.first().position
-                        }
-                    }
-                }) {
+            Box(Modifier.height(300.dp).fillMaxWidth()) {
                 LivePreview(
                     operatingMode = OperatingMode.OFFLINE,
                     puppetState = idleState,
@@ -135,6 +128,7 @@ fun SpecialEffectsUI(
                     backgroundColor = Color.Green,
                     serverIp = "",
                     activeSpecialEffect = activePreviewEffect,
+                    window = window,
                 )
             }
         }

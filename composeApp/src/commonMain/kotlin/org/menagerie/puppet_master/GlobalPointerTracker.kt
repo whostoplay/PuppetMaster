@@ -4,4 +4,4 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.geometry.Offset
 
 @Composable
-expect fun rememberGlobalPointerPosition(): Offset?
+expect fun rememberGlobalPointerPosition(window: Any?): Offset?
