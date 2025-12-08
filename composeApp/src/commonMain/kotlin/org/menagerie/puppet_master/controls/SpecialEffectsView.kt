@@ -135,7 +135,6 @@ fun SpecialEffectsUI(
                     backgroundColor = Color.Green,
                     serverIp = "",
                     activeSpecialEffect = activePreviewEffect,
-                    pointerPosition = pointerPosition
                 )
             }
         }

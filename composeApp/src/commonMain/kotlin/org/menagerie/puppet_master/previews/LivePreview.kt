@@ -33,6 +33,7 @@ import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SERVER_PORT
 import org.menagerie.puppet_master.SerializableOffset
+import org.menagerie.puppet_master.rememberGlobalPointerPosition
 import org.menagerie.puppet_master.rememberImageFromUrl
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -59,12 +60,12 @@ fun LivePreview(
     uploadsDir: String,
     backgroundColor: Color,
     serverIp: String,
-    activeSpecialEffect: ActiveSpecialEffect?,
-    pointerPosition: Offset? = null
+    activeSpecialEffect: ActiveSpecialEffect?
 ) {
     var frame by remember { mutableLongStateOf(0L) }
     var jitter by remember { mutableStateOf(Offset.Zero) }
     var isCheckingAudience by remember { mutableStateOf(false) }
+    val pointerPosition = rememberGlobalPointerPosition()
 
     val displayedImageName = if (isBlinking) puppetState?.blinkImageName else puppetState?.imageName
     val eyeState = puppetState?.eyeState

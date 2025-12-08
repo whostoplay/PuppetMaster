@@ -219,7 +219,6 @@ fun AppContent(viewModel: MainViewModel) {
                 backgroundColor = uiState.backgroundColor,
                 serverIp = serverIpAddress,
                 activeSpecialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect,
-                pointerPosition = pointerPosition
             )
         }
 
