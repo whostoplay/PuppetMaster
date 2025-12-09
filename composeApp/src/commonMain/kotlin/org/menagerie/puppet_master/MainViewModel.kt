@@ -119,6 +119,8 @@ class MainViewModel(context: Any) : ScreenModel {
 
     init {
         _settings.value = settingsRepository.loadSettings()
+        _operatingMode.value = if (settings.value.startOffline) OperatingMode.OFFLINE else OperatingMode.ONLINE
+
         screenModelScope.launch {
             activePuppet.collect { puppet ->
                 _thresholds.value = puppet?.thresholds ?: emptyMap()
@@ -194,6 +196,10 @@ class MainViewModel(context: Any) : ScreenModel {
             serverStateJob?.cancel()
             stateController.onOffline()
         }
+    }
+
+    fun toggleOperatingMode() {
+        setOperatingMode(if (operatingMode.value == OperatingMode.OFFLINE) OperatingMode.ONLINE else OperatingMode.OFFLINE)
     }
 
     fun connectAndSync() {

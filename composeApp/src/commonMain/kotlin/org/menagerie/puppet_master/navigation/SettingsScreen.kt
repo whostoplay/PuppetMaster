@@ -1,10 +1,15 @@
 package org.menagerie.puppet_master.navigation
 
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -13,14 +18,35 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import kotlinx.coroutines.flow.filterIsInstance
+import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.MainViewModel
+import org.menagerie.puppet_master.isDesktop
 
 class SettingsScreen(
     @Transient private val viewModel: MainViewModel
@@ -44,16 +70,149 @@ class SettingsScreen(
                 )
             }
         ) { innerPadding ->
-            Column(modifier = Modifier.padding(innerPadding).padding(16.dp)) {
-                TextField(
-                    value = settings.serverIpAddress,
-                    onValueChange = { newValue ->
-                        viewModel.updateSettings(settings.copy(serverIpAddress = newValue))
-                    },
-                    label = { Text("Server IP Address") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            Row {
+                Column(modifier = Modifier.padding(innerPadding).padding(16.dp).weight(1f)) {
+                    TextField(
+                        value = settings.serverIpAddress,
+                        onValueChange = { newValue ->
+                            viewModel.updateSettings(settings.copy(serverIpAddress = newValue))
+                        },
+                        label = { Text("Server IP Address") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Start Offline")
+                        Checkbox(
+                            checked = settings.startOffline,
+                            onCheckedChange = { viewModel.updateSettings(settings.copy(startOffline = it)) }
+                        )
+                    }
+
+                    if (isDesktop()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Fullscreen on Startup")
+                            Checkbox(
+                                checked = settings.fullscreen,
+                                onCheckedChange = {
+                                    viewModel.updateSettings(
+                                        settings.copy(
+                                            fullscreen = it
+                                        )
+                                    )
+                                }
+                            )
+                        }
+
+                        HotkeySelector("Toggle Listen Hotkey", settings.toggleListenHotkey) {
+                            viewModel.updateSettings(settings.copy(toggleListenHotkey = it))
+                        }
+                        HotkeySelector(
+                            "Toggle Publishing Hotkey",
+                            settings.togglePublishingHotkey
+                        ) {
+                            viewModel.updateSettings(settings.copy(togglePublishingHotkey = it))
+                        }
+                        HotkeySelector("Toggle Online Hotkey", settings.toggleOnlineHotkey) {
+                            viewModel.updateSettings(settings.copy(toggleOnlineHotkey = it))
+                        }
+                    }
+                }
+                Column(modifier = Modifier.padding(innerPadding).padding(16.dp).weight(1f)) {}
+                Column(modifier = Modifier.padding(innerPadding).padding(16.dp).weight(1f)) {}
             }
+        }
+    }
+
+    @OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
+    @Composable
+    private fun HotkeySelector(
+        label: String,
+        hotkey: Hotkey,
+        onHotkeyChanged: (Hotkey) -> Unit
+    ) {
+        var isEditing by remember { mutableStateOf(false) }
+        val focusRequester = remember { FocusRequester() }
+        val focusManager = LocalFocusManager.current
+        val interactionSource = remember { MutableInteractionSource() }
+
+        LaunchedEffect(interactionSource) {
+            interactionSource.interactions
+                .filterIsInstance<PressInteraction.Release>()
+                .collect {
+                    isEditing = true
+                }
+        }
+
+        if (isEditing) {
+            LaunchedEffect(Unit) {
+                focusRequester.requestFocus()
+            }
+        }
+
+        Row(
+            modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(label)
+            TextField(
+                value = if (isEditing) "Press any key..." else hotkey.toString(),
+                onValueChange = {},
+                readOnly = true,
+                interactionSource = interactionSource,
+                modifier = Modifier
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { focusState ->
+                        if (!focusState.isFocused) {
+                            isEditing = false
+                        }
+                    }
+                    .onKeyEvent { event ->
+                        if (isEditing) {
+                            if (event.type == KeyEventType.KeyDown) {
+                                when (event.key) {
+                                    Key.Escape -> {
+                                        onHotkeyChanged(Hotkey(Key.Unknown.keyCode))
+                                        focusManager.clearFocus()
+                                    }
+
+                                    Key.ShiftLeft,
+                                    Key.ShiftRight,
+                                    Key.AltLeft,
+                                    Key.AltRight,
+                                    Key.CtrlLeft,
+                                    Key.CtrlRight -> {
+                                        //NO OP, Modifiers
+                                    }
+
+                                    else -> {
+                                        onHotkeyChanged(
+                                            Hotkey(
+                                                event.key.keyCode,
+                                                event.isShiftPressed,
+                                                event.isCtrlPressed,
+                                                event.isAltPressed
+                                            )
+                                        )
+                                        focusManager.clearFocus()
+                                    }
+                                }
+                            }
+                            true
+                        } else {
+                            false
+                        }
+                    }
+            )
         }
     }
 }

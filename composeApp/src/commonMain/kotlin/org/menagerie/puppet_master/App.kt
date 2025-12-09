@@ -47,9 +47,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
@@ -98,6 +103,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val isBlinking by viewModel.isBlinking.collectAsState()
     val activeSpecialEffect by viewModel.activeSpecialEffect.collectAsState()
     val focusManager = LocalFocusManager.current
+    val focusRequester = remember { FocusRequester() }
 
     var showPermissionRequest by remember { mutableStateOf(false) }
     if (showPermissionRequest) {
@@ -188,6 +194,23 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                     onTap = { showControls = true } // Always show on single tap
                 )
             }
+            .focusRequester(focusRequester)
+            .onKeyEvent {
+                if (isDesktop) {
+                    if (settings.toggleListenHotkey.isHotkey(it)) {
+                        viewModel.toggleListening()
+                        true
+                    } else if (settings.togglePublishingHotkey.isHotkey(it)) {
+                        viewModel.setPublishing(!isPublishing)
+                        true
+                    } else if (settings.toggleOnlineHotkey.isHotkey(it)) {
+                        viewModel.toggleOperatingMode()
+                        true
+                    }
+                    else {false}
+                }
+                else {false}
+            }
     ) {
         val isLandscape = maxWidth > maxHeight
         var leftPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
@@ -266,6 +289,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             Button(onClick = { navigator.push(SettingsScreen(viewModel)) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                                 Text("Settings")
                             }
+                            Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
 
