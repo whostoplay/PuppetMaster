@@ -89,8 +89,6 @@ class EyeContactScreen(
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
 
-        val serverIp by viewModel.serverIpAddress.collectAsState()
-
         var selectedState by remember { mutableStateOf<PuppetStateInfo?>(null) }
         var isStateSelectorExpanded by remember { mutableStateOf(false) }
 

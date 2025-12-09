@@ -64,7 +64,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         _activePuppet.value = newTroupe.puppets.find { it.name == newTroupe.activePuppetName }
         saveLocalTroupe(newTroupe)
         if (operatingMode == OperatingMode.ONLINE) {
-            publishTroupe(SettingsRepository(context).loadIp())
+            publishTroupe(SettingsRepository(context).loadSettings().serverIpAddress)
         }
     }
 
@@ -171,7 +171,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         File(uploadsDir, name).writeBytes(data)
         if (operatingMode == OperatingMode.ONLINE) {
             scope.launch {
-                uploader.upload(data, name, SettingsRepository(context).loadIp())
+                uploader.upload(data, name, SettingsRepository(context).loadSettings().serverIpAddress)
             }
         }
     }

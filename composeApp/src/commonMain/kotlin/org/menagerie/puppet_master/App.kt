@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -66,6 +67,7 @@ import org.menagerie.puppet_master.controls.SpecialEffectsUI
 import org.menagerie.puppet_master.controls.VolumeIndicator
 import org.menagerie.puppet_master.navigation.AppNavigator
 import org.menagerie.puppet_master.navigation.EyeContactScreen
+import org.menagerie.puppet_master.navigation.SettingsScreen
 import org.menagerie.puppet_master.previews.LivePreview
 import org.menagerie.puppet_master.states.StateCreation
 import org.menagerie.puppet_master.states.StateEditor
@@ -89,7 +91,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val selectedState by viewModel.selectedState.collectAsState()
     val thresholds by viewModel.thresholds.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
-    val serverIpAddress by viewModel.serverIpAddress.collectAsState()
+    val settings by viewModel.settings.collectAsState()
     val serverImageName by viewModel.serverImageName.collectAsState()
     val serverSpecialEffect by viewModel.serverSpecialEffect.collectAsState()
     val activeState by viewModel.activeState.collectAsState()
@@ -211,7 +213,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                 isBlinking = isBlinking,
                 uploadsDir = viewModel.uploadsDir,
                 backgroundColor = uiState.backgroundColor,
-                serverIp = serverIpAddress,
+                serverIp = settings.serverIpAddress,
                 activeSpecialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect,
                 window = window
             )
@@ -232,17 +234,6 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet)
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ModeControls(operatingMode, viewModel::setOperatingMode)
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            TextField(
-                                value = serverIpAddress,
-                                onValueChange = viewModel::onServerIpAddressChanged,
-                                label = { Text("Server IP Address") },
-                                singleLine = true,
-                                enabled = operatingMode == OperatingMode.OFFLINE,
-                                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                                modifier = Modifier.fillMaxWidth().padding(8.dp)
-                            )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ServerControls(operatingMode, isPublishing, isListening, { viewModel.setPublishing(it) }, { 
                                 if (hasAudioPermission(context)) {
@@ -267,8 +258,13 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }) {
+                            Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }, modifier = Modifier.align(
+                                Alignment.CenterHorizontally) ) {
                                 Text("Eye Contact")
+                            }
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            Button(onClick = { navigator.push(SettingsScreen(viewModel)) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                                Text("Settings")
                             }
                         }
                     }
@@ -371,17 +367,6 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ModeControls(operatingMode, viewModel::setOperatingMode)
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                        TextField(
-                            value = serverIpAddress,
-                            onValueChange = viewModel::onServerIpAddressChanged,
-                            label = { Text("Server IP Address") },
-                            singleLine = true,
-                            enabled = operatingMode == OperatingMode.OFFLINE,
-                            keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                            modifier = Modifier.fillMaxWidth().padding(8.dp)
-                        )
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ServerControls(operatingMode, isPublishing, isListening, { viewModel.setPublishing(it) }, { 
                             if (hasAudioPermission(context)) {
                                 viewModel.toggleListening()
@@ -482,6 +467,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                     Button(onClick = { showLeftDrawer = true }) { Text("Puppet Controls") }
                     Button(onClick = { showRightDrawer = true }) { Text("State Controls") }
                     Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }) { Text("Eye Contact") }
+                    Button(onClick = { navigator.push(SettingsScreen(viewModel)) }) { Text("Settings") }
                 }
             }
         }

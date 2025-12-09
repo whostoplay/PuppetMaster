@@ -72,6 +72,9 @@ class MainViewModel(context: Any) : ScreenModel {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+    
+    private val _settings = MutableStateFlow(SettingsModel())
+    val settings: StateFlow<SettingsModel> = _settings.asStateFlow()
 
     private val dataManager = PuppetDataManager(screenModelScope, context)
     val uploadsDir = dataManager.uploadsDir
@@ -104,9 +107,6 @@ class MainViewModel(context: Any) : ScreenModel {
     private val _selectedState = MutableStateFlow<PuppetStateInfo?>(null)
     val selectedState: StateFlow<PuppetStateInfo?> = _selectedState.asStateFlow()
 
-    private val _serverIpAddress = MutableStateFlow(DEFAULT_SERVER_HOST)
-    val serverIpAddress: StateFlow<String> = _serverIpAddress.asStateFlow()
-
     private val _isPublishing = MutableStateFlow(false)
     val isPublishing: StateFlow<Boolean> = _isPublishing.asStateFlow()
 
@@ -118,7 +118,7 @@ class MainViewModel(context: Any) : ScreenModel {
     private var clientControlSocketJob: Job? = null
 
     init {
-        _serverIpAddress.value = settingsRepository.loadIp()
+        _settings.value = settingsRepository.loadSettings()
         screenModelScope.launch {
             activePuppet.collect { puppet ->
                 _thresholds.value = puppet?.thresholds ?: emptyMap()
@@ -127,6 +127,11 @@ class MainViewModel(context: Any) : ScreenModel {
                 }
             }
         }
+    }
+
+    fun updateSettings(newSettings: SettingsModel) {
+        _settings.value = newSettings
+        settingsRepository.saveSettings(newSettings)
     }
 
     suspend fun getImageData(imageName: String): ByteArray? {
@@ -191,13 +196,8 @@ class MainViewModel(context: Any) : ScreenModel {
         }
     }
 
-    fun onServerIpAddressChanged(ipAddress: String) {
-        _serverIpAddress.value = ipAddress
-        settingsRepository.saveIp(ipAddress)
-    }
-
     fun connectAndSync() {
-        dataManager.connectAndSync(serverIpAddress.value)
+        dataManager.connectAndSync(settings.value.serverIpAddress)
         observeServerState()
     }
 
@@ -216,7 +216,7 @@ class MainViewModel(context: Any) : ScreenModel {
         stateController.isPublishing = isPublishing
 
         if (isPublishing) {
-            dataManager.publishTroupe(serverIpAddress.value)
+            dataManager.publishTroupe(settings.value.serverIpAddress)
             serverStateJob?.cancel()
             startClientControl()
         } else {
@@ -246,7 +246,7 @@ class MainViewModel(context: Any) : ScreenModel {
             uiState.selectedImageName,
             uiState.selectedBlinkImage,
             uiState.selectedBlinkImageName,
-            serverIpAddress.value
+            settings.value.serverIpAddress
         )
         _uiState.value = uiState.copy(
             selectedImage = null,
@@ -296,7 +296,7 @@ class MainViewModel(context: Any) : ScreenModel {
             character.copy(states = newStates, thresholds = newThresholds)
         }
         if (isPublishing.value) {
-            dataManager.publishTroupe(serverIpAddress.value)
+            dataManager.publishTroupe(settings.value.serverIpAddress)
         }
     }
 
@@ -311,7 +311,7 @@ class MainViewModel(context: Any) : ScreenModel {
             character.copy(states = newStates, thresholds = newThresholds)
         }
         if (isPublishing.value) {
-            dataManager.publishTroupe(serverIpAddress.value)
+            dataManager.publishTroupe(settings.value.serverIpAddress)
         }
     }
 
@@ -366,7 +366,7 @@ class MainViewModel(context: Any) : ScreenModel {
         stateController.stopBlinking()
         serverStateJob = screenModelScope.launch {
             try {
-                client.webSocket(method = HttpMethod.Get, host = serverIpAddress.value, port = SERVER_PORT, path = "/obs") {
+                client.webSocket(method = HttpMethod.Get, host = settings.value.serverIpAddress, port = SERVER_PORT, path = "/obs") {
                     for (frame in incoming) {
                         if (frame is Frame.Text) {
                             val serverState = Json.decodeFromString<ServerState>(frame.readText())
@@ -387,7 +387,7 @@ class MainViewModel(context: Any) : ScreenModel {
             try {
                 client.webSocket(
                     method = HttpMethod.Get,
-                    host = serverIpAddress.value,
+                    host = settings.value.serverIpAddress,
                     port = SERVER_PORT,
                     path = "/client-control"
                 ) {

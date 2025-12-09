@@ -1,7 +1,7 @@
 package org.menagerie.puppet_master
 
 import android.content.Context
-import android.net.Uri
+import androidx.core.net.toUri
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -50,14 +50,14 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     actual suspend fun getImageData(imageName: String): ByteArray? {
         val androidContext = context as Context
         return try {
-            val uri = Uri.parse(imageName)
+            val uri = imageName.toUri()
             if (uri.scheme == "content") {
                 androidContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
             } else {
                 val file = File(uploadsDir, imageName)
                 if (file.exists()) file.readBytes() else null
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             val file = File(uploadsDir, imageName)
             if (file.exists()) file.readBytes() else null
         }
@@ -81,7 +81,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         _activePuppet.value = newTroupe.puppets.find { it.name == newTroupe.activePuppetName }
         saveLocalTroupe(newTroupe)
         if (operatingMode == OperatingMode.ONLINE) {
-            publishTroupe(SettingsRepository(context as Context).loadIp())
+            publishTroupe(SettingsRepository(context as Context).loadSettings().serverIpAddress)
         }
     }
 
@@ -118,7 +118,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                     _activePuppet.value = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
                     saveLocalTroupe(serverTroupe)
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Handle error
             }
         }
@@ -187,7 +187,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     private fun loadLocalTroupe(): PuppetTroupe? = try {
         if (!localTroupeFile.exists()) null
         else json.decodeFromString(localTroupeFile.readText())
-    } catch (e: Exception) { null }
+    } catch (_: Exception) { null }
 
     private fun saveLocalTroupe(troupe: PuppetTroupe) {
         localTroupeFile.writeText(json.encodeToString(troupe))
@@ -214,7 +214,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         FileOutputStream(file).use { it.write(data) }
         if (operatingMode == OperatingMode.ONLINE) {
             scope.launch {
-                uploader.upload(data, name, SettingsRepository(context as Context).loadIp())
+                uploader.upload(data, name, SettingsRepository(context as Context).loadSettings().serverIpAddress)
             }
         }
     }

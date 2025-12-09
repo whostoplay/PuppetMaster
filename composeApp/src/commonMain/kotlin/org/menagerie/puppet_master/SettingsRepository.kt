@@ -6,12 +6,12 @@ package org.menagerie.puppet_master
  */
 expect class SettingsRepository(context: Any) {
     /**
-     * Saves the server IP address.
+     * Saves the settings.
      */
-    fun saveIp(ip: String)
+    fun saveSettings(settings: SettingsModel)
 
     /**
-     * Loads the server IP address.
+     * Loads the settings.
      */
-    fun loadIp(): String
+    fun loadSettings(): SettingsModel
 }
