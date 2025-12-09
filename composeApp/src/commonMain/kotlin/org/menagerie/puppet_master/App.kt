@@ -53,8 +53,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
@@ -121,6 +123,10 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val isHoveringOn = remember { mutableStateMapOf<String, Boolean>() }
     val isHoveringOnControls = isHoveringOn.values.any { it }
     val controlsAlpha by animateFloatAsState(if (showControls || controlsLocked) 1f else 0f)
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
 
     LaunchedEffect(isHoveringOnControls) {
         if (isHoveringOnControls) {
@@ -196,7 +202,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             }
             .focusRequester(focusRequester)
             .onKeyEvent {
-                if (isDesktop) {
+                if (isDesktop && it.type == KeyEventType.KeyDown) {
                     if (settings.toggleListenHotkey.isHotkey(it)) {
                         viewModel.toggleListening()
                         true
