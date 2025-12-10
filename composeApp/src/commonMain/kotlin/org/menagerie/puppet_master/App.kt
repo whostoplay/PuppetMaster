@@ -154,7 +154,12 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             text = state.name,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.assignStateToThreshold(uiState.selectedThreshold!!, state) }
+                                .clickable {
+                                    viewModel.assignStateToThreshold(
+                                        uiState.selectedThreshold!!,
+                                        state
+                                    )
+                                }
                                 .padding(8.dp)
                         )
                     }
@@ -175,7 +180,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             text = { Text("A state with this name already exists. Do you want to overwrite it?") },
             confirmButton = {
                 TextButton(
-                    onClick = { 
+                    onClick = {
                         viewModel.forceCreateNewState()
                         viewModel.hideOverwriteConfirmDialog()
                     }
@@ -202,7 +207,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             }
             .focusRequester(focusRequester)
             .onKeyEvent {
-                if (isDesktop && it.type == KeyEventType.KeyDown) {
+                if (isDesktop) {
                     if (settings.toggleListenHotkey.isHotkey(it)) {
                         viewModel.toggleListening()
                         true
@@ -212,10 +217,15 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                     } else if (settings.toggleOnlineHotkey.isHotkey(it)) {
                         viewModel.toggleOperatingMode()
                         true
+                    } else if (settings.toggleFocusHotkey.isHotkey(it)) {
+                        viewModel.toggleFocus()
+                        true
+                    } else {
+                        false
                     }
-                    else {false}
+                } else {
+                    false
                 }
-                else {false}
             }
     ) {
         val isLandscape = maxWidth > maxHeight
@@ -223,14 +233,14 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
         var rightPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
 
         val puppetState = if (operatingMode == OperatingMode.ONLINE && !isPublishing) {
-            serverImageName?.let { 
+            serverImageName?.let {
                 PuppetStateInfo(
                     name = "server-state",
                     imageName = it,
                     appliedEffect = serverSpecialEffect?.effect,
                     eyeState = activeState?.eyeState // carry over eye state for now
                 )
-            } 
+            }
         } else {
             activeState
         }
@@ -250,7 +260,10 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
 
         Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {
             if (isLandscape || isDesktop) {
-                Row(modifier = Modifier.fillMaxSize(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Surface(
                         modifier = Modifier.fillMaxHeight().weight(leftPanelWidth),
                         color = MaterialTheme.colorScheme.background
@@ -260,17 +273,27 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 .verticalScroll(rememberScrollState())
                                 .onHover { isHoveringOn["leftPanel"] = it }
                         ) {
-                            PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet)
+                            PuppetControls(
+                                troupe,
+                                activePuppet,
+                                viewModel::setActivePuppet,
+                                viewModel::createNewPuppet
+                            )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ModeControls(operatingMode, viewModel::setOperatingMode)
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            ServerControls(operatingMode, isPublishing, isListening, { viewModel.setPublishing(it) }, { 
-                                if (hasAudioPermission(context)) {
-                                    viewModel.toggleListening()
-                                } else {
-                                    showPermissionRequest = true
-                                }
-                            })
+                            ServerControls(
+                                operatingMode,
+                                isPublishing,
+                                isListening,
+                                { viewModel.setPublishing(it) },
+                                {
+                                    if (hasAudioPermission(context)) {
+                                        viewModel.toggleListening()
+                                    } else {
+                                        showPermissionRequest = true
+                                    }
+                                })
                             if (isListening) {
                                 VolumeIndicator(
                                     level = audioLevel,
@@ -281,37 +304,60 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         viewModel.showStateAssignmentDialog(newThreshold)
                                     },
                                     onUpdateThreshold = viewModel::updateThreshold,
-                                    onThresholdSelected = { threshold -> viewModel.showStateAssignmentDialog(threshold) }
+                                    onThresholdSelected = { threshold ->
+                                        viewModel.showStateAssignmentDialog(
+                                            threshold
+                                        )
+                                    }
                                 )
                             }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }, modifier = Modifier.align(
-                                Alignment.CenterHorizontally) ) {
+                            Button(
+                                onClick = {
+                                    navigator.push(
+                                        EyeContactScreen(
+                                            activePuppet,
+                                            viewModel
+                                        )
+                                    )
+                                }, modifier = Modifier.align(
+                                    Alignment.CenterHorizontally
+                                )
+                            ) {
                                 Text("Eye Contact")
                             }
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                            Button(onClick = { navigator.push(SettingsScreen(viewModel)) }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+                            Button(
+                                onClick = { navigator.push(SettingsScreen(viewModel)) },
+                                modifier = Modifier.align(Alignment.CenterHorizontally)
+                            ) {
                                 Text("Settings")
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                         }
                     }
 
-                    DraggableSplitter(onDelta = { delta ->
-                        val newWidth =
-                            leftPanelWidth + (delta / this@BoxWithConstraints.maxWidth.value)
-                        leftPanelWidth = newWidth.coerceIn(0.2f, 0.5f)
-                    },
+                    DraggableSplitter(
+                        onDelta = { delta ->
+                            val newWidth =
+                                leftPanelWidth + (delta / this@BoxWithConstraints.maxWidth.value)
+                            leftPanelWidth = newWidth.coerceIn(0.2f, 0.5f)
+                        },
                         modifier = Modifier.onHover { isHoveringOn["leftDrag"] = it })
 
-                    Spacer(modifier = Modifier.fillMaxHeight().weight((1f - leftPanelWidth - rightPanelWidth).coerceAtLeast(0.05f)))
+                    Spacer(
+                        modifier = Modifier.fillMaxHeight()
+                            .weight((1f - leftPanelWidth - rightPanelWidth).coerceAtLeast(0.05f))
+                    )
 
-                    DraggableSplitter(onDelta = { delta ->
-                        val newWidth = rightPanelWidth - (delta / (this@BoxWithConstraints.maxWidth.value /2))
-                        rightPanelWidth = newWidth.coerceIn(0.2f, 0.5f)
-                    },
+                    DraggableSplitter(
+                        onDelta = { delta ->
+                            val newWidth =
+                                rightPanelWidth - (delta / (this@BoxWithConstraints.maxWidth.value / 2))
+                            rightPanelWidth = newWidth.coerceIn(0.2f, 0.5f)
+                        },
                         modifier = Modifier.onHover { isHoveringOn["rightDrag"] = it })
 
                     Surface(
@@ -374,7 +420,10 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 }
                             } else {
                                 item {
-                                    Box(modifier = Modifier.fillParentMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Box(
+                                        modifier = Modifier.fillParentMaxSize().padding(16.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
                                         Text("Create or select a puppet to get started.")
                                     }
                                 }
@@ -393,17 +442,27 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                     Column(
                         modifier = Modifier.fillMaxWidth().padding(16.dp)
                     ) {
-                        PuppetControls(troupe, activePuppet, viewModel::setActivePuppet, viewModel::createNewPuppet)
+                        PuppetControls(
+                            troupe,
+                            activePuppet,
+                            viewModel::setActivePuppet,
+                            viewModel::createNewPuppet
+                        )
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ModeControls(operatingMode, viewModel::setOperatingMode)
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                        ServerControls(operatingMode, isPublishing, isListening, { viewModel.setPublishing(it) }, { 
-                            if (hasAudioPermission(context)) {
-                                viewModel.toggleListening()
-                            } else {
-                                showPermissionRequest = true
-                            }
-                        })
+                        ServerControls(
+                            operatingMode,
+                            isPublishing,
+                            isListening,
+                            { viewModel.setPublishing(it) },
+                            {
+                                if (hasAudioPermission(context)) {
+                                    viewModel.toggleListening()
+                                } else {
+                                    showPermissionRequest = true
+                                }
+                            })
                         if (isListening) {
                             VolumeIndicator(
                                 level = audioLevel,
@@ -414,7 +473,11 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                     viewModel.showStateAssignmentDialog(newThreshold)
                                 },
                                 onUpdateThreshold = viewModel::updateThreshold,
-                                onThresholdSelected = { threshold -> viewModel.showStateAssignmentDialog(threshold) }
+                                onThresholdSelected = { threshold ->
+                                    viewModel.showStateAssignmentDialog(
+                                        threshold
+                                    )
+                                }
                             )
                         }
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -455,7 +518,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         .clickable { viewModel.selectState(state) }
                                         .background(if (state == selectedState) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                                         .padding(8.dp)
-                                    )
+                                )
                             }
                             item {
                                 selectedState?.let { state ->
@@ -481,14 +544,17 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             }
                         } else {
                             item {
-                                Box(modifier = Modifier.fillParentMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                Box(
+                                    modifier = Modifier.fillParentMaxSize().padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Text("Create or select a puppet to get started.")
                                 }
                             }
                         }
                     }
                 }
-                
+
                 Row(
                     modifier = Modifier.fillMaxSize(),
                     verticalAlignment = Alignment.Bottom,
@@ -496,7 +562,14 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                 ) {
                     Button(onClick = { showLeftDrawer = true }) { Text("Puppet Controls") }
                     Button(onClick = { showRightDrawer = true }) { Text("State Controls") }
-                    Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }) { Text("Eye Contact") }
+                    Button(onClick = {
+                        navigator.push(
+                            EyeContactScreen(
+                                activePuppet,
+                                viewModel
+                            )
+                        )
+                    }) { Text("Eye Contact") }
                     Button(onClick = { navigator.push(SettingsScreen(viewModel)) }) { Text("Settings") }
                 }
             }

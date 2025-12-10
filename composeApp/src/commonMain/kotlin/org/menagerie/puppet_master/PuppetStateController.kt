@@ -55,7 +55,6 @@ class PuppetStateController(
                 clientBlinkingJob?.cancel()
                 _displayedImageName.value = state?.imageName
                 val effect = state?.appliedEffect
-                 println(state)
                 if (effect != null) {
                     val newEffect = ActiveSpecialEffect(effect)
                     if (getUiState().preserveState) {

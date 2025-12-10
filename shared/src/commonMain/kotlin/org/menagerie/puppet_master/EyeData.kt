@@ -20,8 +20,8 @@ data class Eye(
 data class EyePair(
     val left: Eye,
     val right: Eye,
-    val followCursor: Boolean = false,
-    val focusOnGame: Boolean = false,
+    var followCursor: Boolean = false,
+    var focusOnGame: Boolean = false,
     val gameScreenLocation: SerializableOffset = SerializableOffset(0.5f, 0.5f),
     val checkOnAudience: Boolean = false,
     val audienceCheckRate: Long = 8000L, // Time between checks

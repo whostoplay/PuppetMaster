@@ -5,8 +5,10 @@ import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Checkbox
@@ -14,6 +16,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
@@ -39,6 +42,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -124,6 +128,12 @@ class SettingsScreen(
                         HotkeySelector("Toggle Online Hotkey", settings.toggleOnlineHotkey) {
                             viewModel.updateSettings(settings.copy(toggleOnlineHotkey = it))
                         }
+                        HotkeySelector("Change Focus Hotkey", settings.toggleFocusHotkey) {
+                            viewModel.updateSettings(settings.copy(toggleFocusHotkey = it))
+                        }
+                        HotkeySelector("Check Audience Hotkey", settings.checkAudienceHotkey) {
+                            viewModel.updateSettings(settings.copy(checkAudienceHotkey = it))
+                        }
                     }
                 }
                 Column(modifier = Modifier.padding(innerPadding).padding(16.dp).weight(1f)) {}
@@ -147,9 +157,7 @@ class SettingsScreen(
         LaunchedEffect(interactionSource) {
             interactionSource.interactions
                 .filterIsInstance<PressInteraction.Release>()
-                .collect {
-                    isEditing = true
-                }
+                .collect { isEditing = true }
         }
 
         if (isEditing) {
@@ -159,60 +167,77 @@ class SettingsScreen(
         }
 
         Row(
-            modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(label)
-            TextField(
-                value = if (isEditing) "Press any key..." else hotkey.toString(),
-                onValueChange = {},
-                readOnly = true,
-                interactionSource = interactionSource,
-                modifier = Modifier
-                    .focusRequester(focusRequester)
-                    .onFocusChanged { focusState ->
-                        if (!focusState.isFocused) {
-                            isEditing = false
+            Row(
+                modifier = Modifier.padding(top = 8.dp).weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(label)
+                TextField(
+                    value = if (isEditing) "Press any key..." else hotkey.toString(),
+                    onValueChange = {},
+                    readOnly = true,
+                    interactionSource = interactionSource,
+                    modifier = Modifier
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { focusState ->
+                            if (!focusState.isFocused) {
+                                isEditing = false
+                            }
                         }
-                    }
-                    .onKeyEvent { event ->
-                        if (isEditing) {
-                            if (event.type == KeyEventType.KeyDown) {
-                                when (event.key) {
-                                    Key.Escape -> {
-                                        onHotkeyChanged(Hotkey(Key.Unknown.keyCode))
-                                        focusManager.clearFocus()
-                                    }
+                        .width(150.dp)
+                        .onKeyEvent { event ->
+                            if (isEditing) {
+                                if (event.type == KeyEventType.KeyDown) {
+                                    when (event.key) {
+                                        Key.Escape -> {
+                                            onHotkeyChanged(Hotkey(Key.Unknown.keyCode))
+                                            focusManager.clearFocus()
+                                        }
 
-                                    Key.ShiftLeft,
-                                    Key.ShiftRight,
-                                    Key.AltLeft,
-                                    Key.AltRight,
-                                    Key.CtrlLeft,
-                                    Key.CtrlRight -> {
-                                        //NO OP, Modifiers
-                                    }
+                                        Key.ShiftLeft,
+                                        Key.ShiftRight,
+                                        Key.AltLeft,
+                                        Key.AltRight,
+                                        Key.CtrlLeft,
+                                        Key.CtrlRight -> {
+                                            //NO OP, Modifiers
+                                        }
 
-                                    else -> {
-                                        onHotkeyChanged(
-                                            Hotkey(
-                                                event.key.keyCode,
-                                                event.isShiftPressed,
-                                                event.isCtrlPressed,
-                                                event.isAltPressed
+                                        else -> {
+                                            onHotkeyChanged(
+                                                hotkey.copy(
+                                                    key = event.key.keyCode,
+                                                    isShiftPressed = event.isShiftPressed,
+                                                    isCtrlPressed = event.isCtrlPressed,
+                                                    isAltPressed = event.isAltPressed
+                                                )
                                             )
-                                        )
-                                        focusManager.clearFocus()
+                                            focusManager.clearFocus()
+                                        }
                                     }
                                 }
+                                true
+                            } else {
+                                false
                             }
-                            true
-                        } else {
-                            false
                         }
-                    }
-            )
+                )
+            }
+            Spacer(modifier = Modifier.weight(.25f))
+            Row(
+                modifier = Modifier.padding(top = 8.dp).weight(.5f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Toggle")
+                Switch(
+                    checked = hotkey.hold,
+                    onCheckedChange = { onHotkeyChanged(hotkey.copy(hold = it)) })
+                Text("Hold")
+            }
         }
     }
 }

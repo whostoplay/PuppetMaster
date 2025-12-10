@@ -267,6 +267,28 @@ class MainViewModel(context: Any) : ScreenModel {
         stateController.toggleListening()
     }
 
+    fun toggleFocus() {
+        val currentState = activeState.value ?: return
+        val currentEyeState = currentState.eyeState ?: return
+        val currentEyePair = currentEyeState.eyes
+
+        val nextEyePair = when {
+            // From Both False -> Focus on Game True, Follow Cursor False
+            !currentEyePair.focusOnGame && !currentEyePair.followCursor -> {
+                currentEyePair.copy(focusOnGame = true, followCursor = false)
+            }
+            // From Focus on Game True, Follow Cursor False -> Focus on Game False, Follow Cursor True
+            currentEyePair.focusOnGame && !currentEyePair.followCursor -> {
+                currentEyePair.copy(focusOnGame = false, followCursor = true)
+            }
+            // From Focus on Game False, Follow Cursor True -> Both False
+            else -> {
+                currentEyePair.copy(focusOnGame = false, followCursor = false)
+            }
+        }
+        updateEyeState(currentState.name, currentEyeState.copy(eyes = nextEyePair))
+    }
+
     fun updateBlinkRate(state: PuppetStateInfo, blinkRate: LongRange) {
         dataManager.updatePuppet(dataManager.activePuppet.value!!.name) { character ->
             val newStates = character.states.map {
@@ -379,7 +401,6 @@ class MainViewModel(context: Any) : ScreenModel {
                             val stateInfo = serverState.puppetStateInfo
                             _serverImageName.value = stateInfo?.imageName
                             _serverSpecialEffect.value = stateInfo?.appliedEffect?.let { ActiveSpecialEffect(it) }
-                            println(stateInfo)
                         }
                     }
                 }
