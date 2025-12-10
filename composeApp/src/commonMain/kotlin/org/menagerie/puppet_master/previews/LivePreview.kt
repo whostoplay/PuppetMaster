@@ -22,6 +22,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -72,6 +73,36 @@ fun LivePreview(
     val displayedImageName = if (isBlinking) puppetState?.blinkImageName else puppetState?.imageName
     val eyeState = puppetState?.eyeState
 
+    var displayedImage by remember { mutableStateOf<ImageBitmap?>(null) }
+    var currentImageUrl by remember { mutableStateOf<String?>(null) }
+
+    val nextImageUrl = when {
+        displayedImageName.isNullOrBlank() -> null
+        operatingMode == OperatingMode.ONLINE -> "http://$serverIp:$SERVER_PORT/uploads/$displayedImageName"
+        else -> "file://$uploadsDir/$displayedImageName"
+    }
+
+    val loadedImage = rememberImageFromUrl(currentImageUrl ?: "")
+
+    LaunchedEffect(nextImageUrl) {
+        // This effect runs ONLY when the target URL changes.
+        // It updates `currentImageUrl` to trigger the load.
+        currentImageUrl = nextImageUrl
+    }
+
+    LaunchedEffect(loadedImage) {
+        // This effect runs ONLY when the `loadedImage` itself changes.
+        if (loadedImage != null) {
+            // A new image has finished loading, so we display it.
+            displayedImage = loadedImage
+        } else if (currentImageUrl == null) {
+            // If the URL is null and there's no loaded image, clear the display.
+            // This handles the case where no image should be shown.
+            displayedImage = null
+        }
+    }
+
+
     LaunchedEffect(activeSpecialEffect) {
         if (activeSpecialEffect != null) {
             while (true) {
@@ -121,12 +152,7 @@ fun LivePreview(
         modifier = Modifier.fillMaxSize().background(backgroundColor).padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
-        val imageUrl = when {
-            displayedImageName.isNullOrBlank() -> ""
-            operatingMode == OperatingMode.ONLINE -> "http://$serverIp:$SERVER_PORT/uploads/$displayedImageName"
-            else -> "file://$uploadsDir/$displayedImageName"
-        }
-        val image = rememberImageFromUrl(imageUrl)
+        val image = displayedImage
 
         if (image != null) {
             val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f)
@@ -409,8 +435,6 @@ fun LivePreview(
                     }
                 }
             }
-        } else {
-            Text("No Active Image")
         }
     }
 }

@@ -3,6 +3,8 @@ package org.menagerie.puppet_master.states
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
@@ -146,13 +148,17 @@ fun StateEditor(
                 }
             }
 
-            HotkeySelector(
-                label = "State Hotkey",
-                hotkey = state.hotkey ?: Hotkey(Key.Unknown.keyCode),
-                onHotkeyChanged = { newHotkey ->
-                    onStateHotkeyChanged(state.name, newHotkey)
-                }
-            )
+            Row {
+                Spacer(modifier = Modifier.weight(.5f))
+                HotkeySelector(
+                    modifier = Modifier.weight(1f),
+                    label = "State Hotkey",
+                    hotkey = state.hotkey ?: Hotkey(Key.Unknown.keyCode),
+                    onHotkeyChanged = { newHotkey ->
+                        onStateHotkeyChanged(state.name, newHotkey)
+                    }
+                )
+            }
         }
     }
 }

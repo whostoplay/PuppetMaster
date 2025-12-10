@@ -42,7 +42,8 @@ import org.menagerie.puppet_master.Hotkey
 fun HotkeySelector(
     label: String,
     hotkey: Hotkey,
-    onHotkeyChanged: (Hotkey) -> Unit
+    modifier: Modifier = Modifier,
+    onHotkeyChanged: (Hotkey) -> Unit,
 ) {
     var isEditing by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
@@ -62,7 +63,7 @@ fun HotkeySelector(
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
