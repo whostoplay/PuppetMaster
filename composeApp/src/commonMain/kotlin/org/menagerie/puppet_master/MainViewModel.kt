@@ -113,6 +113,9 @@ class MainViewModel(context: Any) : ScreenModel {
     private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
     val operatingMode: StateFlow<OperatingMode> = _operatingMode.asStateFlow()
 
+    private val _isAudienceCheckForced = MutableStateFlow(false)
+    val isAudienceCheckForced: StateFlow<Boolean> = _isAudienceCheckForced.asStateFlow()
+
     private val client = HttpClient { install(WebSockets) }
     private var serverStateJob: Job? = null
     private var clientControlSocketJob: Job? = null
@@ -265,6 +268,10 @@ class MainViewModel(context: Any) : ScreenModel {
 
     fun toggleListening() {
         stateController.toggleListening()
+    }
+
+    fun toggleForceAudienceCheck() {
+        _isAudienceCheckForced.value = !_isAudienceCheckForced.value
     }
 
     fun toggleFocus() {

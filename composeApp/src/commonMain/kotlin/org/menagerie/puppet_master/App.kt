@@ -220,6 +220,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                     } else if (settings.toggleFocusHotkey.isHotkey(it)) {
                         viewModel.toggleFocus()
                         true
+                    } else if (settings.checkAudienceHotkey.isHotkey(it)) {
+                        viewModel.toggleForceAudienceCheck()
+                        true
                     } else {
                         false
                     }
@@ -254,7 +257,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                 backgroundColor = uiState.backgroundColor,
                 serverIp = settings.serverIpAddress,
                 activeSpecialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect,
-                window = window
+                window = window,
+                isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value
             )
         }
 

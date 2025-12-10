@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetCharacter
@@ -129,6 +130,7 @@ fun SpecialEffectsUI(
                     serverIp = "",
                     activeSpecialEffect = activePreviewEffect,
                     window = window,
+                    isAudienceCheckForced = false
                 )
             }
         }

@@ -61,6 +61,7 @@ fun LivePreview(
     backgroundColor: Color,
     serverIp: String,
     activeSpecialEffect: ActiveSpecialEffect?,
+    isAudienceCheckForced: Boolean,
     window: Any?
 ) {
     var frame by remember { mutableLongStateOf(0L) }
@@ -81,11 +82,12 @@ fun LivePreview(
     }
 
     LaunchedEffect(
-        eyeState?.eyes?.checkOnAudience, eyeState?.eyes?.audienceCheckRate, eyeState?.eyes?.audienceCheckDuration
+        eyeState?.eyes?.checkOnAudience, eyeState?.eyes?.audienceCheckRate, eyeState?.eyes?.audienceCheckDuration, isAudienceCheckForced
     ) {
-        if (eyeState?.eyes?.checkOnAudience == true) {
-            val audienceCheckRate = eyeState.eyes.audienceCheckRate
-            val audienceCheckDuration = eyeState.eyes.audienceCheckDuration
+        val checkOnAudience = eyeState?.eyes?.checkOnAudience == true
+        if (checkOnAudience || isAudienceCheckForced) {
+            val audienceCheckRate = eyeState?.eyes?.audienceCheckRate ?: 0
+            val audienceCheckDuration = eyeState?.eyes?.audienceCheckDuration ?: 0
             if (audienceCheckRate > 0 && audienceCheckDuration > 0) {
                 while (true) {
                     delay(audienceCheckRate)
@@ -94,6 +96,8 @@ fun LivePreview(
                     isCheckingAudience = false
                 }
             }
+        } else {
+            isCheckingAudience = false
         }
     }
 
@@ -246,7 +250,7 @@ fun LivePreview(
                         }
                     } else {
                         val focusPointOnScreen: Offset? = when {
-                            isCheckingAudience -> null
+                            isCheckingAudience || isAudienceCheckForced -> null
                             it.eyes.focusOnGame -> {
                                 Offset(
                                     x = imageTopLeftX + (it.eyes.gameScreenLocation.x * scaledWidthPx),
