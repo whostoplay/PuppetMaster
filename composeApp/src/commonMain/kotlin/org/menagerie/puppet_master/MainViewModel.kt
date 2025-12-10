@@ -1,6 +1,8 @@
 package org.menagerie.puppet_master
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import io.ktor.client.*
@@ -134,6 +136,10 @@ class MainViewModel(context: Any) : ScreenModel {
         }
     }
 
+    fun onKeyEvent(keyEvent: KeyEvent) {
+        stateController.onKeyEvent(keyEvent)
+    }
+
     fun updateSettings(newSettings: SettingsModel) {
         _settings.value = newSettings
         settingsRepository.saveSettings(newSettings)
@@ -237,6 +243,11 @@ class MainViewModel(context: Any) : ScreenModel {
     fun selectState(state: PuppetStateInfo) {
         _selectedState.value = state
     }
+    
+    fun selectStateByName(stateName: String) {
+        val state = activePuppet.value?.states?.find { it.name == stateName } ?: return
+        selectState(state)
+    }
 
     fun onSaveOrUpdateStateClicked() {
         val stateName = _uiState.value.newStateName
@@ -305,6 +316,21 @@ class MainViewModel(context: Any) : ScreenModel {
                 if (value?.name == state.name) value.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last) else value
             }
             character.copy(states = newStates, thresholds = newThresholds)
+        }
+    }
+
+    fun updateStateHotkey(stateName: String, newHotkey: Hotkey) {
+        dataManager.updatePuppet(dataManager.activePuppet.value!!.name) { character ->
+            val newStates = character.states.map {
+                if (it.name == stateName) {
+                    it.copy(hotkey = newHotkey)
+                } else if (it.hotkey == newHotkey) {
+                    it.copy(hotkey = null)
+                } else {
+                    it
+                }
+            }
+            character.copy(states = newStates)
         }
     }
 
@@ -404,7 +430,7 @@ class MainViewModel(context: Any) : ScreenModel {
                 client.webSocket(method = HttpMethod.Get, host = settings.value.serverIpAddress, port = SERVER_PORT, path = "/obs") {
                     for (frame in incoming) {
                         if (frame is Frame.Text) {
-                            val serverState = Json.decodeFromString<ServerState>(frame.readText())
+                            val serverState = Json { allowStructuredMapKeys = true }.decodeFromString<ServerState>(frame.readText())
                             val stateInfo = serverState.puppetStateInfo
                             _serverImageName.value = stateInfo?.imageName
                             _serverSpecialEffect.value = stateInfo?.appliedEffect?.let { ActiveSpecialEffect(it) }
@@ -425,7 +451,7 @@ class MainViewModel(context: Any) : ScreenModel {
                     port = SERVER_PORT,
                     path = "/client-control"
                 ) {
-                    val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+                    val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true }
                     activeState.combine(displayedImageName) { state, imageName ->
                         val currentState = state?.copy(
                             imageName = imageName ?: state.imageName,

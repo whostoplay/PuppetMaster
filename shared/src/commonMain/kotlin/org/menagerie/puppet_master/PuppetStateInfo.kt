@@ -13,6 +13,7 @@ import kotlinx.serialization.Transient
  * @property maxBlinkRate The maximum time in milliseconds between blinks.
  * @property appliedEffect The special effect applied to this state.
  * @property eyeState The eye state for this puppet state.
+ * @property hotkey The hotkey associated with this state.
  */
 @Serializable
 data class PuppetStateInfo(
@@ -22,7 +23,8 @@ data class PuppetStateInfo(
     val minBlinkRate: Long = 100L,
     val maxBlinkRate: Long = 5000L,
     val appliedEffect: SpecialEffect? = null,
-    val eyeState: EyeState? = null
+    val eyeState: EyeState? = null,
+    val hotkey: Hotkey? = null
 ) {
     @Transient
     private var lastUpdated: Long = System.currentTimeMillis()

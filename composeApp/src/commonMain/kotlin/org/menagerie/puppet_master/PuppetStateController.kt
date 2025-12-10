@@ -1,5 +1,6 @@
 package org.menagerie.puppet_master
 
+import androidx.compose.ui.input.key.KeyEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -37,6 +38,7 @@ class PuppetStateController(
 
     private var clientBlinkingJob: Job? = null
     private var returnToIdleJob: Job? = null
+    private var hotkeyStateActive = false
 
     var operatingMode: OperatingMode = OperatingMode.OFFLINE
     var isPublishing: Boolean = false
@@ -95,6 +97,52 @@ class PuppetStateController(
         }
     }
 
+    fun onKeyEvent(keyEvent: KeyEvent) {
+        println("onKeyEvent received: $keyEvent")
+        val puppet = dataManager.activePuppet.value
+        if (puppet == null) {
+            println("Puppet not found, returning")
+            return
+        }
+        
+        println("Current puppet states and hotkeys:")
+        puppet.states.forEach { state ->
+            println("  - State: '${state.name}', Hotkey: ${state.hotkey}")
+        }
+
+        for (state in puppet.states) {
+            state.hotkey?.let { hotkey ->
+                println("Checking state '${state.name}' with hotkey: $hotkey")
+                if (hotkey.isHotkey(keyEvent)) {
+                    println("Hotkey match for state '${state.name}'!")
+                    if (hotkey.hold) {
+                        if (hotkey.isDown) {
+                            println("Activating state '${state.name}' (hold)")
+                            _activeState.value = state
+                            hotkeyStateActive = true
+                        } else {
+                            println("Deactivating state '${state.name}' (hold)")
+                            hotkeyStateActive = false
+                            returnToIdle()
+                        }
+                    } else {
+                        if (_activeState.value == state && hotkeyStateActive) {
+                            println("Deactivating state '${state.name}' (toggle)")
+                            hotkeyStateActive = false
+                            returnToIdle()
+                        } else {
+                            println("Activating state '${state.name}' (toggle)")
+                            _activeState.value = state
+                            hotkeyStateActive = true
+                        }
+                    }
+                    return
+                }
+            }
+        }
+        println("No matching hotkey found for event.")
+    }
+
     fun toggleListening() {
         if (_isListening.value) {
             stopListening()
@@ -106,6 +154,8 @@ class PuppetStateController(
     private fun startListening() {
         _isListening.value = true
         audioProcessor.start { level ->
+            if (hotkeyStateActive) return@start
+
             _audioLevel.value = level
             val isControlling = operatingMode == OperatingMode.OFFLINE || isPublishing
 

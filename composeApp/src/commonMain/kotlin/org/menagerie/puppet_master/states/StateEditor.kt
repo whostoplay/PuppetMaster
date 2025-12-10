@@ -13,14 +13,17 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.unit.dp
+import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.PuppetStateInfo
-import org.menagerie.puppet_master.SpecialEffect
 import org.menagerie.puppet_master.SpecialEffectsManager
+import org.menagerie.puppet_master.controls.HotkeySelector
 import kotlin.math.roundToLong
 
 /**
@@ -37,7 +40,8 @@ fun StateEditor(
     modifier: Modifier,
     selectedState: PuppetStateInfo?,
     specialEffectsManager: SpecialEffectsManager,
-    onStateUpdated: (PuppetStateInfo) -> Unit
+    onStateUpdated: (PuppetStateInfo) -> Unit,
+    onStateHotkeyChanged: (String, Hotkey) -> Unit
 ) {
     val blinkSliderValueRange = 200f..10000f
     var blinkRateRange by remember(selectedState) {
@@ -48,12 +52,12 @@ fun StateEditor(
 
     val audienceCheckRateRange = 1000f..20000f
     var audienceCheckRate by remember(selectedState) {
-        mutableStateOf(selectedState?.eyeState?.eyes?.audienceCheckRate?.toFloat()?.coerceIn(audienceCheckRateRange) ?: 8000f)
+        mutableFloatStateOf(selectedState?.eyeState?.eyes?.audienceCheckRate?.toFloat()?.coerceIn(audienceCheckRateRange) ?: 8000f)
     }
 
     val audienceCheckDurationRange = 500f..5000f
     var audienceCheckDuration by remember(selectedState) {
-        mutableStateOf(selectedState?.eyeState?.eyes?.audienceCheckDuration?.toFloat()?.coerceIn(audienceCheckDurationRange) ?: 1500f)
+        mutableFloatStateOf(selectedState?.eyeState?.eyes?.audienceCheckDuration?.toFloat()?.coerceIn(audienceCheckDurationRange) ?: 1500f)
     }
 
     var showEffectDropdown by remember { mutableStateOf(false) }
@@ -141,6 +145,14 @@ fun StateEditor(
                     }
                 }
             }
+
+            HotkeySelector(
+                label = "State Hotkey",
+                hotkey = state.hotkey ?: Hotkey(Key.Unknown.keyCode),
+                onHotkeyChanged = { newHotkey ->
+                    onStateHotkeyChanged(state.name, newHotkey)
+                }
+            )
         }
     }
 }

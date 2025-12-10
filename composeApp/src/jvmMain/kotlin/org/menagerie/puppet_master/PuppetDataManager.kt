@@ -20,7 +20,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     private val client = HttpClient {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true }) }
     }
-    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true }
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true; allowStructuredMapKeys = true }
     private val localTroupeFile = File(uploadsDir, "local_troupe.json")
 
     private val _troupe = MutableStateFlow<PuppetTroupe?>(null)
@@ -144,7 +144,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             var serverBlinkImageName: String? = null
             if (blinkImageBytes != null && localBlinkImageName != null) {
                 serverBlinkImageName = if (operatingMode == OperatingMode.ONLINE) uploader.upload(blinkImageBytes, localBlinkImageName, serverIp) else localBlinkImageName
-                saveImage(serverBlinkImageName, blinkImageBytes)
+                saveImage(serverBlinkImageName, imageBytes)
             }
 
             val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
@@ -161,9 +161,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         _troupe.value?.let { troupe ->
             val newPuppets = troupe.puppets.map { if (it.name == puppetName) update(it).copy(lastUpdated = System.currentTimeMillis()) else it }
             val newTroupe = troupe.copy(puppets = newPuppets)
-            _troupe.value = newTroupe
-            _activePuppet.value = newPuppets.find { it.name == puppetName }
-            saveLocalTroupe(newTroupe)
+            saveTroupe(newTroupe)
         }
     }
     

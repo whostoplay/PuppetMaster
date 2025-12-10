@@ -52,14 +52,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -104,7 +99,6 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val activeState by viewModel.activeState.collectAsState()
     val isBlinking by viewModel.isBlinking.collectAsState()
     val activeSpecialEffect by viewModel.activeSpecialEffect.collectAsState()
-    val focusManager = LocalFocusManager.current
     val focusRequester = remember { FocusRequester() }
 
     var showPermissionRequest by remember { mutableStateOf(false) }
@@ -207,6 +201,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             }
             .focusRequester(focusRequester)
             .onKeyEvent {
+                viewModel.onKeyEvent(it)
                 if (isDesktop) {
                     if (settings.toggleListenHotkey.isHotkey(it)) {
                         viewModel.toggleListening()
@@ -405,7 +400,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                             modifier = Modifier.fillMaxWidth(),
                                             selectedState = state,
                                             specialEffectsManager = currentTroupe.specialEffectsManager,
-                                            onStateUpdated = { viewModel.updatePuppetState(it) }
+                                            onStateUpdated = { viewModel.updatePuppetState(it) },
+                                            onStateHotkeyChanged = viewModel::updateStateHotkey
                                         )
                                     }
                                 }
@@ -530,7 +526,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         modifier = Modifier.fillMaxWidth(),
                                         selectedState = state,
                                         specialEffectsManager = currentTroupe.specialEffectsManager,
-                                        onStateUpdated = { viewModel.updatePuppetState(it) }
+                                        onStateUpdated = { viewModel.updatePuppetState(it) },
+                                        onStateHotkeyChanged = viewModel::updateStateHotkey
                                     )
                                 }
                             }

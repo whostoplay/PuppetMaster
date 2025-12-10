@@ -9,13 +9,15 @@ import kotlinx.serialization.Serializable
  * @property lastUpdated The last time this puppet character was updated.
  * @property states A list of all possible states for this puppet character.
  * @property thresholds A map of audio level thresholds to puppet states. When the audio level exceeds a threshold, the puppet will switch to the corresponding state.
+ * @property stateHotkeys A map of hotkeys to puppet state names. When a hotkey is pressed, the puppet will switch to the corresponding state.
  */
 @Serializable
 data class PuppetCharacter(
     val name: String,
     val lastUpdated: Long,
     val states: List<PuppetStateInfo>,
-    val thresholds: Map<Float, PuppetStateInfo> = emptyMap()
+    val thresholds: Map<Float, PuppetStateInfo> = emptyMap(),
+    val stateHotkeys: Map<Hotkey, String> = emptyMap()
 )
 
 /**
