@@ -1,7 +1,6 @@
 package org.menagerie.puppet_master
 
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
@@ -10,11 +9,7 @@ import io.ktor.client.plugins.websocket.*
 import io.ktor.http.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -93,18 +88,12 @@ class MainViewModel(context: Any) : ScreenModel {
 
     val troupe: StateFlow<PuppetTroupe?> = dataManager.troupe
     val activePuppet: StateFlow<PuppetCharacter?> = dataManager.activePuppet
-    val activeState: StateFlow<PuppetStateInfo?> = stateController.activeState
-    val activeSpecialEffect: StateFlow<ActiveSpecialEffect?> = stateController.activeSpecialEffect
-    val displayedImageName: StateFlow<String?> = stateController.displayedImageName
     val isListening: StateFlow<Boolean> = stateController.isListening
     val audioLevel: StateFlow<Float> = stateController.audioLevel
     val isBlinking: StateFlow<Boolean> = stateController.isBlinking
 
-    private val _serverImageName = MutableStateFlow<String?>(null)
-    val serverImageName: StateFlow<String?> = _serverImageName.asStateFlow()
-
-    private val _serverSpecialEffect = MutableStateFlow<ActiveSpecialEffect?>(null)
-    val serverSpecialEffect: StateFlow<ActiveSpecialEffect?> = _serverSpecialEffect.asStateFlow()
+    private val _serverState = MutableStateFlow<ServerState?>(null)
+    private val serverState: StateFlow<ServerState?> = _serverState.asStateFlow()
 
     private val _selectedState = MutableStateFlow<PuppetStateInfo?>(null)
     val selectedState: StateFlow<PuppetStateInfo?> = _selectedState.asStateFlow()
@@ -123,9 +112,17 @@ class MainViewModel(context: Any) : ScreenModel {
     private var clientControlSocketJob: Job? = null
 
     private val specialEffectsController = SpecialEffectsController()
+    val animationState: StateFlow<AnimationState>
+        get() = _animationState
     private val _animationState = MutableStateFlow(AnimationState())
     private var animationJob: Job? = null
     private var effectStartTime = 0L
+
+    val activeState: StateFlow<PuppetStateInfo?>
+    val activeSpecialEffect: StateFlow<ActiveSpecialEffect?>
+    val displayedImageName: StateFlow<String?>
+
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true }
 
     init {
         _settings.value = settingsRepository.loadSettings()
@@ -140,12 +137,50 @@ class MainViewModel(context: Any) : ScreenModel {
             }
         }
         
+        val localActiveState = stateController.activeState
+        val localActiveSpecialEffect = stateController.activeSpecialEffect
+        val localDisplayedImageName = stateController.displayedImageName
+
+        val modeFlow = operatingMode.combine(isPublishing) { mode, isPublishing ->
+            Pair(mode, isPublishing)
+        }
+
+        activeState = modeFlow.flatMapLatest { (mode, isPublishing) ->
+            if (mode == OperatingMode.ONLINE && !isPublishing) {
+                serverState.map { it?.puppetStateInfo }
+            } else {
+                localActiveState
+            }
+        }.stateIn(screenModelScope, SharingStarted.Lazily, localActiveState.value)
+
+        activeSpecialEffect = modeFlow.flatMapLatest { (mode, isPublishing) ->
+            if (mode == OperatingMode.ONLINE && !isPublishing) {
+                serverState.map { it?.puppetStateInfo?.appliedEffect?.let { ActiveSpecialEffect(it) } }
+            } else {
+                localActiveSpecialEffect
+            }
+        }.stateIn(screenModelScope, SharingStarted.Lazily, localActiveSpecialEffect.value)
+
+        displayedImageName = modeFlow.flatMapLatest { (mode, isPublishing) ->
+            if (mode == OperatingMode.ONLINE && !isPublishing) {
+                serverState.map { it?.puppetStateInfo?.imageName }
+            } else {
+                localDisplayedImageName
+            }
+        }.stateIn(screenModelScope, SharingStarted.Lazily, localDisplayedImageName.value)
+
         screenModelScope.launch {
             activeState.collect { state ->
                 animationJob?.cancel()
                 val effect = state?.appliedEffect
+                val startTime = if (operatingMode.value == OperatingMode.ONLINE && !isPublishing.value) {
+                    serverState.value?.effectStartTime ?: 0L
+                } else {
+                    System.currentTimeMillis()
+                }
+
                 if (effect != null) {
-                    effectStartTime = System.currentTimeMillis()
+                    effectStartTime = startTime
                     animationJob = launch {
                         while (true) {
                             val elapsedTime = System.currentTimeMillis() - effectStartTime
@@ -237,19 +272,25 @@ class MainViewModel(context: Any) : ScreenModel {
     }
 
     fun setOperatingMode(mode: OperatingMode) {
-        _operatingMode.value = mode
-        dataManager.setOperatingMode(mode)
-        stateController.operatingMode = mode
+        if (mode == _operatingMode.value) return
 
-        if (mode == OperatingMode.ONLINE) {
+        if (mode == OperatingMode.OFFLINE) {
+            if (_isPublishing.value) {
+                setPublishing(false)
+            }
+            serverStateJob?.cancel()
+            clientControlSocketJob?.cancel()
+            stateController.onOffline()
+        } else { // ONLINE
             if (_isPublishing.value) {
                 setPublishing(false)
             }
             connectAndSync()
-        } else { // OFFLINE
-            serverStateJob?.cancel()
-            stateController.onOffline()
         }
+
+        _operatingMode.value = mode
+        dataManager.setOperatingMode(mode)
+        stateController.operatingMode = mode
     }
 
     fun toggleOperatingMode() {
@@ -270,7 +311,7 @@ class MainViewModel(context: Any) : ScreenModel {
     }
 
     fun setPublishing(isPublishing: Boolean) {
-        if (_operatingMode.value == OperatingMode.OFFLINE) return
+        if (_operatingMode.value == OperatingMode.OFFLINE && isPublishing) return
 
         _isPublishing.value = isPublishing
         stateController.isPublishing = isPublishing
@@ -281,7 +322,9 @@ class MainViewModel(context: Any) : ScreenModel {
             startClientControl()
         } else {
             stopClientControl()
-            observeServerState()
+            if (operatingMode.value == OperatingMode.ONLINE) {
+                observeServerState()
+            }
         }
     }
 
@@ -358,7 +401,7 @@ class MainViewModel(context: Any) : ScreenModel {
                 if (it.name == state.name) it.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last) else it
             }
             val newThresholds = character.thresholds.mapValues { (_, value) ->
-                if (value?.name == state.name) value.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last) else value
+                if (value.name == state.name) value.copy(minBlinkRate = blinkRate.first, maxBlinkRate = blinkRate.last) else value
             }
             character.copy(states = newStates, thresholds = newThresholds)
         }
@@ -385,7 +428,7 @@ class MainViewModel(context: Any) : ScreenModel {
                 if (it.name == state.name) it.copy(appliedEffect = effect) else it
             }
             val newThresholds = character.thresholds.mapValues { (_, value) ->
-                if (value?.name == state.name) value.copy(appliedEffect = effect) else value
+                if (value.name == state.name) value.copy(appliedEffect = effect) else value
             }
             character.copy(states = newStates, thresholds = newThresholds)
         }
@@ -397,7 +440,7 @@ class MainViewModel(context: Any) : ScreenModel {
                 if (it.name == stateName) it.copy(eyeState = eyeState) else it
             }
             val newThresholds = character.thresholds.mapValues { (_, value) ->
-                if (value?.name == stateName) value.copy(eyeState = eyeState) else value
+                if (value.name == stateName) value.copy(eyeState = eyeState) else value
             }
             character.copy(states = newStates, thresholds = newThresholds)
         }
@@ -412,7 +455,7 @@ class MainViewModel(context: Any) : ScreenModel {
                 if (it.name == newState.name) newState else it
             }
             val newThresholds = character.thresholds.mapValues { (_, value) ->
-                if (value?.name == newState.name) newState else value
+                if (value.name == newState.name) newState else value
             }
             character.copy(states = newStates, thresholds = newThresholds)
         }
@@ -475,10 +518,7 @@ class MainViewModel(context: Any) : ScreenModel {
                 client.webSocket(method = HttpMethod.Get, host = settings.value.serverIpAddress, port = SERVER_PORT, path = "/obs") {
                     for (frame in incoming) {
                         if (frame is Frame.Text) {
-                            val serverState = Json { allowStructuredMapKeys = true }.decodeFromString<ServerState>(frame.readText())
-                            val stateInfo = serverState.puppetStateInfo
-                            _serverImageName.value = stateInfo?.imageName
-                            _serverSpecialEffect.value = stateInfo?.appliedEffect?.let { ActiveSpecialEffect(it) }
+                            _serverState.value = json.decodeFromString<ServerState>(frame.readText())
                         }
                     }
                 }
@@ -496,8 +536,7 @@ class MainViewModel(context: Any) : ScreenModel {
                     port = SERVER_PORT,
                     path = "/client-control"
                 ) {
-                    val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true }
-                    activeState.combine(displayedImageName) { state, imageName ->
+                    stateController.activeState.combine(stateController.displayedImageName) { state, imageName ->
                         val currentState = state?.copy(
                             imageName = imageName ?: state.imageName,
                             blinkImageName = state.blinkImageName,

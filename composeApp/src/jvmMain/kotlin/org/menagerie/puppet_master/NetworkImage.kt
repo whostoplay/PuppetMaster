@@ -10,10 +10,13 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
+import kotlinx.coroutines.CancellationException
 import org.jetbrains.skia.Image
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 
 private val httpClient = HttpClient()
+private val imageCache = ConcurrentHashMap<String, ImageBitmap>()
 
 /**
  * A composable that remembers and loads an image from a network URL or a local file.
@@ -24,24 +27,31 @@ private val httpClient = HttpClient()
  */
 @Composable
 actual fun rememberImageFromUrl(url: String): ImageBitmap? {
-    val imageBitmap = remember { mutableStateOf<ImageBitmap?>(null) }
+    val imageBitmap = remember(url) { mutableStateOf(imageCache[url]) }
 
     LaunchedEffect(url) {
-        if (url.isNotBlank()) {
-            imageBitmap.value = try {
+        if (url.isNotBlank() && imageBitmap.value == null) {
+            val loadedImage = try {
                 val bytes = if (Url(url).protocol.name == "file") {
                     val path = url.removePrefix("file://")
                     File(path).takeIf { it.exists() }?.readBytes()
                 } else {
                     httpClient.get(url).body<ByteArray>()
                 }
-
                 bytes?.let { Image.makeFromEncoded(it).toComposeImageBitmap() }
+            } catch (e: CancellationException) {
+                // Image loading was cancelled. This is normal.
+                null
             } catch (e: Exception) {
                 println("Error loading image from url: $url, error: ${e.message}")
                 null
             }
-        } else {
+
+            if (loadedImage != null) {
+                imageCache[url] = loadedImage
+                imageBitmap.value = loadedImage
+            }
+        } else if (url.isBlank()) {
             imageBitmap.value = null
         }
     }

@@ -130,7 +130,8 @@ fun SpecialEffectsUI(
                     serverIp = "",
                     activeSpecialEffect = activePreviewEffect,
                     window = window,
-                    isAudienceCheckForced = false
+                    isAudienceCheckForced = false,
+                    displayedImageName = null,
                 )
             }
         }

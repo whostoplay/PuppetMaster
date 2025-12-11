@@ -94,8 +94,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val thresholds by viewModel.thresholds.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val settings by viewModel.settings.collectAsState()
-    val serverImageName by viewModel.serverImageName.collectAsState()
-    val serverSpecialEffect by viewModel.serverSpecialEffect.collectAsState()
+    val displayedImageName by viewModel.displayedImageName.collectAsState()
     val activeState by viewModel.activeState.collectAsState()
     val isBlinking by viewModel.isBlinking.collectAsState()
     val activeSpecialEffect by viewModel.activeSpecialEffect.collectAsState()
@@ -230,30 +229,18 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
         var leftPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
         var rightPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
 
-        val puppetState = if (operatingMode == OperatingMode.ONLINE && !isPublishing) {
-            serverImageName?.let {
-                PuppetStateInfo(
-                    name = "server-state",
-                    imageName = it,
-                    appliedEffect = serverSpecialEffect?.effect,
-                    eyeState = activeState?.eyeState // carry over eye state for now
-                )
-            }
-        } else {
-            activeState
-        }
-
-        key(puppetState, puppetState?.eyeState) {
+        key(activeState, isBlinking, activeSpecialEffect) {
             LivePreview(
                 operatingMode = operatingMode,
-                puppetState = puppetState,
+                puppetState = activeState,
                 isBlinking = isBlinking,
                 uploadsDir = viewModel.uploadsDir,
                 backgroundColor = uiState.backgroundColor,
                 serverIp = settings.serverIpAddress,
-                activeSpecialEffect = if (operatingMode == OperatingMode.ONLINE && !isPublishing) serverSpecialEffect else activeSpecialEffect,
+                activeSpecialEffect = activeSpecialEffect,
                 window = window,
-                isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value
+                isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
+                displayedImageName = displayedImageName
             )
         }
 
@@ -372,13 +359,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 item {
                                     StateCreation(
                                         modifier = Modifier.fillMaxWidth(),
-                                        viewModel = viewModel,
-                                        selectedImage = uiState.selectedImage,
-                                        selectedImageName = uiState.selectedImageName,
-                                        selectedBlinkImage = uiState.selectedBlinkImage,
-                                        selectedBlinkImageName = uiState.selectedBlinkImageName,
-                                        newStateName = uiState.newStateName,
-                                        onStateChange = viewModel::onStateCreationChange
+                                        viewModel = viewModel
                                     )
                                 }
                                 item { HorizontalDivider() }
@@ -498,13 +479,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             item {
                                 StateCreation(
                                     modifier = Modifier.fillMaxWidth(),
-                                    viewModel = viewModel,
-                                    selectedImage = uiState.selectedImage,
-                                    selectedImageName = uiState.selectedImageName,
-                                    selectedBlinkImage = uiState.selectedBlinkImage,
-                                    selectedBlinkImageName = uiState.selectedBlinkImageName,
-                                    newStateName = uiState.newStateName,
-                                    onStateChange = viewModel::onStateCreationChange
+                                    viewModel = viewModel
                                 )
                             }
                             item { HorizontalDivider() }

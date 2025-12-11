@@ -36,25 +36,14 @@ import org.menagerie.puppet_master.toImageBitmap
  *
  * @param modifier The modifier to be applied to the composable.
  * @param viewModel The view model that this composable will interact with.
- * @param selectedImage The currently selected main image.
- * @param selectedImageName The name of the currently selected main image.
- * @param selectedBlinkImage The currently selected blink image.
- * @param selectedBlinkImageName The name of the currently selected blink image.
- * @param newStateName The name of the new state.
- * @param onStateChange A callback that is invoked when any of the state creation parameters change.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StateCreation(
     modifier: Modifier,
-    viewModel: MainViewModel,
-    selectedImage: ByteArray?,
-    selectedImageName: String,
-    selectedBlinkImage: ByteArray?,
-    selectedBlinkImageName: String,
-    newStateName: String,
-    onStateChange: (ByteArray?, String, ByteArray?, String, String) -> Unit
+    viewModel: MainViewModel
 ) {
+    val uiState by viewModel.uiState.collectAsState()
     val activePuppet by viewModel.activePuppet.collectAsState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -65,22 +54,22 @@ fun StateCreation(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            selectedImage?.let {
+            uiState.selectedImage?.let {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Main Image")
                     Image(bitmap = it.toImageBitmap(), contentDescription = "Selected Image", modifier = Modifier.size(100.dp))
                 }
             }
 
-            if (selectedImage != null && selectedBlinkImage != null) {
+            if (uiState.selectedImage != null && uiState.selectedBlinkImage != null) {
                 Button(
-                    onClick = { onStateChange(selectedBlinkImage, selectedBlinkImageName, selectedImage, selectedImageName, newStateName) }
+                    onClick = { viewModel.onStateCreationChange(uiState.selectedBlinkImage, uiState.selectedBlinkImageName, uiState.selectedImage, uiState.selectedImageName, uiState.newStateName) }
                 ) {
                     Text("<->")
                 }
             }
 
-            selectedBlinkImage?.let {
+            uiState.selectedBlinkImage?.let {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Blink Image")
                     Image(bitmap = it.toImageBitmap(), contentDescription = "Selected Blink Image", modifier = Modifier.size(100.dp))
@@ -92,7 +81,7 @@ fun StateCreation(
             ImageFilePicker("Select Image(s)") { images ->
                 val mainImage = images.getOrNull(0)
                 val blinkImage = images.getOrNull(1)
-                onStateChange(mainImage?.first, mainImage?.second ?: "", blinkImage?.first, blinkImage?.second ?: "", newStateName)
+                viewModel.onStateCreationChange(mainImage?.first, mainImage?.second ?: "", blinkImage?.first, blinkImage?.second ?: "", uiState.newStateName)
             }
         }
 
@@ -105,7 +94,7 @@ fun StateCreation(
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
             TextField(
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
-                value = newStateName, onValueChange = { onStateChange(selectedImage, selectedImageName, selectedBlinkImage, selectedBlinkImageName, it) },
+                value = uiState.newStateName, onValueChange = { viewModel.onStateCreationChange(uiState.selectedImage, uiState.selectedImageName, uiState.selectedBlinkImage, uiState.selectedBlinkImageName, it) },
                 label = { Text("State Name") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
@@ -119,7 +108,7 @@ fun StateCreation(
                                 val state = activePuppet?.states?.find { it.name == selectionOption }
                                 val mainImage = state?.imageName?.let { viewModel.getImageData(it) }
                                 val blinkImage = state?.blinkImageName?.let { viewModel.getImageData(it) }
-                                onStateChange(mainImage, state?.imageName ?: "", blinkImage, state?.blinkImageName ?: "", selectionOption)
+                                viewModel.onStateCreationChange(mainImage, state?.imageName ?: "", blinkImage, state?.blinkImageName ?: "", selectionOption)
                             }
                             expanded = false 
                         }
@@ -128,14 +117,14 @@ fun StateCreation(
             }
         }
 
-        val isSaveEnabled = selectedImage != null && newStateName.isNotBlank()
+        val isSaveEnabled = uiState.selectedImage != null && uiState.newStateName.isNotBlank()
 
         if (!isSaveEnabled) {
             val missingParts = mutableListOf<String>()
-            if (selectedImage == null) {
+            if (uiState.selectedImage == null) {
                 missingParts.add("an image")
             }
-            if (newStateName.isBlank()) {
+            if (uiState.newStateName.isBlank()) {
                 missingParts.add("a state name")
             }
             Text(
