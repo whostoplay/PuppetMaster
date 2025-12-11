@@ -74,8 +74,11 @@ import org.menagerie.puppet_master.toSerializableOffset
 import kotlin.math.min
 import kotlin.math.roundToInt
 
-expect fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Float) -> Unit): Modifier
-expect fun Modifier.radiusGestures(onUpdate: (positionDelta: Offset, scaleDelta: Offset) -> Unit): Modifier
+expect fun Modifier.combinedEyeGestures(
+    onDrag: (dragAmount: Offset) -> Unit,
+    onScale: (scaleFactor: Float) -> Unit,
+    onRadiusChange: (dragAmount: Offset) -> Unit
+): Modifier
 expect fun Modifier.gameScreenGestures(onUpdate: (positionDelta: Offset) -> Unit): Modifier
 
 class EyeContactScreen(
@@ -652,56 +655,63 @@ fun DraggableEye(
                 scaleY = eye.scale * imageScaleFactor
                 transformOrigin = TransformOrigin(0f, 0f)
             }
-            .eyeGestures { positionDelta, scaleDelta ->
-                if (imageScaleFactor > 0.0f && scaleDelta.isFinite() && scaleDelta > 0.0f) {
-                    val newPosition = eye.position.toOffset() + (positionDelta / imageScaleFactor)
-                    val newScale = eye.scale * scaleDelta
-
-                    // Final safety check: ensure the results are not NaN or Infinite
-                    if (newPosition.x.isFinite() && newPosition.y.isFinite() && newScale.isFinite()) {
-                        onUpdate(eye.copy(position = newPosition.toSerializableOffset(), scale = newScale))
+            .combinedEyeGestures(
+                onDrag = { dragAmount ->
+                    if (imageScaleFactor > 0.0f) {
+                        val newPosition = eye.position.toOffset() + (dragAmount / imageScaleFactor)
+                        if (newPosition.x.isFinite() && newPosition.y.isFinite()) {
+                            onUpdate(eye.copy(position = newPosition.toSerializableOffset()))
+                        }
+                    }
+                },
+                onScale = { scaleFactor ->
+                    if (imageScaleFactor > 0.0f && scaleFactor.isFinite() && scaleFactor > 0.0f) {
+                        val newScale = eye.scale * scaleFactor
+                        if (newScale.isFinite()) {
+                            onUpdate(eye.copy(scale = newScale))
+                        }
+                    }
+                },
+                onRadiusChange = { dragAmount ->
+                    if (imageScaleFactor > 0f) {
+                        onUpdate(
+                            eye.copy(
+                                maxPupilRadiusX = (eye.maxPupilRadiusX + dragAmount.x / imageScaleFactor).coerceAtLeast(1f),
+                                maxPupilRadiusY = (eye.maxPupilRadiusY + dragAmount.y / imageScaleFactor).coerceAtLeast(1f)
+                            )
+                        )
                     }
                 }
-            }
+            )
     ) {
         val openStateBitmap = remember(openStateImage) { openStateImage?.let { decodeToImageBitmap(it) } }
         val closedStateBitmap = remember(closedStateImage) { closedStateImage?.let { decodeToImageBitmap(it) } }
         val pupilBitmap = remember(pupilImage) { pupilImage?.let { decodeToImageBitmap(it) } }
 
-        if (showClosed) {
-            closedStateBitmap?.let {
-                Image(bitmap = it, contentDescription = "Draggable closed eye")
-            }
-        } else {
-            openStateBitmap?.let {
-                Image(bitmap = it, contentDescription = "Draggable open eye")
-            }
-            pupilBitmap?.let {
-                Image(bitmap = it, contentDescription = "Draggable pupil")
-            }
-        }
+        val density = LocalDensity.current
+        val eyeSizeModifier = openStateBitmap?.let {
+            Modifier.size(
+                width = with(density) { it.width.toDp() },
+                height = with(density) { it.height.toDp() }
+            )
+        } ?: Modifier
 
-        if (followCursor && pupilImage != null) {
-            openStateBitmap?.let {
-                val density = LocalDensity.current
-                Canvas(
-                    modifier = Modifier
-                        .size(
-                            width = with(density) { it.width.toDp() },
-                            height = with(density) { it.height.toDp() }
-                        )
-                        .radiusGestures { positionDelta, scaleDelta ->
-                            if (imageScaleFactor > 0f) {
-                                onUpdate(
-                                    eye.copy(
-                                        position = (eye.position.toOffset() + positionDelta / imageScaleFactor).toSerializableOffset(),
-                                        maxPupilRadiusX = (eye.maxPupilRadiusX + scaleDelta.x / imageScaleFactor).coerceAtLeast(1f),
-                                        maxPupilRadiusY = (eye.maxPupilRadiusY + scaleDelta.y / imageScaleFactor).coerceAtLeast(1f)
-                                    )
-                                )
-                            }
-                        }
-                ) {
+        Box(modifier = eyeSizeModifier) {
+            if (showClosed) {
+                closedStateBitmap?.let {
+                    Image(bitmap = it, contentDescription = "Draggable closed eye")
+                }
+            } else {
+                openStateBitmap?.let {
+                    Image(bitmap = it, contentDescription = "Draggable open eye")
+                }
+                pupilBitmap?.let {
+                    Image(bitmap = it, contentDescription = "Draggable pupil")
+                }
+            }
+
+            if (followCursor && pupilImage != null) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
                     val pupilRadiusX = eye.maxPupilRadiusX
                     val pupilRadiusY = eye.maxPupilRadiusY
 
