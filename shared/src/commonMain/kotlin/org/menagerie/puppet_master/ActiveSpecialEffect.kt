@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master
 
 import kotlinx.serialization.Serializable
+import kotlin.math.PI
 import kotlin.math.sin
 
 /**
@@ -25,8 +26,8 @@ class ActiveSpecialEffect(
             return targetScale
         }
         val elapsedTime = (System.currentTimeMillis() - startTime).toFloat()
-        val angle = (elapsedTime / (1000f / (effect.scaleSpeed + 1))) * 2 * Math.PI
-        return 1f + (sin(angle).toFloat() * (targetScale - 1f))
+        val angle = (elapsedTime / (1000f / (effect.scaleSpeed + 1))) * 2 * PI
+        return 1f + (sin(angle.toFloat()) * (targetScale - 1f))
     }
 
     fun getRotation(): Float {
@@ -34,16 +35,17 @@ class ActiveSpecialEffect(
             return 0f
         }
         val elapsedTime = System.currentTimeMillis() - startTime
-        val rotation = (elapsedTime * effect.spinSpeed * 10f / 50f) % 360f
+        val spinDuration = 5000f / effect.spinSpeed
+        val rotation = (elapsedTime / spinDuration) * 360f
         return rotation * effect.spinDirection
     }
 
     fun getGlow(): Float {
-        return effect.glowIntensity
+        return effect.glowIntensity ?: 0f
     }
 
     fun getGlowColor(): Int {
-        return effect.glowColor
+        return effect.glowColor ?: 0xFFFFFFFF.toInt()
     }
 
     fun getVibrationOffset(maxOffset: Float): SerializableOffset {
@@ -52,9 +54,9 @@ class ActiveSpecialEffect(
         }
         val elapsedTime = (System.currentTimeMillis() - startTime).toFloat()
         val offset = effect.vibrationDistance * maxOffset
-        val angle = (elapsedTime / (100f / (effect.vibrationSpeed + 1))) * 2 * Math.PI
-        val x = (sin(angle) * offset).toFloat()
-        val y = (sin(angle * 2) * offset).toFloat() // Using a different frequency for y to make it more interesting
+        val angle = (elapsedTime / (1000f / (effect.vibrationSpeed * 2 + 1))) * 2f * PI
+        val x = (sin(angle.toFloat()) * offset).toFloat()
+        val y = (kotlin.math.cos(angle.toFloat()) * offset).toFloat()
         return SerializableOffset(x, y)
     }
 

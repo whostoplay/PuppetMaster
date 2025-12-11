@@ -122,6 +122,11 @@ class MainViewModel(context: Any) : ScreenModel {
     private var serverStateJob: Job? = null
     private var clientControlSocketJob: Job? = null
 
+    private val specialEffectsController = SpecialEffectsController()
+    private val _animationState = MutableStateFlow(AnimationState())
+    private var animationJob: Job? = null
+    private var effectStartTime = 0L
+
     init {
         _settings.value = settingsRepository.loadSettings()
         _operatingMode.value = if (settings.value.startOffline) OperatingMode.OFFLINE else OperatingMode.ONLINE
@@ -134,6 +139,46 @@ class MainViewModel(context: Any) : ScreenModel {
                 }
             }
         }
+        
+        screenModelScope.launch {
+            activeState.collect { state ->
+                animationJob?.cancel()
+                val effect = state?.appliedEffect
+                if (effect != null) {
+                    effectStartTime = System.currentTimeMillis()
+                    animationJob = launch {
+                        while (true) {
+                            val elapsedTime = System.currentTimeMillis() - effectStartTime
+                            _animationState.value = calculateAnimationState(effect, elapsedTime)
+                            kotlinx.coroutines.delay(16) // roughly 60 fps
+                        }
+                    }
+                } else {
+                    _animationState.value = AnimationState()
+                }
+            }
+        }
+    }
+
+    private fun calculateAnimationState(effect: SpecialEffect, elapsedTime: Long): AnimationState {
+        val scaleX = specialEffectsController.getAnimatedScale(effect.scaleX, effect.scaleSpeed, elapsedTime)
+        val scaleY = specialEffectsController.getAnimatedScale(effect.scaleY, effect.scaleSpeed, elapsedTime)
+        val rotation = specialEffectsController.getRotation(effect.spinSpeed, effect.spinDirection, elapsedTime)
+        val (translationX, translationY) = specialEffectsController.getVibration(
+            effect.vibrationDistance,
+            effect.vibrationSpeed,
+            elapsedTime,
+            1920f // assuming a default width, this might need to be configurable
+        )
+        return AnimationState(
+            rotation = rotation,
+            scaleX = scaleX,
+            scaleY = scaleY,
+            translationX = translationX,
+            translationY = translationY,
+            glowColor = effect.glowColor ?: 0xFFFFFFFF.toInt(),
+            glowIntensity = effect.glowIntensity ?: 0f
+        )
     }
 
     fun onKeyEvent(keyEvent: KeyEvent) {
@@ -460,7 +505,7 @@ class MainViewModel(context: Any) : ScreenModel {
                             maxBlinkRate = state.maxBlinkRate,
                             appliedEffect = state.appliedEffect
                         )
-                        ServerState(currentState)
+                        ServerState(currentState, effectStartTime = if (state?.appliedEffect != null) effectStartTime else null)
                     }.collectLatest { state ->
                         send(json.encodeToString(state))
                     }

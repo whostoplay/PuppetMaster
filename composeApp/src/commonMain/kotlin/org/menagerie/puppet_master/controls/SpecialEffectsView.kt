@@ -87,8 +87,8 @@ fun SpecialEffectsUI(
             effectName = it.name
             vibrationDistance = it.vibrationDistance
             vibrationSpeed = it.vibrationSpeed
-            glowIntensity = it.glowIntensity
-            glowColor = Color(it.glowColor)
+            glowIntensity = it.glowIntensity ?: 0f
+            glowColor = Color(it.glowColor ?: 0xFFFFFFFF.toInt())
             scaleX = it.scaleX
             scaleY = it.scaleY
             scaleSpeed = it.scaleSpeed

@@ -6,6 +6,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlin.math.pow
 import kotlin.random.Random
@@ -13,48 +14,107 @@ import kotlin.random.Random
 class PuppetStateManager(private val scope: CoroutineScope, private val troupeManager: TroupeManager) {
 
     private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
-    val activeState = _activeState.asStateFlow()
+    private val activeState = _activeState.asStateFlow()
 
     private val _stateToSend = MutableStateFlow<ServerState?>(null)
     val stateToSend = _stateToSend.asStateFlow()
 
     private var blinkingJob: Job? = null
     private var returnToIdleJob: Job? = null
+    private var animationJob: Job? = null
+
+    private var activeSpecialEffect: ActiveSpecialEffect? = null
 
     var manualControlActive = false
     var obsConnectionCount = 0
     private fun isHeadless() = obsConnectionCount > 0 && !manualControlActive
 
     init {
-        _activeState.value = troupeManager.activePuppet?.states?.find { it.name == "idle" } ?: troupeManager.activePuppet?.states?.firstOrNull()
-
         scope.launch {
             activeState.collect { state ->
-                blinkingJob?.cancel()
-                updateStateToSend(state)
-                if (state?.blinkImageName != null) {
-                    blinkingJob = launch {
-                        while (true) {
-                            val delayTime = if (state.minBlinkRate >= state.maxBlinkRate) {
-                                state.maxBlinkRate
-                            } else {
-                                Random.nextLong(state.minBlinkRate, state.maxBlinkRate)
-                            }
-                            delay(delayTime)
-                            if (isHeadless() && _activeState.value == state) {
-                                val blinkState = state.copy(imageName = state.blinkImageName!!)
-                                updateStateToSend(blinkState)
-                                delay(150)
-                                updateStateToSend(state)
-                            }
-                        }
+                // This collector is for headless mode ONLY
+                if (manualControlActive) return@collect
+
+                // Manage special effect
+                val newEffect = state?.appliedEffect
+                if (newEffect != activeSpecialEffect?.effect) {
+                    updateSpecialEffect(newEffect)
+                }
+
+                // Update state and start blinking if needed
+                updateStateAndBlinking(state)
+            }
+        }
+        // Set initial state for headless mode
+        _activeState.value = troupeManager.activePuppet?.states?.find { it.name == "idle" }
+    }
+
+    // Manages the animation loop based on an effect.
+    private fun updateSpecialEffect(newEffect: SpecialEffect?, startTime: Long? = null) {
+        animationJob?.cancel()
+
+        activeSpecialEffect = newEffect?.let { ActiveSpecialEffect(it, startTime ?: System.currentTimeMillis()) }
+
+        if (activeSpecialEffect != null) {
+            animationJob = scope.launch {
+                while (true) {
+                    val animationState = calculateAnimationState()
+                    updateStateToSend(_stateToSend.value?.puppetStateInfo, animationState)
+                    delay(16) // roughly 60 fps
+                }
+            }
+        } else {
+            // No effect, ensure animation is cleared
+            updateStateToSend(_stateToSend.value?.puppetStateInfo, null)
+        }
+    }
+
+    // Updates the puppet state info and restarts the blinking loop if necessary.
+    private fun updateStateAndBlinking(state: PuppetStateInfo?) {
+        blinkingJob?.cancel()
+
+        // Send the main state update
+        updateStateToSend(state, calculateAnimationState())
+
+        if (state?.blinkImageName != null) {
+            blinkingJob = scope.launch {
+                while (true) {
+                    val delayTime = if (state.minBlinkRate >= state.maxBlinkRate) {
+                        state.maxBlinkRate
+                    } else {
+                        Random.nextLong(state.minBlinkRate, state.maxBlinkRate)
+                    }
+                    delay(delayTime)
+                    // In headless mode, if the state is still the active one, perform a blink
+                    if (isHeadless() && _activeState.value == state) {
+                        val blinkState = state.copy(imageName = state.blinkImageName!!)
+                        updateStateToSend(blinkState, _stateToSend.value?.animationState)
+                        delay(150)
+                        updateStateToSend(state, _stateToSend.value?.animationState)
                     }
                 }
             }
         }
     }
 
+
+    private fun calculateAnimationState(): AnimationState? {
+        val effect = activeSpecialEffect ?: return null
+        val offset = effect.getVibrationOffset(1920f / 20f)
+        return AnimationState(
+            rotation = effect.getRotation(),
+            scaleX = effect.getScaleX(),
+            scaleY = effect.getScaleY(),
+            translationX = offset.x,
+            translationY = offset.y,
+            glowColor = effect.getGlowColor(),
+            glowIntensity = effect.getGlow()
+        )
+    }
+
     fun onAudioLevelChanged(level: Float) {
+        if (manualControlActive) return // Ignore audio when client is in control
+
         val activePuppet = troupeManager.activePuppet ?: return
         val scaledLevel = level.pow(0.5f)
         val sortedThresholds = activePuppet.thresholds.entries.sortedBy { it.key }
@@ -63,18 +123,24 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         if (activeThresholdIndex != -1) {
             returnToIdleJob?.cancel()
             var state: PuppetStateInfo? = null
+            // Find the highest-threshold state that is not null
             for (i in activeThresholdIndex downTo 0) {
                 if (sortedThresholds[i].value != null) {
                     state = sortedThresholds[i].value
                     break
                 }
             }
+
             if (state != null) {
-                _activeState.value = state
+                if (_activeState.value != state) {
+                    _activeState.value = state
+                }
             } else {
+                // No state found for any threshold below the current level
                 returnToIdle()
             }
         } else {
+            // Audio level is below all thresholds
             returnToIdle()
         }
     }
@@ -91,44 +157,46 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
 
     fun onClientSentState(stateJson: String) {
         val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true }
-        try {
-            val receivedState = json.decodeFromString<ServerState>(stateJson)
-            // Preserve mouse and calibration data from the current state
-            _stateToSend.value = _stateToSend.value?.copy(puppetStateInfo = receivedState.puppetStateInfo) ?: receivedState
-
-            // Also update the internal active state for blinking logic
-            receivedState.puppetStateInfo?.let { stateInfo ->
-                val baseState = troupeManager.activePuppet?.states?.find { it.imageName == stateInfo.imageName || it.blinkImageName == stateInfo.imageName }
-                if (baseState != null && _activeState.value != baseState) {
-                    _activeState.value = baseState
-                }
-            }
+        val receivedState = try {
+            json.decodeFromString<ServerState>(stateJson)
         } catch (e: Exception) {
-            // It's possible the client is just sending an imageName as a string.
             val imageName = stateJson
-            val activePuppet = troupeManager.activePuppet ?: return
-            val baseState = activePuppet.states.find { it.imageName == imageName || it.blinkImageName == imageName }
-            if (baseState != null) {
-                if (_activeState.value != baseState) {
-                    _activeState.value = baseState
-                }
-                if (_stateToSend.value?.puppetStateInfo?.imageName != imageName) {
-                    val tempState = baseState.copy(imageName = imageName)
-                    updateStateToSend(tempState)
-                }
+            val state = troupeManager.activePuppet?.states?.find { it.imageName == imageName || it.blinkImageName == imageName }
+            ServerState(state)
+        }
+
+        val stateInfo = receivedState.puppetStateInfo
+        if (stateInfo != null) {
+            if (stateInfo.appliedEffect != activeSpecialEffect?.effect) {
+                updateSpecialEffect(stateInfo.appliedEffect, receivedState.effectStartTime)
             }
+            updateStateAndBlinking(stateInfo)
         }
     }
 
     fun onTroupeUpdated() {
-        if (!isHeadless()) {
-            _activeState.value = troupeManager.activePuppet?.states?.find { it.name == "idle" } ?: troupeManager.activePuppet?.states?.firstOrNull()
+        // When troupe data changes, re-evaluate the current state.
+        if (manualControlActive) {
+            // If client is in control, find the new version of the current state and apply it
+            val currentStateSentByClient = _stateToSend.value?.puppetStateInfo ?: return
+            val newState = troupeManager.activePuppet?.states?.find { it.name == currentStateSentByClient.name }
+
+            if (newState != null) {
+                val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "type" }
+                onClientSentState(json.encodeToString(ServerState(newState)))
+            }
+        } else {
+            // If in headless mode, find the new version of the current state and trigger the collector
+            val currentStateName = _activeState.value?.name
+            _activeState.value = troupeManager.activePuppet?.states?.find { it.name == currentStateName }
+                ?: troupeManager.activePuppet?.states?.find { it.name == "idle" }
         }
     }
 
     fun onClientDisconnected() {
         manualControlActive = false
-        _activeState.value = troupeManager.activePuppet?.states?.find { it.name == "idle" } ?: troupeManager.activePuppet?.states?.firstOrNull()
+        // Headless mode should take over from the last state the client sent
+        _activeState.value = _stateToSend.value?.puppetStateInfo
     }
 
     private fun returnToIdle() {
@@ -141,12 +209,13 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
-    private fun updateStateToSend(state: PuppetStateInfo?) {
+    private fun updateStateToSend(state: PuppetStateInfo?, animationState: AnimationState?) {
         val currentData = _stateToSend.value
         _stateToSend.value = ServerState(
             puppetStateInfo = state,
             mousePosition = currentData?.mousePosition,
-            calibrationData = currentData?.calibrationData
+            calibrationData = currentData?.calibrationData,
+            animationState = animationState
         )
     }
 }

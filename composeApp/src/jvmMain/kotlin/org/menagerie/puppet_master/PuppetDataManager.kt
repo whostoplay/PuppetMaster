@@ -18,7 +18,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     actual val uploadsDir = getUploadsDir(context)
     private val uploader = Uploader()
     private val client = HttpClient {
-        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true }) }
+        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true }) }
     }
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true; allowStructuredMapKeys = true }
     private val localTroupeFile = File(uploadsDir, "local_troupe.json")

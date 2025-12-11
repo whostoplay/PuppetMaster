@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Puppet Master</title>
+    <!-- Force refresh -->
     <style>
         body, html {
             margin: 0;
@@ -53,12 +54,11 @@
     const rightPupilElement = document.getElementById('right-pupil');
     const socket = new WebSocket('ws://127.0.0.1:8080/obs');
 
-    let activeEffect = null;
-    let startTime = 0;
     let pointerPosition = null;
     let currentPuppetStateInfo = null;
+    let currentAnimationState = null;
     let baseImage = { width: 0, height: 0, src: '' };
-    
+
     // State for eyes and pupils
     let leftEyeImage = { width: 0, height: 0 };
     let rightEyeImage = { width: 0, height: 0 };
@@ -70,17 +70,9 @@
     let isCheckingAudience = false;
     let audienceCheckTimer = 0;
     let audienceCheckEndTime = 0;
-    
+
     let jitter = { x: 0, y: 0 };
     let jitterTimer = 0;
-
-    function intToCssColor(colorInt) {
-        const a = ((colorInt >> 24) & 0xFF) / 255;
-        const r = (colorInt >> 16) & 0xFF;
-        const g = (colorInt >> 8) & 0xFF;
-        const b = colorInt & 0xFF;
-        return `rgba(${r}, ${g}, ${b}, ${a})`;
-    }
 
     socket.onmessage = function(event) {
         const serverState = JSON.parse(event.data);
@@ -90,12 +82,12 @@
         if (serverState.mousePosition) {
             pointerPosition = serverState.mousePosition;
         }
+        currentAnimationState = serverState.animationState;
 
         if (!currentPuppetStateInfo || !currentPuppetStateInfo.imageName) {
             puppetElement.style.backgroundImage = '';
             leftEyeElement.style.display = 'none';
             rightEyeElement.style.display = 'none';
-            activeEffect = null;
             return;
         }
 
@@ -108,16 +100,6 @@
                 puppetElement.style.backgroundImage = `url(${newImgSrc})`;
             }
             newImg.src = newImgSrc;
-        }
-
-        // Update effect
-        if (currentPuppetStateInfo.appliedEffect) {
-            if (!activeEffect || activeEffect.name !== currentPuppetStateInfo.appliedEffect.name) {
-                startTime = Date.now();
-            }
-            activeEffect = currentPuppetStateInfo.appliedEffect;
-        } else {
-            activeEffect = null;
         }
 
         // Update eye images and visibility
@@ -165,21 +147,11 @@
             if(rightEye.pupil) updateImage(rightPupilElement, null, rightEye, rightPupilImage, null, rightEye.pupil);
         }
     }
-    
-    function updatePupilPositions(rotation = 0) {
+
+    function updatePupilPositions(rotation = 0, imageScaleFactor, imageTopLeftX, imageTopLeftY, scaledWidth, scaledHeight) {
         if (!currentPuppetStateInfo?.eyeState || !baseImage.width) return;
 
         const eyeState = currentPuppetStateInfo.eyeState.eyes;
-        const containerWidth = puppetElement.clientWidth;
-        const containerHeight = puppetElement.clientHeight;
-
-        const imageScaleFactor = Math.min(containerWidth / baseImage.width, containerHeight / baseImage.height);
-        const scaledWidth = baseImage.width * imageScaleFactor;
-        const scaledHeight = baseImage.height * imageScaleFactor;
-        
-        const imageTopLeftX = (containerWidth - scaledWidth) / 2;
-        const imageTopLeftY = (containerHeight - scaledHeight) / 2;
-
         let focusPointOnScreen = null;
 
         if (!isCheckingAudience) {
@@ -192,35 +164,30 @@
                 focusPointOnScreen = pointerPosition;
             }
         }
-        
+
         let finalFocusPointInImage = null;
         if (focusPointOnScreen) {
             const pointInImageXUnrotated = (focusPointOnScreen.x - imageTopLeftX) / imageScaleFactor;
             const pointInImageYUnrotated = (focusPointOnScreen.y - imageTopLeftY) / imageScaleFactor;
 
-            if (rotation === 0) {
-                finalFocusPointInImage = { x: pointInImageXUnrotated, y: pointInImageYUnrotated };
-            } else {
-                const rotationInRadians = rotation * (Math.PI / 180);
-                const imageCenterX = baseImage.width / 2;
-                const imageCenterY = baseImage.height / 2;
+            const rotationInRadians = -rotation * (Math.PI / 180);
+            const imageCenterX = baseImage.width / 2;
+            const imageCenterY = baseImage.height / 2;
+            const pointRelToCenterX = pointInImageXUnrotated - imageCenterX;
+            const pointRelToCenterY = pointInImageYUnrotated - imageCenterY;
 
-                const pointRelToCenterX = pointInImageXUnrotated - imageCenterX;
-                const pointRelToCenterY = pointInImageYUnrotated - imageCenterY;
+            const cosAngle = Math.cos(rotationInRadians);
+            const sinAngle = Math.sin(rotationInRadians);
 
-                const cosAngle = Math.cos(-rotationInRadians);
-                const sinAngle = Math.sin(-rotationInRadians);
+            const rotatedPointRelToCenterX = pointRelToCenterX * cosAngle - pointRelToCenterY * sinAngle;
+            const rotatedPointRelToCenterY = pointRelToCenterX * sinAngle + pointRelToCenterY * cosAngle;
 
-                const rotatedPointRelToCenterX = pointRelToCenterX * cosAngle - pointRelToCenterY * sinAngle;
-                const rotatedPointRelToCenterY = pointRelToCenterX * sinAngle + pointRelToCenterY * cosAngle;
-
-                finalFocusPointInImage = {
-                    x: rotatedPointRelToCenterX + imageCenterX,
-                    y: rotatedPointRelToCenterY + imageCenterY
-                };
-            }
+            finalFocusPointInImage = {
+                x: rotatedPointRelToCenterX + imageCenterX,
+                y: rotatedPointRelToCenterY + imageCenterY
+            };
         }
-        
+
         const positionPupil = (pupilEl, eyeData) => {
              let targetX = 0;
              let targetY = 0;
@@ -238,7 +205,7 @@
         positionPupil(leftPupilElement, eyeState.left);
         positionPupil(rightPupilElement, eyeState.right);
     }
-    
+
     function setElementBase(element, eyeData, imageCache, pupilCache, imageScaleFactor, imageTopLeftX, imageTopLeftY) {
         if (!eyeData) return;
         element.style.left = `${imageTopLeftX + (eyeData.position.x * imageScaleFactor)}px`;
@@ -261,14 +228,28 @@
         const deltaTime = now - lastTime;
         lastTime = now;
 
-        let transform = 'scale(1) rotate(0deg) translate(0px, 0px)';
-        let filter = 'none';
         let rotation = 0;
+        const eyeState = currentPuppetStateInfo?.eyeState;
+        let imageScaleFactor = 1, imageTopLeftX = 0, imageTopLeftY = 0, scaledWidth = 0, scaledHeight = 0;
 
-        const eyeState = currentPuppetStateInfo?.eyeState?.eyes;
-        if (eyeState) {
+        if (currentPuppetStateInfo && eyeState && baseImage.width > 0) {
+            const containerWidth = puppetElement.clientWidth;
+            const containerHeight = puppetElement.clientHeight;
+
+            imageScaleFactor = Math.min(containerWidth / baseImage.width, containerHeight / baseImage.height);
+            scaledWidth = baseImage.width * imageScaleFactor;
+            scaledHeight = baseImage.height * imageScaleFactor;
+
+            imageTopLeftX = (containerWidth - scaledWidth) / 2;
+            imageTopLeftY = (containerHeight - scaledHeight) / 2;
+
+            setElementBase(leftEyeElement, eyeState.eyes.left, leftEyeImage, leftPupilImage, imageScaleFactor, imageTopLeftX, imageTopLeftY);
+            setElementBase(rightEyeElement, eyeState.eyes.right, rightEyeImage, rightPupilImage, imageScaleFactor, imageTopLeftX, imageTopLeftY);
+        }
+
+        if (eyeState?.eyes) {
             // Audience Check Logic
-            if (eyeState.checkOnAudience) {
+            if (eyeState.eyes.checkOnAudience) {
                 if (isCheckingAudience) {
                     if (now >= audienceCheckEndTime) {
                         isCheckingAudience = false;
@@ -276,15 +257,15 @@
                     }
                 } else {
                     audienceCheckTimer += deltaTime;
-                    if (audienceCheckTimer >= eyeState.audienceCheckRate) {
+                    if (audienceCheckTimer >= eyeState.eyes.audienceCheckRate) {
                         isCheckingAudience = true;
-                        audienceCheckEndTime = now + eyeState.audienceCheckDuration;
+                        audienceCheckEndTime = now + eyeState.eyes.audienceCheckDuration;
                     }
                 }
             }
 
             // Game Focus Jitter Logic
-            if (eyeState.focusOnGame && !isCheckingAudience) {
+            if (eyeState.eyes.focusOnGame && !isCheckingAudience) {
                 jitterTimer += deltaTime;
                 if (jitterTimer > 100) {
                     jitterTimer = 0;
@@ -300,51 +281,49 @@
         }
 
 
-        if (activeEffect) {
-            const elapsedTime = Date.now() - startTime;
-            const getAnimatedScale = (targetScale, scaleSpeed) => 
-                1 + (Math.sin((elapsedTime / (1000 / (scaleSpeed + 1))) * 2 * Math.PI) * (targetScale - 1));
+        if (currentAnimationState) {
+            const scaleX = currentAnimationState.scaleX;
+            const scaleY = currentAnimationState.scaleY;
+            rotation = currentAnimationState.rotation;
+            const translationX = currentAnimationState.translationX;
+            const translationY = currentAnimationState.translationY;
 
-            const scaleX = getAnimatedScale(activeEffect.scaleX, activeEffect.scaleSpeed);
-            const scaleY = getAnimatedScale(activeEffect.scaleY, activeEffect.scaleSpeed);
-            
-            if (activeEffect.spinSpeed > 0) rotation = (elapsedTime * activeEffect.spinSpeed * 360 / 5000) % 360 * activeEffect.spinDirection;
-            
-            let offsetX = 0, offsetY = 0;
-            if (activeEffect.vibrationDistance > 0) {
-                const offset = activeEffect.vibrationDistance * (puppetElement.clientWidth / 20);
-                const angle = (elapsedTime / (1000 / (activeEffect.vibrationSpeed * 2 + 1))) * 2 * Math.PI;
-                offsetX = Math.sin(angle) * offset;
-                offsetY = Math.cos(angle) * offset;
-            }
-            transform = `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg) translate(${offsetX}px, ${offsetY}px)`;
-            
+            puppetElement.style.transform = `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg) translate(${translationX}px, ${translationY}px)`;
+
+            const glowIntensity = currentAnimationState.glowIntensity;
+            const glowColor = currentAnimationState.glowColor;
             const colorMatrixElement = document.getElementById('color-matrix');
-            if (activeEffect.glowIntensity > 0 && typeof activeEffect.glowColor !== 'undefined' && colorMatrixElement) {
-                const {glowIntensity, glowColor} = activeEffect;
+
+            if (glowIntensity > 0 && typeof glowColor !== 'undefined' && colorMatrixElement) {
                 const r = ((glowColor >> 16) & 0xFF) / 255;
                 const g = ((glowColor >> 8) & 0xFF) / 255;
                 const b = (glowColor & 0xFF) / 255;
-                const matrix = `${glowIntensity*r} 0 0 0 0 0 ${glowIntensity*g} 0 0 0 0 0 ${glowIntensity*b} 0 0 0 0 0 1 0`;
+
+                // This logic correctly blends the tint color with the original image.
+                // When glowIntensity is 0, this results in an identity matrix (no change).
+                const r_ = (1 - glowIntensity) + (r * glowIntensity);
+                const g_ = (1 - glowIntensity) + (g * glowIntensity);
+                const b_ = (1 - glowIntensity) + (b * glowIntensity);
+
+                // Construct the matrix as a single line of 20 space-separated values.
+                const matrix = [
+                    r_, 0, 0, 0, 0,
+                    0, g_, 0, 0, 0,
+                    0, 0, b_, 0, 0,
+                    0, 0, 0, 1, 0
+                ].join(' ');
+
                 colorMatrixElement.setAttribute('values', matrix);
-                filter = 'url(#color-tint-filter)';
+                puppetElement.style.filter = 'url(#color-tint-filter)';
+            } else {
+                puppetElement.style.filter = 'none';
             }
+        } else {
+            puppetElement.style.transform = 'scale(1) rotate(0deg) translate(0px, 0px)';
+            puppetElement.style.filter = 'none';
         }
-        puppetElement.style.transform = transform;
-        puppetElement.style.filter = filter;
 
-        // Update eye and pupil positions
-        if (baseImage.width > 0 && currentPuppetStateInfo?.eyeState) {
-            const containerWidth = puppetElement.clientWidth;
-            const containerHeight = puppetElement.clientHeight;
-            const imageScaleFactor = Math.min(containerWidth / baseImage.width, containerHeight / baseImage.height);
-            const imageTopLeftX = (containerWidth - (baseImage.width * imageScaleFactor)) / 2;
-            const imageTopLeftY = (containerHeight - (baseImage.height * imageScaleFactor)) / 2;
-
-            setElementBase(leftEyeElement, eyeState.left, leftEyeImage, leftPupilImage, imageScaleFactor, imageTopLeftX, imageTopLeftY);
-            setElementBase(rightEyeElement, eyeState.right, rightEyeImage, rightPupilImage, imageScaleFactor, imageTopLeftX, imageTopLeftY);
-            updatePupilPositions(rotation);
-        }
+        updatePupilPositions(rotation, imageScaleFactor, imageTopLeftX, imageTopLeftY, scaledWidth, scaledHeight);
     }
 
     animate();
