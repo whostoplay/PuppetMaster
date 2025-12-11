@@ -75,7 +75,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 expect fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Float) -> Unit): Modifier
-expect fun Modifier.radiusGestures(onUpdate: (scaleDelta: Offset) -> Unit): Modifier
+expect fun Modifier.radiusGestures(onUpdate: (positionDelta: Offset, scaleDelta: Offset) -> Unit): Modifier
 expect fun Modifier.gameScreenGestures(onUpdate: (positionDelta: Offset) -> Unit): Modifier
 
 class EyeContactScreen(
@@ -690,12 +690,13 @@ fun DraggableEye(
                             width = with(density) { it.width.toDp() },
                             height = with(density) { it.height.toDp() }
                         )
-                        .radiusGestures { dragAmount ->
+                        .radiusGestures { positionDelta, scaleDelta ->
                             if (imageScaleFactor > 0f) {
                                 onUpdate(
                                     eye.copy(
-                                        maxPupilRadiusX = (eye.maxPupilRadiusX + dragAmount.x / imageScaleFactor).coerceAtLeast(1f),
-                                        maxPupilRadiusY = (eye.maxPupilRadiusY + dragAmount.y / imageScaleFactor).coerceAtLeast(1f)
+                                        position = (eye.position.toOffset() + positionDelta / imageScaleFactor).toSerializableOffset(),
+                                        maxPupilRadiusX = (eye.maxPupilRadiusX + scaleDelta.x / imageScaleFactor).coerceAtLeast(1f),
+                                        maxPupilRadiusY = (eye.maxPupilRadiusY + scaleDelta.y / imageScaleFactor).coerceAtLeast(1f)
                                     )
                                 )
                             }

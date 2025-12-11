@@ -18,13 +18,13 @@ actual fun Modifier.eyeGestures(onUpdate: (positionDelta: Offset, scaleDelta: Fl
     }
 }
 
-actual fun Modifier.radiusGestures(onUpdate: (scaleDelta: Offset) -> Unit): Modifier = composed {
+actual fun Modifier.radiusGestures(onUpdate: (positionDelta: Offset, scaleDelta: Offset) -> Unit): Modifier = composed {
     val currentOnUpdate by rememberUpdatedState(onUpdate)
     pointerInput(Unit) {
         detectDragGestures {
             change, dragAmount ->
             change.consume()
-            currentOnUpdate(dragAmount)
+            currentOnUpdate(dragAmount, Offset.Zero)
         }
     }
 }
