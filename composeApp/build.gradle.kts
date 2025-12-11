@@ -41,6 +41,7 @@ kotlin {
             implementation(libs.voyager.navigator)
             implementation(libs.voyager.screenmodel)
             implementation(libs.voyager.transitions)
+            implementation(libs.compose.imageloader)
 
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.contentnegotiation)

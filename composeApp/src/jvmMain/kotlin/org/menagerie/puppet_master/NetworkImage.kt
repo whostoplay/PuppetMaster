@@ -1,22 +1,44 @@
 package org.menagerie.puppet_master
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.request.*
-import io.ktor.http.*
-import kotlinx.coroutines.CancellationException
+import com.seiko.imageloader.ImageLoader
+import com.seiko.imageloader.cache.disk.DiskCache
+import com.seiko.imageloader.cache.memory.MemoryCache
+import com.seiko.imageloader.cache.memory.maxSizePercent
+import com.seiko.imageloader.component.setupDefaultComponents
+import com.seiko.imageloader.intercept.DiskCacheInterceptor
+import com.seiko.imageloader.intercept.MemoryCacheInterceptor
+import com.seiko.imageloader.model.ImageRequest
+import com.seiko.imageloader.model.ImageResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okio.Path.Companion.toOkioPath
 import org.jetbrains.skia.Image
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
 
-private val httpClient = HttpClient()
-private val imageCache = ConcurrentHashMap<String, ImageBitmap>()
+private val imageLoader = ImageLoader {
+    components {
+        setupDefaultComponents()
+    }
+    interceptor {
+        addInterceptor(MemoryCacheInterceptor {
+            MemoryCache {
+                maxSizePercent(0.25)
+            }
+        })
+        addInterceptor(DiskCacheInterceptor {
+            DiskCache {
+                directory(File(System.getProperty("java.io.tmpdir"), "image_cache").toOkioPath())
+                maxSizeBytes(512L * 1024 * 1024)
+            }
+        })
+    }
+}
+
 
 /**
  * A composable that remembers and loads an image from a network URL or a local file.
@@ -27,34 +49,31 @@ private val imageCache = ConcurrentHashMap<String, ImageBitmap>()
  */
 @Composable
 actual fun rememberImageFromUrl(url: String): ImageBitmap? {
-    val imageBitmap = remember(url) { mutableStateOf(imageCache[url]) }
-
-    LaunchedEffect(url) {
-        if (url.isNotBlank() && imageBitmap.value == null) {
-            val loadedImage = try {
-                val bytes = if (Url(url).protocol.name == "file") {
-                    val path = url.removePrefix("file://")
-                    File(path).takeIf { it.exists() }?.readBytes()
-                } else {
-                    httpClient.get(url).body<ByteArray>()
+    val imageBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
+        value = if (url.isNotBlank()) {
+            withContext(Dispatchers.IO) {
+                try {
+                    val request = ImageRequest(url)
+                    when (val result = imageLoader.execute(request)) {
+                        is ImageResult.Image -> {
+                            result.image.toComposeImageBitmap()
+                        }
+                        is ImageResult.Bitmap -> {
+                            Image.makeFromBitmap(result.bitmap).toComposeImageBitmap()
+                        }
+                        else -> {
+                            null
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("Error loading image from url: $url, error: ${e.message}")
+                    null
                 }
-                bytes?.let { Image.makeFromEncoded(it).toComposeImageBitmap() }
-            } catch (e: CancellationException) {
-                // Image loading was cancelled. This is normal.
-                null
-            } catch (e: Exception) {
-                println("Error loading image from url: $url, error: ${e.message}")
-                null
             }
-
-            if (loadedImage != null) {
-                imageCache[url] = loadedImage
-                imageBitmap.value = loadedImage
-            }
-        } else if (url.isBlank()) {
-            imageBitmap.value = null
+        } else {
+            null
         }
     }
 
-    return imageBitmap.value
+    return imageBitmap
 }

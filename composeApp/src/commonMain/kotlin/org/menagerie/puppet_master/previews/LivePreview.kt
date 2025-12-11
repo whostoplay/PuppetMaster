@@ -1,6 +1,5 @@
 package org.menagerie.puppet_master.previews
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -42,17 +41,6 @@ import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.rememberGlobalPointerPosition
 import org.menagerie.puppet_master.rememberImageFromUrl
 
-/**
- * A composable that displays a live preview of the puppet.
- *
- * @param operatingMode The current operating mode.
- * @param puppetState The current puppet state.
- * @param isBlinking Whether the puppet is currently blinking.
- * @param uploadsDir The directory where uploaded images are stored.
- * @param backgroundColor The background color of the preview.
- * @param serverIp The IP address of the server.
- * @param activeSpecialEffect The currently active special effect.
- */
 @Composable
 fun LivePreview(
     operatingMode: OperatingMode,
@@ -64,34 +52,80 @@ fun LivePreview(
     activeSpecialEffect: ActiveSpecialEffect?,
     isAudienceCheckForced: Boolean,
     window: Any?,
-    displayedImageName: String?
+    displayedImageName: String?,
+    idleImage: ImageBitmap
 ) {
     var frame by remember { mutableLongStateOf(0L) }
     var jitter by remember { mutableStateOf(Offset.Zero) }
     var isCheckingAudience by remember { mutableStateOf(false) }
     val pointerPosition = rememberGlobalPointerPosition(window)
 
-    val finalImageName = if (isBlinking) puppetState?.blinkImageName else displayedImageName
     val eyeState = puppetState?.eyeState
 
-    var displayedImage by remember { mutableStateOf<ImageBitmap?>(null) }
-
-    val imageUrl = when {
-        finalImageName.isNullOrBlank() -> null
-        operatingMode == OperatingMode.ONLINE -> "http://$serverIp:$SERVER_PORT/uploads/$finalImageName"
-        else -> "file://$uploadsDir/$finalImageName"
-    }
-
-    val image = rememberImageFromUrl(imageUrl ?: "")
-
-    LaunchedEffect(image, imageUrl) {
-        if (image != null) {
-            displayedImage = image
-        } else if (imageUrl == null) {
-            displayedImage = null
+    fun getImageUrl(imageName: String?): String? {
+        return when {
+            imageName.isNullOrBlank() -> null
+            operatingMode == OperatingMode.ONLINE -> "http://$serverIp:$SERVER_PORT/uploads/$imageName"
+            else -> "file://$uploadsDir/$imageName"
         }
     }
 
+    // --- Flicker-Free Image Loading Logic ---
+
+    // 1. Hoisted state for the images that will actually be displayed.
+    //    They are initialized with a non-null fallback to prevent any initial null state.
+    var bodyToDisplay by remember { mutableStateOf(idleImage) }
+    var leftEyeToDisplay by remember { mutableStateOf<ImageBitmap?>(null) }
+    var rightEyeToDisplay by remember { mutableStateOf<ImageBitmap?>(null) }
+    var leftPupilToDisplay by remember { mutableStateOf<ImageBitmap?>(null) }
+    var rightPupilToDisplay by remember { mutableStateOf<ImageBitmap?>(null) }
+
+    // 2. Unconditionally load all possible image variations.
+    //    `rememberImageFromUrl` caches the result, so this is efficient.
+    val loadedBody = getImageUrl(displayedImageName)?.let { rememberImageFromUrl(it) }
+    val loadedBlinkBody = getImageUrl(puppetState?.blinkImageName)?.let { rememberImageFromUrl(it) }
+    val loadedLeftOpenEye = getImageUrl(eyeState?.eyes?.left?.openState)?.let { rememberImageFromUrl(it) }
+    val loadedLeftClosedEye = getImageUrl(eyeState?.eyes?.left?.closedState)?.let { rememberImageFromUrl(it) }
+    val loadedLeftPupil = getImageUrl(eyeState?.eyes?.left?.pupil)?.let { rememberImageFromUrl(it) }
+    val loadedRightOpenEye = getImageUrl(eyeState?.eyes?.right?.openState)?.let { rememberImageFromUrl(it) }
+    val loadedRightClosedEye = getImageUrl(eyeState?.eyes?.right?.closedState)?.let { rememberImageFromUrl(it) }
+    val loadedRightPupil = getImageUrl(eyeState?.eyes?.right?.pupil)?.let { rememberImageFromUrl(it) }
+
+    // 3. Use LaunchedEffect to safely update the displayed image.
+    //    This ensures we only switch to the new image AFTER it has loaded.
+    LaunchedEffect(isBlinking, loadedBody, loadedBlinkBody) {
+        val newImage = if (isBlinking) loadedBlinkBody else loadedBody
+        if (newImage != null) {
+            bodyToDisplay = newImage
+        }
+    }
+
+    LaunchedEffect(isBlinking, loadedLeftOpenEye, loadedLeftClosedEye) {
+        val newImage = if (isBlinking) loadedLeftClosedEye else loadedLeftOpenEye
+        if (newImage != null) {
+            leftEyeToDisplay = newImage
+        } else if (leftEyeToDisplay == null) {
+            leftEyeToDisplay = loadedLeftOpenEye
+        }
+    }
+
+    LaunchedEffect(isBlinking, loadedRightOpenEye, loadedRightClosedEye) {
+        val newImage = if (isBlinking) loadedRightClosedEye else loadedRightOpenEye
+        if (newImage != null) {
+            rightEyeToDisplay = newImage
+        } else if (rightEyeToDisplay == null) {
+            rightEyeToDisplay = loadedRightOpenEye
+        }
+    }
+
+    LaunchedEffect(loadedLeftPupil) {
+        if (loadedLeftPupil != null) leftPupilToDisplay = loadedLeftPupil
+    }
+    LaunchedEffect(loadedRightPupil) {
+        if (loadedRightPupil != null) rightPupilToDisplay = loadedRightPupil
+    }
+
+    // --- General Effects ---
     LaunchedEffect(activeSpecialEffect) {
         if (activeSpecialEffect != null) {
             while (true) {
@@ -140,298 +174,170 @@ fun LivePreview(
         }
     }
 
+    // --- Rendering ---
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize().background(backgroundColor).padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
-        Crossfade(targetState = displayedImage) { image ->
-            if (image != null) {
-                val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f)
-                val glowColor = activeSpecialEffect?.getGlowColor()?.let { Color(it) } ?: Color.White
-                val glowIntensity = activeSpecialEffect?.getGlow() ?: 1f
+        val image = bodyToDisplay
 
-                val colorMatrix = ColorMatrix().apply {
-                    setToScale(
-                        redScale = glowIntensity * glowColor.red,
-                        greenScale = glowIntensity * glowColor.green,
-                        blueScale = glowIntensity * glowColor.blue,
-                        alphaScale = 1f
+        val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f)
+        val glowColor = activeSpecialEffect?.getGlowColor()?.let { Color(it) } ?: Color.White
+        val glowIntensity = activeSpecialEffect?.getGlow() ?: 1f
+
+        val colorMatrix = ColorMatrix().apply {
+            setToScale(
+                redScale = glowIntensity * glowColor.red,
+                greenScale = glowIntensity * glowColor.green,
+                blueScale = glowIntensity * glowColor.blue,
+                alphaScale = 1f
+            )
+        }
+
+        val imageScaleFactor = if (image.width > 0 && image.height > 0) {
+            min(maxWidth.value / image.width, maxHeight.value / image.height)
+        } else {
+            1.0f
+        }
+
+        val density = LocalDensity.current
+        val scaledWidth = with(density) { (image.width * imageScaleFactor).toDp() }
+        val scaledHeight = with(density) { (image.height * imageScaleFactor).toDp() }
+        val scaledWidthPx = image.width * imageScaleFactor
+        val scaledHeightPx = image.height * imageScaleFactor
+        val imageTopLeftX = (with(density) { maxWidth.toPx() } - scaledWidthPx) / 2f
+        val imageTopLeftY = (with(density) { maxHeight.toPx() } - scaledHeightPx) / 2f
+
+        val puppetModifier = Modifier.graphicsLayer(
+            scaleX = activeSpecialEffect?.getScaleX() ?: 1f,
+            scaleY = activeSpecialEffect?.getScaleY() ?: 1f,
+            rotationZ = activeSpecialEffect?.getRotation() ?: 0f,
+            translationX = offset?.x ?: 0f,
+            translationY = offset?.y ?: 0f,
+            shadowElevation = glowIntensity * 30f,
+            ambientShadowColor = glowColor,
+            spotShadowColor = glowColor
+        ).let { if (frame > 0) it else it } // force recomposition
+
+        Box(
+            modifier = Modifier.size(scaledWidth, scaledHeight).then(puppetModifier)
+        ) {
+            Image(
+                bitmap = image,
+                contentDescription = "Live Preview",
+                colorFilter = ColorFilter.colorMatrix(colorMatrix),
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.FillBounds
+            )
+
+            eyeState?.let { eyeData ->
+                val leftEye = eyeData.eyes.left
+                val rightEye = eyeData.eyes.right
+
+                val leftEyeModifier = Modifier
+                    .offset(x = (leftEye.position.x * imageScaleFactor).dp, y = (leftEye.position.y * imageScaleFactor).dp)
+                    .graphicsLayer(
+                        scaleX = leftEye.scale * imageScaleFactor,
+                        scaleY = leftEye.scale * imageScaleFactor,
+                        transformOrigin = TransformOrigin(0f, 0f)
                     )
+
+                val rightEyeModifier = Modifier
+                    .offset(x = (rightEye.position.x * imageScaleFactor).dp, y = (rightEye.position.y * imageScaleFactor).dp)
+                    .graphicsLayer(
+                        scaleX = rightEye.scale * imageScaleFactor,
+                        scaleY = rightEye.scale * imageScaleFactor,
+                        transformOrigin = TransformOrigin(0f, 0f)
+                    )
+
+                leftEyeToDisplay?.let {
+                    Image(bitmap = it, contentDescription = "Left Eye", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = leftEyeModifier)
                 }
 
-                val imageScaleFactor = if (image.width > 0 && image.height > 0) {
-                    min(
-                        maxWidth.value / image.width,
-                        maxHeight.value / image.height
-                    )
-                } else {
-                    1.0f
+                rightEyeToDisplay?.let {
+                    Image(bitmap = it, contentDescription = "Right Eye", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = rightEyeModifier)
                 }
 
-                val density = LocalDensity.current
-                val scaledWidth = with(density) { (image.width * imageScaleFactor).toDp() }
-                val scaledHeight = with(density) { (image.height * imageScaleFactor).toDp() }
+                if (!isBlinking) {
+                    val focusPointOnScreen: Offset? = when {
+                        isCheckingAudience || isAudienceCheckForced -> null
+                        eyeData.eyes.focusOnGame -> Offset(x = imageTopLeftX + (eyeData.eyes.gameScreenLocation.x * scaledWidthPx), y = imageTopLeftY + (eyeData.eyes.gameScreenLocation.y * scaledHeightPx))
+                        eyeData.eyes.followCursor && pointerPosition != null -> pointerPosition
+                        else -> null
+                    }
 
-                val scaledWidthPx = image.width * imageScaleFactor
-                val scaledHeightPx = image.height * imageScaleFactor
-                val imageTopLeftX = (with(density) { maxWidth.toPx() } - scaledWidthPx) / 2f
-                val imageTopLeftY = (with(density) { maxHeight.toPx() } - scaledHeightPx) / 2f
+                    val finalFocusPointInImage: SerializableOffset? = if (focusPointOnScreen != null) {
+                        val rotationInDegrees = activeSpecialEffect?.getRotation() ?: 0f
+                        val pointInImageXUnrotated = (focusPointOnScreen.x - imageTopLeftX) / imageScaleFactor
+                        val pointInImageYUnrotated = (focusPointOnScreen.y - imageTopLeftY) / imageScaleFactor
 
-                val puppetModifier =
-                    Modifier
-                        .graphicsLayer(
-                            scaleX = activeSpecialEffect?.getScaleX() ?: 1f,
-                            scaleY = activeSpecialEffect?.getScaleY() ?: 1f,
-                            rotationZ = activeSpecialEffect?.getRotation() ?: 0f,
-                            translationX = offset?.x ?: 0f,
-                            translationY = offset?.y ?: 0f,
-                            shadowElevation = glowIntensity * 30f,
-                            ambientShadowColor = glowColor,
-                            spotShadowColor = glowColor
-                        )
-                        .let { if (frame > 0) it else it } // force recomposition
+                        if (rotationInDegrees == 0f) {
+                            SerializableOffset(pointInImageXUnrotated, pointInImageYUnrotated)
+                        } else {
+                            val rotationInRadians = Math.toRadians(rotationInDegrees.toDouble())
+                            val imageCenterX = image.width / 2f
+                            val imageCenterY = image.height / 2f
+                            val pointRelToCenterX = pointInImageXUnrotated - imageCenterX
+                            val pointRelToCenterY = pointInImageYUnrotated - imageCenterY
+                            val cosAngle = cos(-rotationInRadians).toFloat()
+                            val sinAngle = sin(-rotationInRadians).toFloat()
+                            val rotatedPointRelToCenterX = pointRelToCenterX * cosAngle - pointRelToCenterY * sinAngle
+                            val rotatedPointRelToCenterY = pointRelToCenterX * sinAngle + pointRelToCenterY * cosAngle
+                            val finalPointInImageX = rotatedPointRelToCenterX + imageCenterX
+                            val finalPointInImageY = rotatedPointRelToCenterY + imageCenterY
+                            SerializableOffset(finalPointInImageX, finalPointInImageY)
+                        }
+                    } else {
+                        null
+                    }
 
-                Box(
-                    modifier = Modifier
-                        .size(scaledWidth, scaledHeight)
-                        .then(puppetModifier)
-                ) {
-                    Image(
-                        bitmap = image,
-                        contentDescription = "Live Preview",
-                        colorFilter = ColorFilter.colorMatrix(colorMatrix),
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.FillBounds
-                    )
+                    leftPupilToDisplay?.let { pupilBitmap ->
+                        val leftPupilAngle = if (finalFocusPointInImage != null) {
+                            atan2((finalFocusPointInImage.y - leftEye.position.y).toDouble(), (finalFocusPointInImage.x - leftEye.position.x).toDouble()).toFloat()
+                        } else {
+                            0f
+                        }
+                        var pupilModifier = leftEyeModifier
+                        if (finalFocusPointInImage != null) {
+                            val x = leftEye.position.x + cos(leftPupilAngle) * (leftEye.maxPupilRadiusX * leftEye.scale)
+                            val y = leftEye.position.y + sin(leftPupilAngle) * (leftEye.maxPupilRadiusY * leftEye.scale)
 
-                    eyeState?.let { it ->
-                        val leftEye = it.eyes.left
-                        val rightEye = it.eyes.right
-
-                        val leftEyeModifier =
-                            Modifier
-                                .offset(
-                                    x = (leftEye.position.x * imageScaleFactor).dp,
-                                    y = (leftEye.position.y * imageScaleFactor).dp
-                                )
+                            pupilModifier = Modifier.offset(
+                                x = (x * imageScaleFactor).dp,
+                                y = (y * imageScaleFactor).dp
+                            )
                                 .graphicsLayer(
                                     scaleX = leftEye.scale * imageScaleFactor,
                                     scaleY = leftEye.scale * imageScaleFactor,
                                     transformOrigin = TransformOrigin(0f, 0f)
                                 )
+                        }
+                        Image(bitmap = pupilBitmap, contentDescription = "Left Pupil", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = pupilModifier)
+                    }
 
-                        val rightEyeModifier =
-                            Modifier
-                                .offset(
-                                    x = (rightEye.position.x * imageScaleFactor).dp,
-                                    y = (rightEye.position.y * imageScaleFactor).dp
-                                )
+                    rightPupilToDisplay?.let { pupilBitmap ->
+                        val rightPupilAngle = if (finalFocusPointInImage != null) {
+                            atan2((finalFocusPointInImage.y - rightEye.position.y).toDouble(), (finalFocusPointInImage.x - rightEye.position.x).toDouble()).toFloat()
+                        } else {
+                            0f
+                        }
+                        var pupilModifier = rightEyeModifier
+                        if (finalFocusPointInImage != null) {
+                            val x = rightEye.position.x + cos(rightPupilAngle) * (rightEye.maxPupilRadiusX * rightEye.scale)
+                            val y = rightEye.position.y + sin(rightPupilAngle) * (rightEye.maxPupilRadiusY * rightEye.scale)
+
+                            pupilModifier = Modifier.offset(
+                                x = (x * imageScaleFactor).dp,
+                                y = (y * imageScaleFactor).dp
+                            )
                                 .graphicsLayer(
                                     scaleX = rightEye.scale * imageScaleFactor,
                                     scaleY = rightEye.scale * imageScaleFactor,
                                     transformOrigin = TransformOrigin(0f, 0f)
                                 )
-                        Crossfade(targetState = isBlinking) { isBlinkingValue ->
-                            if (isBlinkingValue && leftEye.closedState != null && rightEye.closedState != null) {
-                                // Blinking state - show closed eyes
-                                val leftEyeClosedImageUrl =
-                                    when {
-                                        operatingMode == OperatingMode.ONLINE ->
-                                            "http://$serverIp:$SERVER_PORT/uploads/${leftEye.closedState}"
-                                        else -> "file://$uploadsDir/${leftEye.closedState}"
-                                    }
-                                val leftEyeClosedImage = rememberImageFromUrl(leftEyeClosedImageUrl)
-                                if (leftEyeClosedImage != null) {
-                                    Image(
-                                        bitmap = leftEyeClosedImage,
-                                        contentDescription = "Left Eye Closed",
-                                        colorFilter = ColorFilter.colorMatrix(colorMatrix),
-                                        modifier = leftEyeModifier
-                                    )
-                                }
-
-                                val rightEyeClosedImageUrl =
-                                    when {
-                                        operatingMode == OperatingMode.ONLINE ->
-                                            "http://$serverIp:$SERVER_PORT/uploads/${rightEye.closedState}"
-                                        else -> "file://$uploadsDir/${rightEye.closedState}"
-                                    }
-                                val rightEyeClosedImage = rememberImageFromUrl(rightEyeClosedImageUrl)
-                                if (rightEyeClosedImage != null) {
-                                    Image(
-                                        bitmap = rightEyeClosedImage,
-                                        contentDescription = "Right Eye Closed",
-                                        colorFilter = ColorFilter.colorMatrix(colorMatrix),
-                                        modifier = rightEyeModifier
-                                    )
-                                }
-                            } else {
-                                val focusPointOnScreen: Offset? = when {
-                                    isCheckingAudience || isAudienceCheckForced -> null
-                                    it.eyes.focusOnGame -> {
-                                        Offset(
-                                            x = imageTopLeftX + (it.eyes.gameScreenLocation.x * scaledWidthPx),
-                                            y = imageTopLeftY + (it.eyes.gameScreenLocation.y * scaledHeightPx)
-                                        )
-                                    }
-
-                                    it.eyes.followCursor && pointerPosition != null -> pointerPosition
-                                    else -> null
-                                }
-
-                                val finalFocusPointInImage: SerializableOffset? =
-                                    if (focusPointOnScreen != null) {
-                                        val rotationInDegrees = activeSpecialEffect?.getRotation() ?: 0f
-
-                                        val pointInImageXUnrotated =
-                                            (focusPointOnScreen.x - imageTopLeftX) / imageScaleFactor
-                                        val pointInImageYUnrotated =
-                                            (focusPointOnScreen.y - imageTopLeftY) / imageScaleFactor
-
-                                        if (rotationInDegrees == 0f) {
-                                            SerializableOffset(pointInImageXUnrotated, pointInImageYUnrotated)
-                                        } else {
-                                            val rotationInRadians = Math.toRadians(rotationInDegrees.toDouble())
-                                            val imageCenterX = image.width / 2f
-                                            val imageCenterY = image.height / 2f
-
-                                            val pointRelToCenterX = pointInImageXUnrotated - imageCenterX
-                                            val pointRelToCenterY = pointInImageYUnrotated - imageCenterY
-
-                                            val cosAngle = cos(-rotationInRadians).toFloat()
-                                            val sinAngle = sin(-rotationInRadians).toFloat()
-                                            val rotatedPointRelToCenterX =
-                                                pointRelToCenterX * cosAngle - pointRelToCenterY * sinAngle
-                                            val rotatedPointRelToCenterY =
-                                                pointRelToCenterX * sinAngle + pointRelToCenterY * cosAngle
-
-                                            val finalPointInImageX = rotatedPointRelToCenterX + imageCenterX
-                                            val finalPointInImageY = rotatedPointRelToCenterY + imageCenterY
-
-                                            SerializableOffset(finalPointInImageX, finalPointInImageY)
-                                        }
-                                    } else {
-                                        null
-                                    }
-
-                                // Open state - show open eyes and pupils
-                                val leftEyeOpenImageUrl =
-                                    when {
-                                        operatingMode == OperatingMode.ONLINE ->
-                                            "http://$serverIp:$SERVER_PORT/uploads/${leftEye.openState}"
-                                        else -> "file://$uploadsDir/${leftEye.openState}"
-                                    }
-                                val leftEyeOpenImage = rememberImageFromUrl(leftEyeOpenImageUrl)
-
-                                if (leftEyeOpenImage != null) {
-                                    Image(
-                                        bitmap = leftEyeOpenImage,
-                                        contentDescription = "Left Eye",
-                                        colorFilter = ColorFilter.colorMatrix(colorMatrix),
-                                        modifier = leftEyeModifier
-                                    )
-                                }
-
-                                leftEye.pupil?.let { pupilImageName ->
-                                    val leftEyePupilImageUrl =
-                                        when {
-                                            operatingMode == OperatingMode.ONLINE ->
-                                                "http://$serverIp:$SERVER_PORT/uploads/$pupilImageName"
-                                            else -> "file://$uploadsDir/$pupilImageName"
-                                        }
-                                    val leftEyePupilImage = rememberImageFromUrl(leftEyePupilImageUrl)
-
-                                    var pupilModifier = leftEyeModifier
-                                    if (finalFocusPointInImage != null && leftEyePupilImage != null) {
-                                        val angle = atan2(
-                                            finalFocusPointInImage.y - leftEye.position.y + jitter.y,
-                                            finalFocusPointInImage.x - leftEye.position.x + jitter.x
-                                        )
-                                        val x =
-                                            leftEye.position.x + cos(angle) * (leftEye.maxPupilRadiusX * leftEye.scale)
-                                        val y =
-                                            leftEye.position.y + sin(angle) * (leftEye.maxPupilRadiusY * leftEye.scale)
-
-                                        pupilModifier = Modifier.offset(
-                                            x = (x * imageScaleFactor).dp,
-                                            y = (y * imageScaleFactor).dp
-                                        )
-                                            .graphicsLayer(
-                                                scaleX = leftEye.scale * imageScaleFactor,
-                                                scaleY = leftEye.scale * imageScaleFactor,
-                                                transformOrigin = TransformOrigin(0f, 0f)
-                                            )
-                                    }
-
-                                    if (leftEyePupilImage != null) {
-                                        Image(
-                                            bitmap = leftEyePupilImage,
-                                            contentDescription = "Left Eye Pupil",
-                                            colorFilter = ColorFilter.colorMatrix(colorMatrix),
-                                            modifier = pupilModifier
-                                        )
-                                    }
-                                }
-
-                                val rightEyeOpenImageUrl =
-                                    when {
-                                        operatingMode == OperatingMode.ONLINE ->
-                                            "http://$serverIp:$SERVER_PORT/uploads/${rightEye.openState}"
-                                        else -> "file://$uploadsDir/${rightEye.openState}"
-                                    }
-                                val rightEyeOpenImage = rememberImageFromUrl(rightEyeOpenImageUrl)
-
-                                if (rightEyeOpenImage != null) {
-                                    Image(
-                                        bitmap = rightEyeOpenImage,
-                                        contentDescription = "Right Eye",
-                                        colorFilter = ColorFilter.colorMatrix(colorMatrix),
-                                        modifier = rightEyeModifier
-                                    )
-                                }
-
-                                rightEye.pupil?.let { pupilImageName ->
-                                    val rightEyePupilImageUrl =
-                                        when {
-                                            operatingMode == OperatingMode.ONLINE ->
-                                                "http://$serverIp:$SERVER_PORT/uploads/$pupilImageName"
-                                            else -> "file://$uploadsDir/$pupilImageName"
-                                        }
-                                    val rightEyePupilImage = rememberImageFromUrl(rightEyePupilImageUrl)
-
-                                    var pupilModifier = rightEyeModifier
-                                    if (finalFocusPointInImage != null && rightEyePupilImage != null) {
-                                        val angle = atan2(
-                                            finalFocusPointInImage.y - rightEye.position.y + jitter.y,
-                                            finalFocusPointInImage.x - rightEye.position.x + jitter.x
-                                        )
-                                        val x =
-                                            rightEye.position.x + cos(angle) * (rightEye.maxPupilRadiusX * rightEye.scale)
-                                        val y =
-                                            rightEye.position.y + sin(angle) * (rightEye.maxPupilRadiusY * rightEye.scale)
-
-                                        pupilModifier = Modifier.offset(
-                                            x = (x * imageScaleFactor).dp,
-                                            y = (y * imageScaleFactor).dp
-                                        )
-                                            .graphicsLayer(
-                                                scaleX = rightEye.scale * imageScaleFactor,
-                                                scaleY = rightEye.scale * imageScaleFactor,
-                                                transformOrigin = TransformOrigin(0f, 0f)
-                                            )
-                                    }
-
-                                    if (rightEyePupilImage != null) {
-                                        Image(
-                                            bitmap = rightEyePupilImage,
-                                            contentDescription = "Right Eye Pupil",
-                                            colorFilter = ColorFilter.colorMatrix(colorMatrix),
-                                            modifier = pupilModifier
-                                        )
-                                    }
-                                }
-                            }
                         }
+
+                        Image(bitmap = pupilBitmap, contentDescription = "Right Pupil", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = pupilModifier)
                     }
                 }
             }

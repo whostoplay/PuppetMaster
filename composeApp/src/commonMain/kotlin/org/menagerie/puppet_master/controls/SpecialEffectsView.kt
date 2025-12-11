@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
@@ -40,15 +41,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetCharacter
-import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SpecialEffect
 import org.menagerie.puppet_master.SpecialEffectsManager
 import org.menagerie.puppet_master.previews.EffectPreview
 import org.menagerie.puppet_master.previews.LivePreview
+import org.menagerie.puppet_master.rememberImageFromUrl
 
 @Composable
 fun SpecialEffectsUI(
@@ -80,7 +80,6 @@ fun SpecialEffectsUI(
     var showScaleDetails by remember { mutableStateOf(false) }
     var showVibrationDetails by remember { mutableStateOf(false) }
     var showGlowColorPicker by remember { mutableStateOf(false) }
-    var pointerPosition by remember { mutableStateOf<Offset?>(null) }
 
     LaunchedEffect(activeEffect) {
         activeEffect?.let {
@@ -101,6 +100,11 @@ fun SpecialEffectsUI(
         activePuppet?.states?.find { it.name == "idle" }
     }
 
+    val idleImageUrl = remember(idleState, uploadsDir) {
+        idleState?.imageName?.let { "file://$uploadsDir/$it" }
+    }
+    val idleImageBitmap = idleImageUrl?.let { rememberImageFromUrl(it) }
+
     EffectPreview(show = showPreview, onDismissRequest = { showPreview = false }) {
         if (idleState != null) {
             val previewEffect = remember(vibrationDistance, vibrationSpeed, glowIntensity, glowColor, scaleX, scaleY, scaleSpeed, spinSpeed, spinDirection) {
@@ -120,19 +124,24 @@ fun SpecialEffectsUI(
             val activePreviewEffect = remember(previewEffect) {
                 ActiveSpecialEffect(previewEffect)
             }
-            Box(Modifier.height(300.dp).fillMaxWidth()) {
-                LivePreview(
-                    operatingMode = OperatingMode.OFFLINE,
-                    puppetState = idleState,
-                    isBlinking = false,
-                    uploadsDir = uploadsDir,
-                    backgroundColor = Color.Green,
-                    serverIp = "",
-                    activeSpecialEffect = activePreviewEffect,
-                    window = window,
-                    isAudienceCheckForced = false,
-                    displayedImageName = null,
-                )
+            Box(Modifier.height(300.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                if (idleImageBitmap != null) {
+                    LivePreview(
+                        operatingMode = OperatingMode.OFFLINE,
+                        puppetState = idleState,
+                        isBlinking = false,
+                        uploadsDir = uploadsDir,
+                        backgroundColor = Color.Green,
+                        serverIp = "",
+                        activeSpecialEffect = activePreviewEffect,
+                        window = window,
+                        isAudienceCheckForced = false,
+                        displayedImageName = null,
+                        idleImage = idleImageBitmap
+                    )
+                } else {
+                    CircularProgressIndicator()
+                }
             }
         }
     }
@@ -277,38 +286,39 @@ fun SpecialEffectsUI(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Spin Direction")
-                IconButton(onClick = { spinDirection *= -1 }) {
-                    Icon(if (spinDirection > 0) Icons.AutoMirrored.Filled.ArrowForward else Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Toggle Spin Direction")
-                }
+                Checkbox(
+                    checked = spinDirection == 1,
+                    onCheckedChange = { spinDirection = if (it) 1 else -1 }
+                )
+                Text("Spin Clockwise")
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Button(
-                    onClick = {
-                        val updatedEffect = effect.copy(
-                            name = effectName,
-                            vibrationDistance = vibrationDistance,
-                            vibrationSpeed = vibrationSpeed,
-                            glowIntensity = glowIntensity,
-                            glowColor = glowColor.toArgb(),
-                            scaleX = scaleX,
-                            scaleY = scaleY,
-                            scaleSpeed = scaleSpeed,
-                            spinSpeed = spinSpeed,
-                            spinDirection = spinDirection
-                        )
-                        onSpecialEffectsManagerChanged(specialEffectsManager.updateEffect(specialEffectsManager.activeEffectIndex, updatedEffect))
-                        isEditingName = false
-                        onSaveEffect()
-                    }
-                ) {
-                    Text("Save Effect")
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = preserveState, onCheckedChange = onPreserveStateChanged)
-                    Text("Preserve on change")
-                }
+            Button(onClick = {
+                val updatedEffect = effect.copy(
+                    name = effectName,
+                    vibrationDistance = vibrationDistance,
+                    vibrationSpeed = vibrationSpeed,
+                    glowIntensity = glowIntensity,
+                    glowColor = glowColor.toArgb(),
+                    scaleX = scaleX,
+                    scaleY = scaleY,
+                    scaleSpeed = scaleSpeed,
+                    spinSpeed = spinSpeed,
+                    spinDirection = spinDirection
+                )
+                onSpecialEffectsManagerChanged(
+                    specialEffectsManager.updateEffect(
+                        specialEffectsManager.activeEffectIndex,
+                        updatedEffect
+                    )
+                )
+                onSaveEffect()
+            }) { Text("Save Changes") }
+        } ?: run {
+            if (specialEffectsManager.effects.isNotEmpty()) {
+                Text("No active effect selected.")
+            } else {
+                Text("No special effects have been created.")
             }
         }
     }

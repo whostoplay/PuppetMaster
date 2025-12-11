@@ -27,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -116,6 +117,16 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val isHoveringOn = remember { mutableStateMapOf<String, Boolean>() }
     val isHoveringOnControls = isHoveringOn.values.any { it }
     val controlsAlpha by animateFloatAsState(if (showControls || controlsLocked) 1f else 0f)
+
+    var idleImageData by remember { mutableStateOf<ByteArray?>(null) }
+
+    LaunchedEffect(activePuppet) {
+        val idleState = activePuppet?.states?.find { it.name == "idle" } ?: activePuppet?.states?.firstOrNull()
+        if (idleState != null) {
+            idleImageData = viewModel.getImageData(idleState.imageName)
+        }
+    }
+    val idleImage = idleImageData?.toImageBitmap()
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -229,19 +240,26 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
         var leftPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
         var rightPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
 
-        key(activeState, isBlinking, activeSpecialEffect) {
-            LivePreview(
-                operatingMode = operatingMode,
-                puppetState = activeState,
-                isBlinking = isBlinking,
-                uploadsDir = viewModel.uploadsDir,
-                backgroundColor = uiState.backgroundColor,
-                serverIp = settings.serverIpAddress,
-                activeSpecialEffect = activeSpecialEffect,
-                window = window,
-                isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
-                displayedImageName = displayedImageName
-            )
+        if (idleImage != null) {
+            key(activeState, isBlinking, activeSpecialEffect) {
+                LivePreview(
+                    operatingMode = operatingMode,
+                    puppetState = activeState,
+                    isBlinking = isBlinking,
+                    uploadsDir = viewModel.uploadsDir,
+                    backgroundColor = uiState.backgroundColor,
+                    serverIp = settings.serverIpAddress,
+                    activeSpecialEffect = activeSpecialEffect,
+                    window = window,
+                    isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
+                    displayedImageName = displayedImageName,
+                    idleImage = idleImage
+                )
+            }
+        } else {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
         }
 
         Box(modifier = Modifier.graphicsLayer(alpha = controlsAlpha).fillMaxSize()) {

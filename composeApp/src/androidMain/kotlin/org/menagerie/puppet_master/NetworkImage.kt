@@ -1,19 +1,16 @@
 package org.menagerie.puppet_master
 
-import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import io.ktor.client.*
-import io.ktor.client.call.*
-import io.ktor.client.request.*
-import io.ktor.http.*
-import java.io.File
-
-private val httpClient = HttpClient()
+import com.seiko.imageloader.LocalImageLoader
+import com.seiko.imageloader.model.ImageRequest
+import com.seiko.imageloader.model.ImageResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * A composable that remembers and loads an image from a network URL or a local file.
@@ -24,26 +21,31 @@ private val httpClient = HttpClient()
  */
 @Composable
 actual fun rememberImageFromUrl(url: String): ImageBitmap? {
-    val imageBitmap = remember { mutableStateOf<ImageBitmap?>(null) }
+    val imageLoader = LocalImageLoader.current
 
-    LaunchedEffect(url) {
-        if (url.isNotBlank()) {
-            imageBitmap.value = try {
-                val bytes = if (Url(url).protocol.name == "file") {
-                    val path = url.removePrefix("file://")
-                    File(path).takeIf { it.exists() }?.readBytes()
-                } else {
-                    httpClient.get(url).body()
+    val imageBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
+        value = if (url.isNotBlank()) {
+            withContext(Dispatchers.IO) {
+                val request = ImageRequest(url)
+                try {
+                    when (val result = imageLoader.execute(request)) {
+                        is ImageResult.Bitmap -> {
+                            result.bitmap.asImageBitmap()
+                        }
+                        is ImageResult.Image -> {
+                            (result.image as? BitmapDrawable)?.bitmap?.asImageBitmap()
+                        }
+                        else -> null
+                    }
+                } catch (e: Exception) {
+                    println("Error loading image from url: $url, error: ${e.message}")
+                    null
                 }
-                bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size).asImageBitmap() }
-            } catch (e: Exception) {
-                println("Error loading image from url: $url, error: ${e.message}")
-                null
             }
         } else {
-            imageBitmap.value = null
+            null
         }
     }
 
-    return imageBitmap.value
+    return imageBitmap
 }
