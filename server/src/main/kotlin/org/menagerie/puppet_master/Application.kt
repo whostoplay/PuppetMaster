@@ -22,6 +22,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
+import java.util.zip.ZipInputStream
 import kotlin.time.Duration.Companion.seconds
 
 fun main() {
@@ -32,7 +33,7 @@ fun main() {
 fun Application.module() {
     val troupeManager = TroupeManager()
     val stateManager = PuppetStateManager(this, troupeManager)
-    val jsonDecoder = Json { ignoreUnknownKeys = true }
+    val jsonDecoder = Json { ignoreUnknownKeys = true; allowStructuredMapKeys = true }
 
     install(CORS) {
         anyHost()
@@ -40,7 +41,7 @@ fun Application.module() {
     }
 
     install(ContentNegotiation) {
-        json(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true })
+        json(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true })
     }
     install(WebSockets) {
         pingPeriod = 15.seconds
@@ -65,13 +66,54 @@ fun Application.module() {
         }
 
         post("/upload") {
+            println("Received upload request")
             val multipart = call.receiveMultipart()
             var fileName = ""
+            var troupeJsonFile: File? = null
             multipart.forEachPart { part ->
                 if (part is PartData.FileItem) {
                     fileName = part.originalFileName as String
+                    println("Processing file: $fileName")
                     val fileBytes = part.provider().readRemaining().readByteArray()
-                    File(uploadsDir, fileName).writeBytes(fileBytes)
+                    if (fileName.endsWith(".troupe") || fileName.endsWith(".puppet")) {
+                        println("Extracting archive: $fileName")
+                        // It's a zip archive, so we need to extract it
+                        ZipInputStream(fileBytes.inputStream()).use { zis ->
+                            var entry = zis.nextEntry
+                            while (entry != null) {
+                                val file = File(uploadsDir, entry.name)
+                                if (entry.isDirectory) {
+                                    file.mkdirs()
+                                } else {
+                                    file.parentFile?.mkdirs()
+                                    file.outputStream().use { fos ->
+                                        zis.copyTo(fos)
+                                    }
+                                    if (file.name == "troupe.json") {
+                                        println("Found troupe.json")
+                                        troupeJsonFile = file
+                                    }
+                                }
+                                entry = zis.nextEntry
+                            }
+                        }
+
+                        if (fileName.endsWith(".troupe")) {
+                            troupeJsonFile?.let {
+                                if (it.exists()) {
+                                    println("Updating troupe from troupe.json")
+                                    val troupe = jsonDecoder.decodeFromString(PuppetTroupe.serializer(), it.readText())
+                                    troupeManager.updateTroupe(troupe)
+                                    stateManager.onTroupeUpdated()
+                                    println("Troupe updated successfully")
+                                }
+                            }
+                        }
+                    } else {
+                        println("Saving single file: $fileName")
+                        // It's a single file, so we just write it
+                        File(uploadsDir, fileName).writeBytes(fileBytes)
+                    }
                 }
                 part.dispose()
             }
@@ -88,6 +130,7 @@ fun Application.module() {
                             val position = jsonDecoder.decodeFromJsonElement(MousePosition.serializer(), jsonElement)
                             stateManager.onMousePositionChanged(position)
                         }
+
                         "calibration" -> {
                             val calibrationData = jsonDecoder.decodeFromJsonElement(CalibrationData.serializer(), jsonElement)
                             stateManager.onCalibrationReceived(calibrationData)
@@ -136,7 +179,8 @@ fun Application.module() {
             stateManager.obsConnectionCount++
             try {
                 stateManager.stateToSend.collectLatest { state ->
-                    val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true }
+                    println("Sending state to OBS: $state")
+                    val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true }
                     send(Frame.Text(json.encodeToString(state)))
                 }
             } finally {

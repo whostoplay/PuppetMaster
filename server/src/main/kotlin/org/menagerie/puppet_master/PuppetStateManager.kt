@@ -38,7 +38,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
                 // Manage special effect
                 val newEffect = state?.appliedEffect
                 if (newEffect != activeSpecialEffect?.effect) {
-                    updateSpecialEffect(newEffect)
+                    updateSpecialEffect(state)
                 }
 
                 // Update state and start blinking if needed
@@ -50,16 +50,16 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
     }
 
     // Manages the animation loop based on an effect.
-    private fun updateSpecialEffect(newEffect: SpecialEffect?, startTime: Long? = null) {
+    private fun updateSpecialEffect(state: PuppetStateInfo?, startTime: Long? = null) {
         animationJob?.cancel()
 
-        activeSpecialEffect = newEffect?.let { ActiveSpecialEffect(it, startTime ?: System.currentTimeMillis()) }
+        activeSpecialEffect = state?.appliedEffect?.let { ActiveSpecialEffect(it, startTime ?: System.currentTimeMillis()) }
 
         if (activeSpecialEffect != null) {
             animationJob = scope.launch {
                 while (true) {
                     val animationState = calculateAnimationState()
-                    updateStateToSend(_stateToSend.value?.puppetStateInfo, animationState)
+                    updateStateToSend(state, animationState)
                     delay(16) // roughly 60 fps
                 }
             }
@@ -168,7 +168,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         val stateInfo = receivedState.puppetStateInfo
         if (stateInfo != null) {
             if (stateInfo.appliedEffect != activeSpecialEffect?.effect) {
-                updateSpecialEffect(stateInfo.appliedEffect, receivedState.effectStartTime)
+                updateSpecialEffect(stateInfo, receivedState.effectStartTime)
             }
             updateStateAndBlinking(stateInfo)
         }
@@ -184,19 +184,19 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
             if (newState != null) {
                 val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "type" }
                 onClientSentState(json.encodeToString(ServerState(newState)))
+            } else {
+                onClientDisconnected()
             }
         } else {
-            // If in headless mode, find the new version of the current state and trigger the collector
-            val currentStateName = _activeState.value?.name
-            _activeState.value = troupeManager.activePuppet?.states?.find { it.name == currentStateName }
-                ?: troupeManager.activePuppet?.states?.find { it.name == "idle" }
+            // If in headless mode, reset to the new troupe's idle state.
+            _activeState.value = troupeManager.activePuppet?.states?.find { it.name == "idle" }
         }
     }
 
     fun onClientDisconnected() {
         manualControlActive = false
-        // Headless mode should take over from the last state the client sent
-        _activeState.value = _stateToSend.value?.puppetStateInfo
+        // Headless mode should take over, reset to idle.
+        _activeState.value = troupeManager.activePuppet?.states?.find { it.name == "idle" }
     }
 
     private fun returnToIdle() {

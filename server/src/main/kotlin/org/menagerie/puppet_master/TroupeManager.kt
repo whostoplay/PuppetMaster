@@ -10,8 +10,10 @@ class TroupeManager {
         isLenient = true
         ignoreUnknownKeys = true
         encodeDefaults = true
+        allowStructuredMapKeys = true
     }
-    private val troupeFile = File("troupe.json")
+    private val troupeDir = File("uploads").apply { mkdirs() }
+    private val troupeFile = File(troupeDir, "troupe.json")
 
     var troupe: PuppetTroupe? = null
         private set
@@ -33,6 +35,7 @@ class TroupeManager {
             return try {
                 json.decodeFromString(PuppetTroupe.serializer(), troupeFile.readText())
             } catch (e: Exception) {
+                e.printStackTrace()
                 null
             }
         }
