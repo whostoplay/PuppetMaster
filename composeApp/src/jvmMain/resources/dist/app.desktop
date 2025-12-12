@@ -1,0 +1,7 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Puppet Master
+Comment=Remote control application
+Exec=puppet-master
+Terminal=false

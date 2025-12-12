@@ -94,8 +94,23 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "org.menagerie.puppet_master"
+            packageName = "puppet-master"
             packageVersion = "1.0.0"
+
+            linux {
+                packageName = "puppet-master"
+                // This points to our custom resources, including the .desktop file
+                // which defines the application name for the Linux app menu.
+                appResourcesRootDir.set(project.layout.projectDirectory.dir("src/jvmMain/resources/dist"))
+            }
+
+            macOS {
+                packageName = "Puppet Master"
+            }
+
+            windows {
+                menuGroup = "Puppet Master"
+            }
         }
     }
 }
