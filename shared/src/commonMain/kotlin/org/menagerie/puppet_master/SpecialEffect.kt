@@ -7,7 +7,7 @@ data class SpecialEffect(
     val name: String = "New Effect",
     val vibrationDistance: Float = 0f,
     val vibrationSpeed: Float = 0f,
-    val glowIntensity: Float? = null,
+    val glowIntensity: Float? = 1f,
     val glowColor: Int? = null,
     val scaleX: Float = 1f,
     val scaleY: Float = 1f,

@@ -23,12 +23,14 @@ data class PuppetCharacter(
 /**
  * Represents a troupe of puppet characters.
  *
+ * @property name The user-facing name of the troupe.
  * @property activePuppetName The name of the currently active puppet character.
  * @property puppets A list of all puppet characters in the troupe.
  * @property specialEffectsManager The manager for all special effects in the troupe.
  */
 @Serializable
 data class PuppetTroupe(
+    val name: String,
     val activePuppetName: String, 
     val puppets: List<PuppetCharacter>,
     val specialEffectsManager: SpecialEffectsManager

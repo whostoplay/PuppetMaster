@@ -306,8 +306,12 @@ class MainViewModel(context: Any) : ScreenModel {
         dataManager.setActivePuppet(name)
     }
 
-    fun createNewPuppet(name: String) {
-        dataManager.createNewPuppet(name)
+    fun createNewPuppet(name: String, troupeName: String? = null) {
+        dataManager.createNewPuppet(name, troupeName)
+    }
+
+    fun createNewTroupe() {
+        dataManager.createNewTroupe()
     }
 
     fun setPublishing(isPublishing: Boolean) {
@@ -502,6 +506,26 @@ class MainViewModel(context: Any) : ScreenModel {
 
     fun onPreserveStateChanged(preserveState: Boolean) {
         _uiState.value = _uiState.value.copy(preserveState = preserveState)
+    }
+
+    fun renameTroupe(newName: String) {
+        dataManager.renameTroupe(newName)
+    }
+
+    fun loadTroupeFromFile(filePath: String) {
+        dataManager.loadTroupeFromFile(filePath)
+    }
+
+    fun exportPuppet(puppetName: String, exportPath: String) {
+        dataManager.exportPuppet(puppetName, exportPath)
+    }
+
+    fun importPuppet(filePath: String, newTroupeName: String? = null) {
+        dataManager.importPuppet(filePath, newTroupeName)
+    }
+
+    fun saveTroupeAs(filePath: String) {
+        dataManager.saveTroupeAs(filePath)
     }
 
     private fun persistThresholds() {

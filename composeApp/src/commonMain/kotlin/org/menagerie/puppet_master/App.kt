@@ -63,6 +63,8 @@ import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.ControlDrawer
 import org.menagerie.puppet_master.controls.DraggableSplitter
+import org.menagerie.puppet_master.controls.FilePicker
+import org.menagerie.puppet_master.controls.FileSaver
 import org.menagerie.puppet_master.controls.ModeControls
 import org.menagerie.puppet_master.controls.PuppetControls
 import org.menagerie.puppet_master.controls.ServerControls
@@ -119,6 +121,31 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val controlsAlpha by animateFloatAsState(if (showControls || controlsLocked) 1f else 0f)
 
     var idleImageData by remember { mutableStateOf<ByteArray?>(null) }
+
+    var showPuppetImportPicker by remember { mutableStateOf(false) }
+    var showTroupeLoadPicker by remember { mutableStateOf(false) }
+    var showPuppetExportSaver by remember { mutableStateOf(false) }
+
+    FilePicker(show = showPuppetImportPicker, fileExtensions = listOf("puppet")) { filePath ->
+        if (filePath != null) {
+            viewModel.importPuppet(filePath)
+        }
+        showPuppetImportPicker = false
+    }
+
+    FilePicker(show = showTroupeLoadPicker, fileExtensions = listOf("troupe")) { filePath ->
+        if (filePath != null) {
+            viewModel.loadTroupeFromFile(filePath)
+        }
+        showTroupeLoadPicker = false
+    }
+
+    FileSaver(show = showPuppetExportSaver, defaultFileName = "${activePuppet?.name}.puppet", fileExtensions = listOf("puppet")) { filePath ->
+        if (filePath != null) {
+            activePuppet?.let { viewModel.exportPuppet(it.name, filePath) }
+        }
+        showPuppetExportSaver = false
+    }
 
     LaunchedEffect(activePuppet) {
         val idleState = activePuppet?.states?.find { it.name == "idle" } ?: activePuppet?.states?.firstOrNull()
@@ -258,7 +285,11 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             }
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                if (troupe == null) {
+                    Text("Create a puppet or load a troupe to get started.")
+                } else {
+                    CircularProgressIndicator()
+                }
             }
         }
 
@@ -278,10 +309,15 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 .onHover { isHoveringOn["leftPanel"] = it }
                         ) {
                             PuppetControls(
-                                troupe,
-                                activePuppet,
-                                viewModel::setActivePuppet,
-                                viewModel::createNewPuppet
+                                troupe = troupe,
+                                activePuppet = activePuppet,
+                                onPuppetSelected = viewModel::setActivePuppet,
+                                onPuppetCreated = viewModel::createNewPuppet,
+                                onImportPuppet = { showPuppetImportPicker = true },
+                                onExportPuppet = { showPuppetExportSaver = true },
+                                onRenameTroupe = viewModel::renameTroupe,
+                                onLoadTroupe = { showTroupeLoadPicker = true },
+                                onNewTroupeCreated = viewModel::createNewTroupe
                             )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ModeControls(operatingMode, viewModel::setOperatingMode)
@@ -442,10 +478,15 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                         modifier = Modifier.fillMaxWidth().padding(16.dp)
                     ) {
                         PuppetControls(
-                            troupe,
-                            activePuppet,
-                            viewModel::setActivePuppet,
-                            viewModel::createNewPuppet
+                            troupe = troupe,
+                            activePuppet = activePuppet,
+                            onPuppetSelected = viewModel::setActivePuppet,
+                            onPuppetCreated = viewModel::createNewPuppet,
+                            onImportPuppet = { showPuppetImportPicker = true },
+                            onExportPuppet = { showPuppetExportSaver = true },
+                            onRenameTroupe = viewModel::renameTroupe,
+                            onLoadTroupe = { showTroupeLoadPicker = true },
+                            onNewTroupeCreated = viewModel::createNewTroupe
                         )
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ModeControls(operatingMode, viewModel::setOperatingMode)
@@ -511,7 +552,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         .clickable { viewModel.selectState(state) }
                                         .background(if (state == selectedState) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                                         .padding(8.dp)
-                                )
+                                    )
                             }
                             item {
                                 selectedState?.let { state ->

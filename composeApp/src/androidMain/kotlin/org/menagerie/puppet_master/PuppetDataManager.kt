@@ -15,9 +15,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
 
 actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, private val context: Any) {
 
@@ -27,7 +32,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true }) }
     }
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true; allowStructuredMapKeys = true }
-    private val localTroupeFile = File(uploadsDir, "local_troupe.json")
+    private val settingsRepository = SettingsRepository(context)
 
     private val _troupe = MutableStateFlow<PuppetTroupe?>(null)
     actual val troupe: StateFlow<PuppetTroupe?> = _troupe
@@ -39,7 +44,20 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
     init {
         scope.launch {
-            val localTroupe = loadLocalTroupe()
+            val settings = settingsRepository.loadSettings()
+            val troupeFile = settings.lastTroupeFile?.let { File(it) }
+
+            val localTroupe = if (troupeFile?.exists() == true) {
+                loadTroupeFromFile(troupeFile.absolutePath)
+            } else {
+                val mostRecentTroupe = (context as Context).filesDir.listFiles { _, name -> name.endsWith(".troupe") }?.maxByOrNull { it.lastModified() }
+                if (mostRecentTroupe != null) {
+                    loadTroupeFromFile(mostRecentTroupe.absolutePath)
+                } else {
+                    null
+                }
+            }
+
             if (localTroupe != null) {
                 _troupe.value = localTroupe
                 _activePuppet.value = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
@@ -68,9 +86,8 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     }
 
     actual fun saveTroupe(troupe: PuppetTroupe) {
-        // Create a new list of new puppet/state objects to ensure StateFlow emits the update
         val newPuppets = troupe.puppets.map { puppet ->
-            val newStates = puppet.states.map { state -> state.copy() }
+            val newStates = puppet.states.map { it.copy() }
             puppet.copy(states = newStates)
         }
         val newSpecialEffectsManager = troupe.specialEffectsManager.copy(
@@ -79,9 +96,186 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         val newTroupe = troupe.copy(puppets = newPuppets, specialEffectsManager = newSpecialEffectsManager)
         _troupe.value = newTroupe
         _activePuppet.value = newTroupe.puppets.find { it.name == newTroupe.activePuppetName }
-        saveLocalTroupe(newTroupe)
+
+        val troupeFile = settingsRepository.loadSettings().lastTroupeFile?.let { File(it) } ?: File((context as Context).filesDir, "${newTroupe.name}.troupe")
+        saveTroupeAs(troupeFile.absolutePath)
+
         if (operatingMode == OperatingMode.ONLINE) {
-            publishTroupe(SettingsRepository(context as Context).loadSettings().serverIpAddress)
+            publishTroupe(settingsRepository.loadSettings().serverIpAddress)
+        }
+    }
+
+    actual fun saveTroupeAs(filePath: String) {
+        _troupe.value?.let { troupe ->
+            val imageNames = troupe.puppets.flatMap { puppet ->
+                puppet.states.flatMap { state ->
+                    listOfNotNull(state.imageName, state.blinkImageName) + (state.eyeState?.let {
+                        listOfNotNull(
+                            it.eyes.left.openState, it.eyes.left.closedState, it.eyes.left.pupil,
+                            it.eyes.right.openState, it.eyes.right.closedState, it.eyes.right.pupil
+                        )
+                    } ?: emptyList())
+                }
+            }.toSet()
+
+            val file = File(filePath)
+            FileOutputStream(file).use { fos ->
+                ZipOutputStream(fos).use { zos ->
+                    val troupeJson = json.encodeToString(troupe)
+                    val troupeEntry = ZipEntry("troupe.json")
+                    zos.putNextEntry(troupeEntry)
+                    zos.write(troupeJson.toByteArray())
+                    zos.closeEntry()
+
+                    val imagesDirEntry = ZipEntry("images/")
+                    zos.putNextEntry(imagesDirEntry)
+                    zos.closeEntry()
+
+                    imageNames.forEach { imageName ->
+                        val imageFile = File(uploadsDir, imageName)
+                        if (imageFile.exists()) {
+                            FileInputStream(imageFile).use { fis ->
+                                val imageEntry = ZipEntry("images/$imageName")
+                                zos.putNextEntry(imageEntry)
+                                fis.copyTo(zos)
+                                zos.closeEntry()
+                            }
+                        }
+                    }
+                }
+            }
+            val settings = settingsRepository.loadSettings().copy(lastTroupeFile = file.absolutePath)
+            settingsRepository.saveSettings(settings)
+        }
+    }
+
+    actual fun loadTroupeFromFile(filePath: String): PuppetTroupe? {
+        val file = File(filePath)
+        if (!file.exists()) return null
+        try {
+            ZipInputStream(FileInputStream(file)).use { zis ->
+                var entry = zis.nextEntry
+                var troupe: PuppetTroupe? = null
+                while (entry != null) {
+                    when (entry.name) {
+                        "troupe.json" -> {
+                            troupe = json.decodeFromString<PuppetTroupe>(zis.readBytes().decodeToString())
+                        }
+                        else -> {
+                            if (entry.name.startsWith("images/")) {
+                                val imageName = entry.name.substringAfter("images/")
+                                if (imageName.isNotEmpty()) {
+                                    val imageFile = File(uploadsDir, imageName)
+                                    FileOutputStream(imageFile).use {
+                                        zis.copyTo(it)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    entry = zis.nextEntry
+                }
+                _troupe.value = troupe
+                _activePuppet.value = troupe?.puppets?.find { p -> p.name == troupe.activePuppetName }
+                val settings = settingsRepository.loadSettings().copy(lastTroupeFile = file.absolutePath)
+                settingsRepository.saveSettings(settings)
+                return troupe
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
+    }
+
+    actual fun importPuppet(filePath: String, newTroupeName: String?) {
+        val file = File(filePath)
+        if (!file.exists() || !file.name.endsWith(".puppet")) return
+        try {
+            ZipInputStream(FileInputStream(file)).use { zis ->
+                var entry = zis.nextEntry
+                while (entry != null) {
+                    when (entry.name) {
+                        "puppet.json" -> {
+                            val puppet = json.decodeFromString<PuppetCharacter>(zis.readBytes().decodeToString())
+                            val currentTroupe = _troupe.value
+                            if (currentTroupe != null) {
+                                val newPuppets = currentTroupe.puppets.filter { p -> p.name != puppet.name } + puppet
+                                val newTroupe = currentTroupe.copy(puppets = newPuppets)
+                                saveTroupe(newTroupe)
+                            } else if (newTroupeName != null) {
+                                createNewPuppet(puppet.name, newTroupeName)
+                            }
+                        }
+                        else -> {
+                            if (entry.name.startsWith("images/")) {
+                                val imageName = entry.name.substringAfter("images/")
+                                if (imageName.isNotEmpty()) {
+                                    val imageFile = File(uploadsDir, imageName)
+                                    FileOutputStream(imageFile).use {
+                                        zis.copyTo(it)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    entry = zis.nextEntry
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    actual fun exportPuppet(puppetName: String, exportPath: String) {
+        _troupe.value?.puppets?.find { it.name == puppetName }?.let { puppet ->
+            val imageNames = puppet.states.flatMap { state ->
+                listOfNotNull(state.imageName, state.blinkImageName) + (state.eyeState?.let {
+                    listOfNotNull(
+                        it.eyes.left.openState, it.eyes.left.closedState, it.eyes.left.pupil,
+                        it.eyes.right.openState, it.eyes.right.closedState, it.eyes.right.pupil
+                    )
+                } ?: emptyList())
+            }.toSet()
+
+            val file = File(exportPath)
+            FileOutputStream(file).use { fos ->
+                ZipOutputStream(fos).use { zos ->
+                    val puppetJson = json.encodeToString(puppet)
+                    val puppetEntry = ZipEntry("puppet.json")
+                    zos.putNextEntry(puppetEntry)
+                    zos.write(puppetJson.toByteArray())
+                    zos.closeEntry()
+
+                    val imagesDirEntry = ZipEntry("images/")
+                    zos.putNextEntry(imagesDirEntry)
+                    zos.closeEntry()
+
+                    imageNames.forEach { imageName ->
+                        val imageFile = File(uploadsDir, imageName)
+                        if (imageFile.exists()) {
+                            FileInputStream(imageFile).use { fis ->
+                                val imageEntry = ZipEntry("images/$imageName")
+                                zos.putNextEntry(imageEntry)
+                                fis.copyTo(zos)
+                                zos.closeEntry()
+                            }
+                        }
+                    }
+                }
+            }
+            val settings = settingsRepository.loadSettings().copy(lastPuppetExportFolder = (context as Context).filesDir.absolutePath)
+            settingsRepository.saveSettings(settings)
+        }
+    }
+
+    actual fun renameTroupe(newName: String) {
+        _troupe.value?.let { currentTroupe ->
+            val newTroupe = currentTroupe.copy(name = newName)
+            val oldFile = settingsRepository.loadSettings().lastTroupeFile?.let { File(it) }
+            if (oldFile?.exists() == true) {
+                oldFile.delete()
+            }
+            saveTroupe(newTroupe)
         }
     }
 
@@ -116,7 +310,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
                     _troupe.value = serverTroupe
                     _activePuppet.value = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
-                    saveLocalTroupe(serverTroupe)
+                    saveTroupe(serverTroupe)
                 }
             } catch (_: Exception) {
                 // Handle error
@@ -129,24 +323,38 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             val newTroupe = currentTroupe.copy(activePuppetName = name)
             _troupe.value = newTroupe
             _activePuppet.value = newTroupe.puppets.find { it.name == name }
-            saveLocalTroupe(newTroupe)
+            saveTroupe(newTroupe)
         }
     }
 
-    actual fun createNewPuppet(name: String) {
+    actual fun createNewPuppet(name: String, troupeName: String?) {
         if (_troupe.value?.puppets?.any { it.name == name } == true) return
 
         val newPuppet = PuppetCharacter(name, System.currentTimeMillis(), emptyList())
-        val currentTroupe = _troupe.value ?: PuppetTroupe(activePuppetName = "", puppets = emptyList(), specialEffectsManager = SpecialEffectsManager())
+        val currentTroupe = _troupe.value
 
-        val newTroupe = currentTroupe.copy(
-            puppets = currentTroupe.puppets + newPuppet,
-            activePuppetName = name
-        )
+        val newTroupe = if (currentTroupe == null) {
+            val troupe = PuppetTroupe(troupeName!!, name, listOf(newPuppet), SpecialEffectsManager())
+            val troupeFile = File((context as Context).filesDir, "$troupeName.troupe")
+            saveTroupeAs(troupeFile.absolutePath)
+            troupe
+        } else {
+            currentTroupe.copy(
+                puppets = currentTroupe.puppets + newPuppet,
+                activePuppetName = name
+            )
+        }
 
         _troupe.value = newTroupe
         _activePuppet.value = newPuppet
-        saveLocalTroupe(newTroupe)
+        saveTroupe(newTroupe)
+    }
+
+    actual fun createNewTroupe() {
+        _troupe.value = null
+        _activePuppet.value = null
+        val settings = settingsRepository.loadSettings().copy(lastTroupeFile = null)
+        settingsRepository.saveSettings(settings)
     }
 
     actual fun createNewState(
@@ -180,15 +388,6 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             val newTroupe = troupe.copy(puppets = newPuppets)
             saveTroupe(newTroupe)
         }
-    }
-
-    private fun loadLocalTroupe(): PuppetTroupe? = try {
-        if (!localTroupeFile.exists()) null
-        else json.decodeFromString(localTroupeFile.readText())
-    } catch (_: Exception) { null }
-
-    private fun saveLocalTroupe(troupe: PuppetTroupe) {
-        localTroupeFile.writeText(json.encodeToString(troupe))
     }
 
     actual fun publishTroupe(serverIp: String) {

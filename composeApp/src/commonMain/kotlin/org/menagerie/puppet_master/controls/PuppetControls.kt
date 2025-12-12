@@ -2,6 +2,7 @@ package org.menagerie.puppet_master.controls
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
@@ -31,10 +32,39 @@ fun PuppetControls(
     troupe: PuppetTroupe?,
     activePuppet: PuppetCharacter?,
     onPuppetSelected: (String) -> Unit,
-    onPuppetCreated: (String) -> Unit
+    onPuppetCreated: (newPuppetName: String, newTroupeName: String?) -> Unit,
+    onImportPuppet: () -> Unit,
+    onExportPuppet: (puppetName: String) -> Unit,
+    onRenameTroupe: (newName: String) -> Unit,
+    onLoadTroupe: () -> Unit,
+    onNewTroupeCreated: () -> Unit
 ) {
     var newPuppetName by remember { mutableStateOf("") }
     var puppetExpanded by remember { mutableStateOf(false) }
+    var showNameTroupeDialog by remember { mutableStateOf(false) }
+    var showRenameTroupeDialog by remember { mutableStateOf(false) }
+
+    if (showNameTroupeDialog) {
+        NameTroupeDialog(
+            onConfirm = {
+                onPuppetCreated(newPuppetName, it)
+                newPuppetName = ""
+                showNameTroupeDialog = false
+            },
+            onDismiss = { showNameTroupeDialog = false }
+        )
+    }
+
+    if (showRenameTroupeDialog) {
+        RenameTroupeDialog(
+            currentName = troupe?.name ?: "",
+            onConfirm = {
+                onRenameTroupe(it)
+                showRenameTroupeDialog = false
+            },
+            onDismiss = { showRenameTroupeDialog = false }
+        )
+    }
 
     Column(
         modifier = Modifier.fillMaxWidth().padding(8.dp),
@@ -43,7 +73,7 @@ fun PuppetControls(
     ) {
         ExposedDropdownMenuBox(expanded = puppetExpanded, onExpandedChange = { puppetExpanded = !puppetExpanded }, modifier = Modifier.fillMaxWidth()) {
             TextField(
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth(),
                 value = activePuppet?.name ?: "", onValueChange = {},
                 label = { Text("Active Puppet") },
                 readOnly = true,
@@ -70,16 +100,51 @@ fun PuppetControls(
             keyboardActions = KeyboardActions(
                 onDone = {
                     if (newPuppetName.isNotBlank()) {
-                        onPuppetCreated(newPuppetName)
-                        newPuppetName = ""
+                        if (troupe?.puppets?.isEmpty() != false) {
+                            showNameTroupeDialog = true
+                        } else {
+                            onPuppetCreated(newPuppetName, null)
+                            newPuppetName = ""
+                        }
                     }
                 }
             )
         )
         Button(
-            onClick = { if (newPuppetName.isNotBlank()) { onPuppetCreated(newPuppetName); newPuppetName = "" } },
+            onClick = { 
+                if (newPuppetName.isNotBlank()) { 
+                    if (troupe?.puppets?.isEmpty() != false) {
+                        showNameTroupeDialog = true
+                    } else {
+                        onPuppetCreated(newPuppetName, null)
+                        newPuppetName = ""
+                    } 
+                }
+             },
         ){
             Text("Create")
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onLoadTroupe) {
+                Text("Load Troupe")
+            }
+            Button(onClick = { showRenameTroupeDialog = true }, enabled = troupe != null) {
+                Text("Rename Troupe")
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onImportPuppet) {
+                Text("Import Puppet")
+            }
+            Button(onClick = { activePuppet?.let { onExportPuppet(it.name) } }, enabled = activePuppet != null) {
+                Text("Export Active Puppet")
+            }
+
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onNewTroupeCreated) {
+                Text("Create New Troupe")
+            }
         }
     }
 }

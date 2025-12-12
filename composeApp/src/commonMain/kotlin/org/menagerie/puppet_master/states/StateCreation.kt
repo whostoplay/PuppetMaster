@@ -1,8 +1,9 @@
 package org.menagerie.puppet_master.states
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,7 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import org.menagerie.puppet_master.ImageFilePicker
+import org.menagerie.puppet_master.ImagePickerDialog
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.toImageBitmap
 
@@ -37,7 +38,7 @@ import org.menagerie.puppet_master.toImageBitmap
  * @param modifier The modifier to be applied to the composable.
  * @param viewModel The view model that this composable will interact with.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun StateCreation(
     modifier: Modifier,
@@ -46,6 +47,54 @@ fun StateCreation(
     val uiState by viewModel.uiState.collectAsState()
     val activePuppet by viewModel.activePuppet.collectAsState()
     val coroutineScope = rememberCoroutineScope()
+    var showFilePicker by remember { mutableStateOf(false) }
+    var pickingFor by remember { mutableStateOf<String?>(null) }
+
+    ImagePickerDialog(
+        show = showFilePicker,
+        title = "Select ${pickingFor ?: "Image(s)"}",
+        multiSelect = pickingFor == null,
+        onCancel = { showFilePicker = false },
+        onResult = { images ->
+            if (images.isNotEmpty()) {
+                when (pickingFor) {
+                    "main" -> {
+                        val (bytes, name) = images.first()
+                        viewModel.onStateCreationChange(
+                            image = bytes,
+                            imageName = name,
+                            blinkImage = uiState.selectedBlinkImage,
+                            blinkImageName = uiState.selectedBlinkImageName,
+                            stateName = uiState.newStateName
+                        )
+                    }
+                    "blink" -> {
+                        val (bytes, name) = images.first()
+                        viewModel.onStateCreationChange(
+                            image = uiState.selectedImage,
+                            imageName = uiState.selectedImageName,
+                            blinkImage = bytes,
+                            blinkImageName = name,
+                            stateName = uiState.newStateName
+                        )
+                    }
+                    else -> { // Default behavior: select both
+                        val mainImage = images.getOrNull(0)
+                        val blinkImage = images.getOrNull(1)
+                        viewModel.onStateCreationChange(
+                            image = mainImage?.first,
+                            imageName = mainImage?.second ?: "",
+                            blinkImage = blinkImage?.first,
+                            blinkImageName = blinkImage?.second ?: "",
+                            stateName = uiState.newStateName
+                        )
+                    }
+                }
+            }
+            showFilePicker = false
+            pickingFor = null
+        }
+    )
 
     Column(modifier = modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Create New State", style = MaterialTheme.typography.titleMedium)
@@ -57,7 +106,18 @@ fun StateCreation(
             uiState.selectedImage?.let {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Main Image")
-                    Image(bitmap = it.toImageBitmap(), contentDescription = "Selected Image", modifier = Modifier.size(100.dp))
+                    Image(
+                        bitmap = it.toImageBitmap(),
+                        contentDescription = "Selected Image",
+                        modifier = Modifier
+                            .size(100.dp)
+                            .combinedClickable(
+                                onDoubleClick = {
+                                    pickingFor = "main"
+                                    showFilePicker = true
+                                }
+                            ) {}
+                    )
                 }
             }
 
@@ -72,16 +132,36 @@ fun StateCreation(
             uiState.selectedBlinkImage?.let {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("Blink Image")
-                    Image(bitmap = it.toImageBitmap(), contentDescription = "Selected Blink Image", modifier = Modifier.size(100.dp))
+                    Image(
+                        bitmap = it.toImageBitmap(),
+                        contentDescription = "Selected Blink Image",
+                        modifier = Modifier
+                            .size(100.dp)
+                            .combinedClickable(
+                                onDoubleClick = {
+                                    pickingFor = "blink"
+                                    showFilePicker = true
+                                }
+                            ) {}
+                    )
                 }
             }
         }
 
-        Box {
-            ImageFilePicker("Select Image(s)") { images ->
-                val mainImage = images.getOrNull(0)
-                val blinkImage = images.getOrNull(1)
-                viewModel.onStateCreationChange(mainImage?.first, mainImage?.second ?: "", blinkImage?.first, blinkImage?.second ?: "", uiState.newStateName)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = {
+                pickingFor = null
+                showFilePicker = true
+            }) {
+                Text("Select Image(s)")
+            }
+            if (uiState.selectedImage != null && uiState.selectedBlinkImage == null) {
+                Button(onClick = {
+                    pickingFor = "blink"
+                    showFilePicker = true
+                }) {
+                    Text("Add Blinking State")
+                }
             }
         }
 
@@ -94,7 +174,16 @@ fun StateCreation(
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
             TextField(
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
-                value = uiState.newStateName, onValueChange = { viewModel.onStateCreationChange(uiState.selectedImage, uiState.selectedImageName, uiState.selectedBlinkImage, uiState.selectedBlinkImageName, it) },
+                value = uiState.newStateName,
+                onValueChange = {
+                    viewModel.onStateCreationChange(
+                        image = uiState.selectedImage,
+                        imageName = uiState.selectedImageName,
+                        blinkImage = uiState.selectedBlinkImage,
+                        blinkImageName = uiState.selectedBlinkImageName,
+                        stateName = it
+                    )
+                },
                 label = { Text("State Name") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
@@ -103,14 +192,14 @@ fun StateCreation(
                 (predefinedStates + customStates).distinct().forEach { selectionOption ->
                     DropdownMenuItem(
                         text = { Text(selectionOption) },
-                        onClick = { 
+                        onClick = {
                             coroutineScope.launch {
                                 val state = activePuppet?.states?.find { it.name == selectionOption }
                                 val mainImage = state?.imageName?.let { viewModel.getImageData(it) }
                                 val blinkImage = state?.blinkImageName?.let { viewModel.getImageData(it) }
                                 viewModel.onStateCreationChange(mainImage, state?.imageName ?: "", blinkImage, state?.blinkImageName ?: "", selectionOption)
                             }
-                            expanded = false 
+                            expanded = false
                         }
                     )
                 }

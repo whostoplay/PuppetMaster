@@ -11,7 +11,7 @@ expect class PuppetDataManager(scope: CoroutineScope, context: Any) {
     fun setOperatingMode(mode: OperatingMode)
     fun connectAndSync(serverIp: String)
     fun setActivePuppet(name: String)
-    fun createNewPuppet(name: String)
+    fun createNewPuppet(name: String, troupeName: String? = null)
     fun createNewState(
         stateName: String,
         imageBytes: ByteArray,
@@ -26,4 +26,10 @@ expect class PuppetDataManager(scope: CoroutineScope, context: Any) {
     suspend fun getImageData(imageName: String): ByteArray?
     fun saveTroupe(troupe: PuppetTroupe)
     fun saveImage(name: String, data: ByteArray)
+    fun renameTroupe(newName: String)
+    fun loadTroupeFromFile(filePath: String): PuppetTroupe?
+    fun exportPuppet(puppetName: String, exportPath: String)
+    fun importPuppet(filePath: String, newTroupeName: String? = null)
+    fun saveTroupeAs(filePath: String)
+    fun createNewTroupe()
 }
