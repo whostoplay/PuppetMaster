@@ -120,8 +120,8 @@ fun LivePreview(
     LaunchedEffect(eyeState?.eyes?.focusOnGame, isCheckingAudience) {
         if (eyeState?.eyes?.focusOnGame == true && !isCheckingAudience) {
             while (true) {
-                val randomAngle = Random.nextFloat() * 2 * Math.PI
-                val randomRadius = Random.nextFloat() * 10f
+                val randomAngle = Random.nextFloat()  * Math.PI
+                val randomRadius = Random.nextFloat() * 5f
                 jitter = Offset(
                     x = (cos(randomAngle) * randomRadius).toFloat(),
                     y = (sin(randomAngle) * randomRadius).toFloat()
@@ -266,8 +266,8 @@ fun LivePreview(
                             val y = leftEye.position.y + sin(leftPupilAngle) * (leftEye.maxPupilRadiusY * leftEye.scale)
 
                             pupilModifier = Modifier.offset(
-                                x = (x * imageScaleFactor).dp,
-                                y = (y * imageScaleFactor).dp
+                                x = ((x + jitter.x) * imageScaleFactor).dp,
+                                y = ((y + jitter.y) * imageScaleFactor).dp
                             )
                                 .graphicsLayer(
                                     scaleX = leftEye.scale * imageScaleFactor,
@@ -290,8 +290,8 @@ fun LivePreview(
                             val y = rightEye.position.y + sin(rightPupilAngle) * (rightEye.maxPupilRadiusY * rightEye.scale)
 
                             pupilModifier = Modifier.offset(
-                                x = (x * imageScaleFactor).dp,
-                                y = (y * imageScaleFactor).dp
+                                x = ((x + jitter.x) * imageScaleFactor).dp,
+                                y = ((y + jitter.y) * imageScaleFactor).dp
                             )
                                 .graphicsLayer(
                                     scaleX = rightEye.scale * imageScaleFactor,
