@@ -126,7 +126,7 @@ fun LivePreview(
                     x = (cos(randomAngle) * randomRadius).toFloat(),
                     y = (sin(randomAngle) * randomRadius).toFloat()
                 )
-                delay(100)
+                delay(250)
             }
         } else {
             jitter = Offset.Zero
