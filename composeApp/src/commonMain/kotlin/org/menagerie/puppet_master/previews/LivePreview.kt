@@ -55,6 +55,10 @@ fun LivePreview(
     displayedImageName: String?,
     idleImage: ImageBitmap
 ) {
+    LaunchedEffect(puppetState, operatingMode, displayedImageName) {
+        println("LivePreview Update: mode=$operatingMode, puppetState hash=${puppetState.hashCode()}, displayed image name=$displayedImageName")
+    }
+
     var frame by remember { mutableLongStateOf(0L) }
     var jitter by remember { mutableStateOf(Offset.Zero) }
     var isCheckingAudience by remember { mutableStateOf(false) }
@@ -70,60 +74,14 @@ fun LivePreview(
         }
     }
 
-    // --- Flicker-Free Image Loading Logic ---
-
-    // 1. Hoisted state for the images that will actually be displayed.
-    //    They are initialized with a non-null fallback to prevent any initial null state.
-    var bodyToDisplay by remember { mutableStateOf(idleImage) }
-    var leftEyeToDisplay by remember { mutableStateOf<ImageBitmap?>(null) }
-    var rightEyeToDisplay by remember { mutableStateOf<ImageBitmap?>(null) }
-    var leftPupilToDisplay by remember { mutableStateOf<ImageBitmap?>(null) }
-    var rightPupilToDisplay by remember { mutableStateOf<ImageBitmap?>(null) }
-
-    // 2. Unconditionally load all possible image variations.
-    //    `rememberImageFromUrl` caches the result, so this is efficient.
-    val loadedBody = getImageUrl(displayedImageName)?.let { rememberImageFromUrl(it) }
-    val loadedBlinkBody = getImageUrl(puppetState?.blinkImageName)?.let { rememberImageFromUrl(it) }
-    val loadedLeftOpenEye = getImageUrl(eyeState?.eyes?.left?.openState)?.let { rememberImageFromUrl(it) }
-    val loadedLeftClosedEye = getImageUrl(eyeState?.eyes?.left?.closedState)?.let { rememberImageFromUrl(it) }
-    val loadedLeftPupil = getImageUrl(eyeState?.eyes?.left?.pupil)?.let { rememberImageFromUrl(it) }
-    val loadedRightOpenEye = getImageUrl(eyeState?.eyes?.right?.openState)?.let { rememberImageFromUrl(it) }
-    val loadedRightClosedEye = getImageUrl(eyeState?.eyes?.right?.closedState)?.let { rememberImageFromUrl(it) }
-    val loadedRightPupil = getImageUrl(eyeState?.eyes?.right?.pupil)?.let { rememberImageFromUrl(it) }
-
-    // 3. Use LaunchedEffect to safely update the displayed image.
-    //    This ensures we only switch to the new image AFTER it has loaded.
-    LaunchedEffect(isBlinking, loadedBody, loadedBlinkBody) {
-        val newImage = if (isBlinking) loadedBlinkBody else loadedBody
-        if (newImage != null) {
-            bodyToDisplay = newImage
-        }
-    }
-
-    LaunchedEffect(isBlinking, loadedLeftOpenEye, loadedLeftClosedEye) {
-        val newImage = if (isBlinking) loadedLeftClosedEye else loadedLeftOpenEye
-        if (newImage != null) {
-            leftEyeToDisplay = newImage
-        } else if (leftEyeToDisplay == null) {
-            leftEyeToDisplay = loadedLeftOpenEye
-        }
-    }
-
-    LaunchedEffect(isBlinking, loadedRightOpenEye, loadedRightClosedEye) {
-        val newImage = if (isBlinking) loadedRightClosedEye else loadedRightOpenEye
-        if (newImage != null) {
-            rightEyeToDisplay = newImage
-        } else if (rightEyeToDisplay == null) {
-            rightEyeToDisplay = loadedRightOpenEye
-        }
-    }
-
-    LaunchedEffect(loadedLeftPupil) {
-        if (loadedLeftPupil != null) leftPupilToDisplay = loadedLeftPupil
-    }
-    LaunchedEffect(loadedRightPupil) {
-        if (loadedRightPupil != null) rightPupilToDisplay = loadedRightPupil
-    }
+    val loadedBody = getImageUrl(displayedImageName)?.let { rememberImageFromUrl(it, puppetState) }
+    val loadedBlinkBody = getImageUrl(puppetState?.blinkImageName)?.let { rememberImageFromUrl(it, puppetState) }
+    val loadedLeftOpenEye = getImageUrl(eyeState?.eyes?.left?.openState)?.let { rememberImageFromUrl(it, puppetState) }
+    val loadedLeftClosedEye = getImageUrl(eyeState?.eyes?.left?.closedState)?.let { rememberImageFromUrl(it, puppetState) }
+    val loadedLeftPupil = getImageUrl(eyeState?.eyes?.left?.pupil)?.let { rememberImageFromUrl(it, puppetState) }
+    val loadedRightOpenEye = getImageUrl(eyeState?.eyes?.right?.openState)?.let { rememberImageFromUrl(it, puppetState) }
+    val loadedRightClosedEye = getImageUrl(eyeState?.eyes?.right?.closedState)?.let { rememberImageFromUrl(it, puppetState) }
+    val loadedRightPupil = getImageUrl(eyeState?.eyes?.right?.pupil)?.let { rememberImageFromUrl(it, puppetState) }
 
     // --- General Effects ---
     LaunchedEffect(activeSpecialEffect) {
@@ -179,7 +137,7 @@ fun LivePreview(
         modifier = Modifier.fillMaxSize().background(backgroundColor).padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
-        val image = bodyToDisplay
+        val image = (if (isBlinking) loadedBlinkBody else loadedBody) ?: idleImage
 
         val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f)
         val glowColor = activeSpecialEffect?.getGlowColor()?.let { Color(it) } ?: Color.White
@@ -250,10 +208,12 @@ fun LivePreview(
                         transformOrigin = TransformOrigin(0f, 0f)
                     )
 
+                val leftEyeToDisplay = if (isBlinking) loadedLeftClosedEye else loadedLeftOpenEye
                 leftEyeToDisplay?.let {
                     Image(bitmap = it, contentDescription = "Left Eye", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = leftEyeModifier)
                 }
 
+                val rightEyeToDisplay = if (isBlinking) loadedRightClosedEye else loadedRightOpenEye
                 rightEyeToDisplay?.let {
                     Image(bitmap = it, contentDescription = "Right Eye", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = rightEyeModifier)
                 }
@@ -291,7 +251,7 @@ fun LivePreview(
                         null
                     }
 
-                    leftPupilToDisplay?.let { pupilBitmap ->
+                    loadedLeftPupil?.let { pupilBitmap ->
                         val leftPupilAngle = if (finalFocusPointInImage != null) {
                             atan2((finalFocusPointInImage.y - leftEye.position.y).toDouble(), (finalFocusPointInImage.x - leftEye.position.x).toDouble()).toFloat()
                         } else {
@@ -315,7 +275,7 @@ fun LivePreview(
                         Image(bitmap = pupilBitmap, contentDescription = "Left Pupil", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = pupilModifier)
                     }
 
-                    rightPupilToDisplay?.let { pupilBitmap ->
+                    loadedRightPupil?.let { pupilBitmap ->
                         val rightPupilAngle = if (finalFocusPointInImage != null) {
                             atan2((finalFocusPointInImage.y - rightEye.position.y).toDouble(), (finalFocusPointInImage.x - rightEye.position.x).toDouble()).toFloat()
                         } else {
@@ -336,7 +296,6 @@ fun LivePreview(
                                     transformOrigin = TransformOrigin(0f, 0f)
                                 )
                         }
-
                         Image(bitmap = pupilBitmap, contentDescription = "Right Pupil", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = pupilModifier)
                     }
                 }

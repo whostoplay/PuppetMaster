@@ -15,7 +15,7 @@ data class AnimationState(
     val scaleY: Float = 1f,
     val translationX: Float = 0f,
     val translationY: Float = 0f,
-    val glowColor: Int = 0,
+    val glowColor: Int = 0xFFFFFFFF.toInt(),
     val glowIntensity: Float = 0f
 )
 

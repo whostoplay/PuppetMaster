@@ -75,14 +75,12 @@
     let jitterTimer = 0;
 
     socket.onmessage = function(event) {
-        console.log("Received state from server:", event.data);
         const serverState = JSON.parse(event.data);
         currentPuppetStateInfo = serverState.puppetStateInfo;
         pointerPosition = serverState.mousePosition;
         currentAnimationState = serverState.animationState;
 
         if (!currentPuppetStateInfo || !currentPuppetStateInfo.imageName) {
-            console.log("No puppet state info or image name, clearing display");
             puppetElement.style.backgroundImage = '';
             leftEyeElement.style.display = 'none';
             rightEyeElement.style.display = 'none';
@@ -92,10 +90,8 @@
         // Update main puppet image
         const newImgSrc = `http://127.0.0.1:8080/uploads/${currentPuppetStateInfo.imageName}`;
         if (baseImage.src !== newImgSrc) {
-            console.log("Updating base image to:", newImgSrc);
             const newImg = new Image();
             newImg.onload = () => {
-                console.log("Base image loaded:", newImg.width, newImg.height);
                 baseImage = { width: newImg.width, height: newImg.height, src: newImgSrc };
                 puppetElement.style.backgroundImage = `url(${newImgSrc})`;
             }
@@ -109,7 +105,6 @@
     function updateEyeImages(puppetStateInfo) {
         const eyeState = puppetStateInfo.eyeState;
         if (!eyeState) {
-            console.log("No eye state, hiding eyes");
             leftEyeElement.style.display = 'none';
             rightEyeElement.style.display = 'none';
             return;
@@ -125,7 +120,6 @@
         const updateImage = (element, pupilElement, eyeData, imageCache, pupilCache, imagePath) => {
             const newSrc = `http://127.0.0.1:8080/uploads/${imagePath}`;
             if (element.style.backgroundImage !== `url(\"${newSrc}\")`) {
-                console.log(`Updating eye image ${imagePath}`);
                  const img = new Image();
                  img.onload = () => {
                     imageCache.width = img.width;
@@ -293,10 +287,9 @@
             puppetElement.style.transform = `scale(${scaleX}, ${scaleY}) rotate(${rotation}deg) translate(${translationX}px, ${translationY}px)`;
 
             const glowIntensity = currentAnimationState.glowIntensity;
-            const glowColor = currentAnimationState.glowColor;
-            const colorMatrixElement = document.getElementById('color-matrix');
-
-            if (glowIntensity > 0 && typeof glowColor !== 'undefined' && colorMatrixElement) {
+            if (glowIntensity > 0) {
+                const glowColor = currentAnimationState.glowColor;
+                const colorMatrixElement = document.getElementById('color-matrix');
                 const r = ((glowColor >> 16) & 0xFF) / 255;
                 const g = ((glowColor >> 8) & 0xFF) / 255;
                 const b = (glowColor & 0xFF) / 255;

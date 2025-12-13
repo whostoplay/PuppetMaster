@@ -13,17 +13,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
-import io.ktor.utils.io.readRemaining
 import io.ktor.websocket.*
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.io.readByteArray
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
+import java.time.Duration
 import java.util.zip.ZipInputStream
-import kotlin.time.Duration.Companion.seconds
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -44,15 +42,23 @@ fun Application.module() {
         json(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true })
     }
     install(WebSockets) {
-        pingPeriod = 15.seconds
-        timeout = 15.seconds
+        pingPeriod = Duration.ofSeconds(15)
+        timeout = Duration.ofSeconds(15)
         maxFrameSize = Long.MAX_VALUE
         masking = false
     }
 
     routing {
         val uploadsDir = File("uploads").apply { mkdirs() }
-        staticFiles("/uploads", uploadsDir)
+        get("/uploads/{fileName}") {
+            val fileName = call.parameters["fileName"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+            val file = File(uploadsDir, fileName)
+            if (file.exists()) {
+                call.respondBytes(file.readBytes())
+            } else {
+                call.respond(HttpStatusCode.NotFound)
+            }
+        }
 
         get("/troupe") {
             troupeManager.troupe?.let { call.respond(it) } ?: call.respond(HttpStatusCode.NotFound)
@@ -66,17 +72,14 @@ fun Application.module() {
         }
 
         post("/upload") {
-            println("Received upload request")
             val multipart = call.receiveMultipart()
             var fileName = ""
             var troupeJsonFile: File? = null
             multipart.forEachPart { part ->
                 if (part is PartData.FileItem) {
                     fileName = part.originalFileName as String
-                    println("Processing file: $fileName")
-                    val fileBytes = part.provider().readRemaining().readByteArray()
+                    val fileBytes = part.streamProvider().readBytes()
                     if (fileName.endsWith(".troupe") || fileName.endsWith(".puppet")) {
-                        println("Extracting archive: $fileName")
                         // It's a zip archive, so we need to extract it
                         ZipInputStream(fileBytes.inputStream()).use { zis ->
                             var entry = zis.nextEntry
@@ -90,7 +93,6 @@ fun Application.module() {
                                         zis.copyTo(fos)
                                     }
                                     if (file.name == "troupe.json") {
-                                        println("Found troupe.json")
                                         troupeJsonFile = file
                                     }
                                 }
@@ -101,16 +103,13 @@ fun Application.module() {
                         if (fileName.endsWith(".troupe")) {
                             troupeJsonFile?.let {
                                 if (it.exists()) {
-                                    println("Updating troupe from troupe.json")
                                     val troupe = jsonDecoder.decodeFromString(PuppetTroupe.serializer(), it.readText())
                                     troupeManager.updateTroupe(troupe)
                                     stateManager.onTroupeUpdated()
-                                    println("Troupe updated successfully")
                                 }
                             }
                         }
                     } else {
-                        println("Saving single file: $fileName")
                         // It's a single file, so we just write it
                         File(uploadsDir, fileName).writeBytes(fileBytes)
                     }
@@ -179,7 +178,6 @@ fun Application.module() {
             stateManager.obsConnectionCount++
             try {
                 stateManager.stateToSend.collectLatest { state ->
-                    println("Sending state to OBS: $state")
                     val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true }
                     send(Frame.Text(json.encodeToString(state)))
                 }

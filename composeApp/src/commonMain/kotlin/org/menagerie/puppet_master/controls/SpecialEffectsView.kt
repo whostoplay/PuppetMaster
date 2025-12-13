@@ -68,7 +68,7 @@ fun SpecialEffectsUI(
     var effectName by remember { mutableStateOf(activeEffect?.name ?: "") }
     var vibrationDistance by remember { mutableStateOf(activeEffect?.vibrationDistance ?: 0f) }
     var vibrationSpeed by remember { mutableStateOf(activeEffect?.vibrationSpeed ?: 0f) }
-    var glowIntensity by remember { mutableStateOf(activeEffect?.glowIntensity ?: 2f) }
+    var glowIntensity by remember { mutableStateOf(activeEffect?.glowIntensity ?: 0f) }
     var glowColor by remember { mutableStateOf(Color(activeEffect?.glowColor ?: 0xFFFFFFFF.toInt())) }
     var scaleX by remember { mutableStateOf(activeEffect?.scaleX ?: 1f) }
     var scaleY by remember { mutableStateOf(activeEffect?.scaleY ?: 1f) }
@@ -86,8 +86,8 @@ fun SpecialEffectsUI(
             effectName = it.name
             vibrationDistance = it.vibrationDistance
             vibrationSpeed = it.vibrationSpeed
-            glowIntensity = it.glowIntensity ?: 0f
-            glowColor = Color(it.glowColor ?: 0xFFFFFFFF.toInt())
+            glowIntensity = it.glowIntensity?: 1f
+            glowColor = Color(it.glowColor?: 0xffffff)
             scaleX = it.scaleX
             scaleY = it.scaleY
             scaleSpeed = it.scaleSpeed
@@ -103,7 +103,7 @@ fun SpecialEffectsUI(
     val idleImageUrl = remember(idleState, uploadsDir) {
         idleState?.imageName?.let { "file://$uploadsDir/$it" }
     }
-    val idleImageBitmap = idleImageUrl?.let { rememberImageFromUrl(it) }
+    val idleImageBitmap = idleImageUrl?.let { rememberImageFromUrl(it, activePuppet) }
 
     EffectPreview(show = showPreview, onDismissRequest = { showPreview = false }) {
         if (idleState != null) {
@@ -282,44 +282,19 @@ fun SpecialEffectsUI(
             Slider(
                 value = spinSpeed,
                 onValueChange = { spinSpeed = it },
-                valueRange = 0f..10f // Increased sensitivity
+                valueRange = 0f..20f
             )
-
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = spinDirection == 1,
-                    onCheckedChange = { spinDirection = if (it) 1 else -1 }
-                )
-                Text("Spin Clockwise")
+                Text("Spin Direction")
+                Checkbox(checked = spinDirection > 0, onCheckedChange = { spinDirection = if (it) 1 else -1 })
+                Text(if (spinDirection > 0) "Right" else "Left")
             }
+        }
 
-            Button(onClick = {
-                val updatedEffect = effect.copy(
-                    name = effectName,
-                    vibrationDistance = vibrationDistance,
-                    vibrationSpeed = vibrationSpeed,
-                    glowIntensity = glowIntensity,
-                    glowColor = glowColor.toArgb(),
-                    scaleX = scaleX,
-                    scaleY = scaleY,
-                    scaleSpeed = scaleSpeed,
-                    spinSpeed = spinSpeed,
-                    spinDirection = spinDirection
-                )
-                onSpecialEffectsManagerChanged(
-                    specialEffectsManager.updateEffect(
-                        specialEffectsManager.activeEffectIndex,
-                        updatedEffect
-                    )
-                )
-                onSaveEffect()
-            }) { Text("Save Changes") }
-        } ?: run {
-            if (specialEffectsManager.effects.isNotEmpty()) {
-                Text("No active effect selected.")
-            } else {
-                Text("No special effects have been created.")
-            }
+        Checkbox(checked = preserveState, onCheckedChange = onPreserveStateChanged)
+        Text("Preserve this state across puppet changes")
+        Button(onClick = onSaveEffect) {
+            Text("Save")
         }
     }
 }
