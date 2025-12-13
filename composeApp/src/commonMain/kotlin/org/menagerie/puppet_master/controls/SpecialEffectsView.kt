@@ -137,7 +137,8 @@ fun SpecialEffectsUI(
                         window = window,
                         isAudienceCheckForced = false,
                         displayedImageName = null,
-                        idleImage = idleImageBitmap
+                        idleImage = idleImageBitmap,
+                        onFocusPointUpdate = {}
                     )
                 } else {
                     CircularProgressIndicator()

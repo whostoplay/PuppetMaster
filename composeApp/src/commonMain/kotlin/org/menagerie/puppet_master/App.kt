@@ -280,7 +280,10 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                     window = window,
                     isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
                     displayedImageName = displayedImageName,
-                    idleImage = idleImage
+                    idleImage = idleImage,
+                    onFocusPointUpdate = { offset ->
+                        viewModel.onNormalizedMousePositionChanged(offset)
+                    }
                 )
             }
         } else {

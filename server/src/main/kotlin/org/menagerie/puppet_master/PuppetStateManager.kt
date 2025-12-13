@@ -165,6 +165,9 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
             ServerState(state)
         }
 
+        receivedState.mousePosition?.let { onMousePositionChanged(it) }
+        receivedState.calibrationData?.let { onCalibrationReceived(it) }
+
         val stateInfo = receivedState.puppetStateInfo
         if (stateInfo != null) {
             if (stateInfo.appliedEffect != activeSpecialEffect?.effect) {

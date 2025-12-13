@@ -53,7 +53,8 @@ fun LivePreview(
     isAudienceCheckForced: Boolean,
     window: Any?,
     displayedImageName: String?,
-    idleImage: ImageBitmap
+    idleImage: ImageBitmap,
+    onFocusPointUpdate: (SerializableOffset?) -> Unit,
 ) {
     LaunchedEffect(puppetState, operatingMode, displayedImageName) {
         println("LivePreview Update: mode=$operatingMode, puppetState hash=${puppetState.hashCode()}, displayed image name=$displayedImageName")
@@ -250,6 +251,8 @@ fun LivePreview(
                     } else {
                         null
                     }
+
+                    onFocusPointUpdate(pointerPosition?.let { SerializableOffset(it.x, it.y) })
 
                     loadedLeftPupil?.let { pupilBitmap ->
                         val leftPupilAngle = if (finalFocusPointInImage != null) {

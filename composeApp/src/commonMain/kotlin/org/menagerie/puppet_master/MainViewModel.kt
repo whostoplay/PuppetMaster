@@ -11,6 +11,7 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -117,6 +118,9 @@ class MainViewModel(context: Any) : ScreenModel {
     private val _animationState = MutableStateFlow(AnimationState())
     private var animationJob: Job? = null
     private var effectStartTime = 0L
+
+    private val _normalizedMousePosition = MutableStateFlow<SerializableOffset?>(null)
+    val normalizedMousePosition: StateFlow<SerializableOffset?> = _normalizedMousePosition.asStateFlow()
 
     val activeState: StateFlow<PuppetStateInfo?>
     val activeSpecialEffect: StateFlow<ActiveSpecialEffect?>
@@ -560,7 +564,11 @@ class MainViewModel(context: Any) : ScreenModel {
                     port = SERVER_PORT,
                     path = "/client-control"
                 ) {
-                    stateController.activeState.combine(stateController.displayedImageName) { state, imageName ->
+                    combine(
+                        stateController.activeState,
+                        stateController.displayedImageName,
+                        normalizedMousePosition
+                    ) { state, imageName, mousePosition ->
                         val currentState = state?.copy(
                             imageName = imageName ?: state.imageName,
                             blinkImageName = state.blinkImageName,
@@ -568,9 +576,18 @@ class MainViewModel(context: Any) : ScreenModel {
                             maxBlinkRate = state.maxBlinkRate,
                             appliedEffect = state.appliedEffect
                         )
-                        ServerState(currentState, effectStartTime = if (state?.appliedEffect != null) effectStartTime else null)
-                    }.collectLatest { state ->
-                        send(json.encodeToString(state))
+                        val mousePos = if (state?.eyeState?.eyes?.followCursor == true && mousePosition != null) {
+                            MousePosition(x = mousePosition.x.toInt(), y = mousePosition.y.toInt())
+                        } else {
+                            null
+                        }
+                        ServerState(
+                            puppetStateInfo = currentState,
+                            effectStartTime = if (state?.appliedEffect != null) effectStartTime else null,
+                            mousePosition = mousePos
+                        )
+                    }.collectLatest { serverState ->
+                        send(json.encodeToString(serverState))
                     }
                 }
             } catch (e: Exception) {
@@ -581,5 +598,11 @@ class MainViewModel(context: Any) : ScreenModel {
 
     private fun stopClientControl() {
         clientControlSocketJob?.cancel()
+    }
+
+    fun onNormalizedMousePositionChanged(position: SerializableOffset?) {
+        if(activeState.value?.eyeState?.eyes?.followCursor?: false) {
+            _normalizedMousePosition.value = position
+        }
     }
 }
