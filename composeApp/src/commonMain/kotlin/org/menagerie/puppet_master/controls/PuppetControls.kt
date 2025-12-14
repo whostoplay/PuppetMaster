@@ -1,5 +1,8 @@
 package org.menagerie.puppet_master.controls
 
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,12 +18,14 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.PuppetCharacter
@@ -37,12 +42,27 @@ fun PuppetControls(
     onExportPuppet: (puppetName: String) -> Unit,
     onRenameTroupe: (newName: String) -> Unit,
     onLoadTroupe: () -> Unit,
-    onNewTroupeCreated: () -> Unit
+    onNewTroupeCreated: () -> Unit,
+    onActiveChange: (Boolean) -> Unit
 ) {
     var newPuppetName by remember { mutableStateOf("") }
     var puppetExpanded by remember { mutableStateOf(false) }
     var showNameTroupeDialog by remember { mutableStateOf(false) }
     var showRenameTroupeDialog by remember { mutableStateOf(false) }
+
+    val textFieldInteractionSource = remember { MutableInteractionSource() }
+    val menuInteractionSource = remember { MutableInteractionSource() }
+    val isTextFieldHovered by textFieldInteractionSource.collectIsHoveredAsState()
+    val isMenuHovered by menuInteractionSource.collectIsHoveredAsState()
+    val isHovered = isTextFieldHovered || isMenuHovered
+
+    var isNewPuppetNameFocused by remember { mutableStateOf(false) }
+
+    val isPanelActive = isHovered || isNewPuppetNameFocused || puppetExpanded
+
+    LaunchedEffect(isPanelActive) {
+        onActiveChange(isPanelActive)
+    }
 
     if (showNameTroupeDialog) {
         NameTroupeDialog(
@@ -73,14 +93,21 @@ fun PuppetControls(
     ) {
         ExposedDropdownMenuBox(expanded = puppetExpanded, onExpandedChange = { puppetExpanded = !puppetExpanded }, modifier = Modifier.fillMaxWidth()) {
             TextField(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .menuAnchor()
+                    .hoverable(textFieldInteractionSource),
                 value = activePuppet?.name ?: "", onValueChange = {},
                 label = { Text("Active Puppet") },
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = puppetExpanded) },
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
             )
-            ExposedDropdownMenu(expanded = puppetExpanded, onDismissRequest = { puppetExpanded = false }) {
+            ExposedDropdownMenu(
+                expanded = puppetExpanded,
+                onDismissRequest = { puppetExpanded = false },
+                modifier = Modifier.hoverable(menuInteractionSource)
+            ) {
                 troupe?.puppets?.forEach { puppet ->
                     DropdownMenuItem(
                         text = { Text(puppet.name) },
@@ -94,7 +121,9 @@ fun PuppetControls(
             value = newPuppetName,
             onValueChange = {newPuppetName = it},
             placeholder = {Text("New Puppet Name")},
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { isNewPuppetNameFocused = it.isFocused },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(
@@ -111,14 +140,14 @@ fun PuppetControls(
             )
         )
         Button(
-            onClick = { 
-                if (newPuppetName.isNotBlank()) { 
+            onClick = {
+                if (newPuppetName.isNotBlank()) {
                     if (troupe?.puppets?.isEmpty() != false) {
                         showNameTroupeDialog = true
                     } else {
                         onPuppetCreated(newPuppetName, null)
                         newPuppetName = ""
-                    } 
+                    }
                 }
              },
         ){

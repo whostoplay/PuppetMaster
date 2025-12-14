@@ -3,12 +3,17 @@ package org.menagerie.puppet_master.states
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -18,6 +23,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +32,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.ImagePickerDialog
@@ -37,12 +46,14 @@ import org.menagerie.puppet_master.toImageBitmap
  *
  * @param modifier The modifier to be applied to the composable.
  * @param viewModel The view model that this composable will interact with.
+ * @param onActiveChange A callback that is invoked when the component's interaction state changes.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun StateCreation(
     modifier: Modifier,
-    viewModel: MainViewModel
+    viewModel: MainViewModel,
+    onActiveChange: (Boolean) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val activePuppet by viewModel.activePuppet.collectAsState()
@@ -50,6 +61,7 @@ fun StateCreation(
     var showFilePicker by remember { mutableStateOf(false) }
     var pickingFor by remember { mutableStateOf<String?>(null) }
     var imageWasManuallySelected by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
 
     ImagePickerDialog(
         show = showFilePicker,
@@ -167,15 +179,45 @@ fun StateCreation(
             }
         }
 
-        var expanded by remember { mutableStateOf(false) }
+        val textFieldInteractionSource = remember { MutableInteractionSource() }
+        val menuInteractionSource = remember { MutableInteractionSource() }
+        val isTextFieldHovered by textFieldInteractionSource.collectIsHoveredAsState()
+        val isMenuHovered by menuInteractionSource.collectIsHoveredAsState()
+        val isHovered = isTextFieldHovered || isMenuHovered
+
+        var isFocused by remember { mutableStateOf(false) }
+        var isDropdownExpanded by remember { mutableStateOf(false) }
+
+        val isPanelActive = isHovered || isFocused || isDropdownExpanded
+
+        LaunchedEffect(isPanelActive) {
+            onActiveChange(isPanelActive)
+        }
+
         val predefinedStates = remember { listOf("idle", "talking", "listening", "shocked", "crying") }
         val customStates = remember(activePuppet) {
             activePuppet?.states?.map { it.name }?.filter { it !in predefinedStates } ?: emptyList()
         }
 
-        ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = !expanded }) {
+        ExposedDropdownMenuBox(
+            expanded = isDropdownExpanded,
+            onExpandedChange = { expanded ->
+                if (isFocused) {
+                    isDropdownExpanded = expanded
+                }
+            },
+        ) {
             TextField(
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth()
+                    .hoverable(interactionSource = textFieldInteractionSource)
+                    .onFocusChanged { focusState ->
+                        isFocused = focusState.isFocused
+                        if (!focusState.isFocused) {
+                            isDropdownExpanded = false
+                        }
+                    },
                 value = uiState.newStateName,
                 onValueChange = {
                     viewModel.onStateCreationChange(
@@ -187,10 +229,21 @@ fun StateCreation(
                     )
                 },
                 label = { Text("State Name") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        focusManager.clearFocus()
+                    }
+                )
             )
-            ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            ExposedDropdownMenu(
+                expanded = isDropdownExpanded,
+                onDismissRequest = { isDropdownExpanded = false },
+                modifier = Modifier.hoverable(interactionSource = menuInteractionSource)
+            ) {
                 (predefinedStates + customStates).distinct().forEach { selectionOption ->
                     DropdownMenuItem(
                         text = { Text(selectionOption) },
@@ -198,22 +251,19 @@ fun StateCreation(
                             coroutineScope.launch {
                                 val selectedState = activePuppet?.states?.find { it.name == selectionOption }
 
-                                // Case 1: The state we're switching TO has an image.
                                 if (selectedState?.imageName?.isNotBlank() == true) {
                                     imageWasManuallySelected = false
                                     val mainImage = selectedState.imageName?.let { viewModel.getImageData(it) }
                                     val blinkImage = selectedState.blinkImageName?.let { viewModel.getImageData(it) }
                                     viewModel.onStateCreationChange(
                                         image = mainImage,
-                                        imageName = selectedState.imageName ?: "", // Should be non-null here but for safety
+                                        imageName = selectedState.imageName ?: "",
                                         blinkImage = blinkImage,
                                         blinkImageName = selectedState.blinkImageName ?: "",
                                         stateName = selectionOption
                                     )
                                 } else {
-                                    // Case 2: The state we're switching TO is empty.
                                     if (imageWasManuallySelected) {
-                                        // Keep the user's manually selected image, just change the state name
                                         viewModel.onStateCreationChange(
                                             image = uiState.selectedImage,
                                             imageName = uiState.selectedImageName,
@@ -222,7 +272,6 @@ fun StateCreation(
                                             stateName = selectionOption
                                         )
                                     } else {
-                                        // The user is browsing from one state to another empty one. Clear the image.
                                         viewModel.onStateCreationChange(
                                             image = null,
                                             imageName = "",
@@ -233,7 +282,7 @@ fun StateCreation(
                                     }
                                 }
                             }
-                            expanded = false
+                            isDropdownExpanded = false
                         }
                     )
                 }

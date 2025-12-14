@@ -320,7 +320,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 onExportPuppet = { showPuppetExportSaver = true },
                                 onRenameTroupe = viewModel::renameTroupe,
                                 onLoadTroupe = { showTroupeLoadPicker = true },
-                                onNewTroupeCreated = viewModel::createNewTroupe
+                                onNewTroupeCreated = viewModel::createNewTroupe,
+                                onActiveChange = { isHoveringOn["puppetControls"] = it }
                             )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ModeControls(operatingMode, viewModel::setOperatingMode)
@@ -416,7 +417,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 item {
                                     StateCreation(
                                         modifier = Modifier.fillMaxWidth(),
-                                        viewModel = viewModel
+                                        viewModel = viewModel,
+                                        onActiveChange = { isHoveringOn["stateCreation"] = it }
                                     )
                                 }
                                 item { HorizontalDivider() }
@@ -489,7 +491,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             onExportPuppet = { showPuppetExportSaver = true },
                             onRenameTroupe = viewModel::renameTroupe,
                             onLoadTroupe = { showTroupeLoadPicker = true },
-                            onNewTroupeCreated = viewModel::createNewTroupe
+                            onNewTroupeCreated = viewModel::createNewTroupe,
+                            onActiveChange = { isHoveringOn["puppetControlsPortrait"] = it }
                         )
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ModeControls(operatingMode, viewModel::setOperatingMode)
@@ -541,7 +544,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             item {
                                 StateCreation(
                                     modifier = Modifier.fillMaxWidth(),
-                                    viewModel = viewModel
+                                    viewModel = viewModel,
+                                    onActiveChange = { isHoveringOn["stateCreationPortrait"] = it }
                                 )
                             }
                             item { HorizontalDivider() }
