@@ -60,15 +60,12 @@ actual fun rememberImageFromUrl(url: String, forceReloadKey: Any?): ImageBitmap?
                     } else {
                         url
                     }
-                    println("rememberImageFromUrl: Loading $finalUrl")
                     val request = ImageRequest(finalUrl.removePrefix("file://"))
                     when (val result = imageLoader.execute(request)) {
                         is ImageResult.Image -> {
-                            println("rememberImageFromUrl: Success (Image) for $finalUrl")
                             result.image.toComposeImageBitmap()
                         }
                         is ImageResult.Bitmap -> {
-                            println("rememberImageFromUrl: Success (Bitmap) for $finalUrl")
                             Image.makeFromBitmap(result.bitmap).toComposeImageBitmap()
                         }
                         is ImageResult.Error -> {

@@ -502,9 +502,12 @@ class MainViewModel(context: Any) : ScreenModel {
         }
     }
 
-    fun onSpecialEffectUpdated() {
+    fun onSpecialEffectUpdated(effect: SpecialEffect) {
         screenModelScope.launch {
-            troupe.value?.let { dataManager.saveTroupe(it) }
+            troupe.value?.let { 
+                val updatedManager = it.specialEffectsManager.updateEffect(it.specialEffectsManager.activeEffectIndex, effect)
+                dataManager.saveTroupe(it.copy(specialEffectsManager = updatedManager))
+             }
         }
     }
 

@@ -26,6 +26,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -39,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -59,7 +61,7 @@ import org.menagerie.puppet_master.rememberImageFromUrl
 fun SpecialEffectsUI(
     specialEffectsManager: SpecialEffectsManager,
     onSpecialEffectsManagerChanged: (SpecialEffectsManager) -> Unit,
-    onSaveEffect: () -> Unit,
+    onSaveEffect: (effect: SpecialEffect) -> Unit,
     activePuppet: PuppetCharacter?,
     uploadsDir: String,
     preserveState: Boolean,
@@ -88,6 +90,7 @@ fun SpecialEffectsUI(
     var showVibrationDetails by remember { mutableStateOf(false) }
     var showGlowColorPicker by remember { mutableStateOf(false) }
     var isTextFieldFocused by remember { mutableStateOf(false) }
+    val textFieldFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(activeEffect) {
         activeEffect?.let {
@@ -106,6 +109,12 @@ fun SpecialEffectsUI(
 
     LaunchedEffect(isTextFieldFocused) {
         onFocusChange(isTextFieldFocused)
+    }
+
+    LaunchedEffect(isEditingName) {
+        if (isEditingName) {
+            textFieldFocusRequester.requestFocus()
+        }
     }
 
     val idleState = remember(activePuppet) {
@@ -193,6 +202,13 @@ fun SpecialEffectsUI(
         }
 
         activeEffect?.let { effect ->
+            val onNameChangeConfirmed = {
+                val updatedEffect = effect.copy(name = effectName)
+                val updatedManager = specialEffectsManager.updateEffect(specialEffectsManager.activeEffectIndex, updatedEffect)
+                onSpecialEffectsManagerChanged(updatedManager)
+                isEditingName = false
+                rootFocusRequester.requestFocus()
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = {
                     onSpecialEffectsManagerChanged(specialEffectsManager.previousEffect())
@@ -204,17 +220,18 @@ fun SpecialEffectsUI(
                         value = effectName,
                         onValueChange = { effectName = it },
                         singleLine = true,
-                        modifier = Modifier.onFocusChanged { focusState ->
-                            isTextFieldFocused = focusState.isFocused
-                            if (!focusState.isFocused) {
-                                isEditingName = false
-                                rootFocusRequester.requestFocus()
-                            }
-                        },
+                        modifier = Modifier
+                            .focusRequester(textFieldFocusRequester)
+                            .onFocusChanged { focusState ->
+                                if (!focusState.isFocused && isTextFieldFocused) {
+                                    onNameChangeConfirmed()
+                                }
+                                isTextFieldFocused = focusState.isFocused
+                            },
                         keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
                         keyboardActions = KeyboardActions(
                             onDone = {
-                                rootFocusRequester.requestFocus()
+                                onNameChangeConfirmed()
                             }
                         )
                     )
@@ -242,7 +259,7 @@ fun SpecialEffectsUI(
             }
             Slider(
                 value = (scaleX + scaleY) / 2,
-                onValueChange = { 
+                onValueChange = {
                     scaleX = it
                     scaleY = it
                 },
@@ -271,7 +288,7 @@ fun SpecialEffectsUI(
             }
             Slider(
                 value = (vibrationDistance + vibrationSpeed) / 2,
-                onValueChange = { 
+                onValueChange = {
                     vibrationDistance = it
                     vibrationSpeed = it
                  },
@@ -317,10 +334,41 @@ fun SpecialEffectsUI(
             }
         }
 
-        Checkbox(checked = preserveState, onCheckedChange = onPreserveStateChanged)
-        Text("Preserve this state across puppet changes")
-        Button(onClick = onSaveEffect) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = preserveState, onCheckedChange = onPreserveStateChanged)
+            Text("Preserve this state across puppet changes")
+        }
+        Button(
+            onClick = {
+                activeEffect?.let {
+                    onSaveEffect(
+                        it.copy(
+                            name = effectName,
+                            vibrationDistance = vibrationDistance,
+                            vibrationSpeed = vibrationSpeed,
+                            glowIntensity = glowIntensity,
+                            glowColor = glowColor.toArgb(),
+                            scaleX = scaleX,
+                            scaleY = scaleY,
+                            scaleSpeed = scaleSpeed,
+                            spinSpeed = spinSpeed,
+                            spinDirection = spinDirection
+                        )
+                    )
+                }
+            },
+            enabled = effectName != "New Effect" && specialEffectsManager.isNameUnique(effectName, specialEffectsManager.activeEffectIndex)
+        ) {
             Text("Save")
         }
+        if(effectName == "New Effect" || !specialEffectsManager.isNameUnique(effectName, specialEffectsManager.activeEffectIndex)) {
+            Text(
+                text = if(effectName == "New Effect") "Rename Before Saving" else "Name Must Be Unique",
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+
     }
 }

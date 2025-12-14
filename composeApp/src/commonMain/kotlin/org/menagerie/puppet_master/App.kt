@@ -296,8 +296,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (troupe == null) {
                     Text("Create a puppet or load a troupe to get started.")
-                } else {
-                    CircularProgressIndicator()
+                } else  {
+                    Text("Load a State Image.")
                 }
             }
         }
@@ -320,7 +320,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             PuppetControls(
                                 troupe = troupe,
                                 activePuppet = activePuppet,
-                                onPuppetSelected = viewModel::setActivePuppet,
+                                onPuppetSelected = { viewModel.setActivePuppet(it) },
                                 onPuppetCreated = viewModel::createNewPuppet,
                                 onImportPuppet = { showPuppetImportPicker = true },
                                 onExportPuppet = { showPuppetExportSaver = true },
@@ -460,7 +460,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                     SpecialEffectsUI(
                                         specialEffectsManager = currentTroupe.specialEffectsManager,
                                         onSpecialEffectsManagerChanged = viewModel::onSpecialEffectsManagerChanged,
-                                        onSaveEffect = { viewModel.onSpecialEffectUpdated() },
+                                        onSaveEffect = { effect -> viewModel.onSpecialEffectUpdated(effect) },
                                         activePuppet = currentPuppet,
                                         uploadsDir = viewModel.uploadsDir,
                                         preserveState = uiState.preserveState,
@@ -497,7 +497,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                         PuppetControls(
                             troupe = troupe,
                             activePuppet = activePuppet,
-                            onPuppetSelected = viewModel::setActivePuppet,
+                            onPuppetSelected = { viewModel.setActivePuppet(it) },
                             onPuppetCreated = viewModel::createNewPuppet,
                             onImportPuppet = { showPuppetImportPicker = true },
                             onExportPuppet = { showPuppetExportSaver = true },
@@ -592,7 +592,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 SpecialEffectsUI(
                                     specialEffectsManager = currentTroupe.specialEffectsManager,
                                     onSpecialEffectsManagerChanged = viewModel::onSpecialEffectsManagerChanged,
-                                    onSaveEffect = { viewModel.onSpecialEffectUpdated() },
+                                    onSaveEffect = { effect -> viewModel.onSpecialEffectUpdated(effect) },
                                     activePuppet = currentPuppet,
                                     uploadsDir = viewModel.uploadsDir,
                                     preserveState = uiState.preserveState,

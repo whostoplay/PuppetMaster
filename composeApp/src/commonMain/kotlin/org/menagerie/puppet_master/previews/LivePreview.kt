@@ -84,6 +84,8 @@ fun LivePreview(
     val loadedRightClosedEye = getImageUrl(eyeState?.eyes?.right?.closedState)?.let { rememberImageFromUrl(it, puppetState) }
     val loadedRightPupil = getImageUrl(eyeState?.eyes?.right?.pupil)?.let { rememberImageFromUrl(it, puppetState) }
 
+    println(puppetState?.appliedEffect)
+
     // --- General Effects ---
     LaunchedEffect(activeSpecialEffect) {
         if (activeSpecialEffect != null) {
