@@ -1,7 +1,6 @@
 package org.menagerie.puppet_master.navigation
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.RemoveRedEye
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenuItem
@@ -35,7 +35,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,7 +48,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -67,7 +65,6 @@ import org.menagerie.puppet_master.ImageFilePicker
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetStateInfo
-import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.decodeToImageBitmap
 import org.menagerie.puppet_master.toOffset
 import org.menagerie.puppet_master.toSerializableOffset
@@ -94,6 +91,7 @@ class EyeContactScreen(
 
         var selectedState by remember { mutableStateOf<PuppetStateInfo?>(null) }
         var isStateSelectorExpanded by remember { mutableStateOf(false) }
+        var showTroupeEyesPopup by remember { mutableStateOf(false) }
 
         var leftEye by remember { mutableStateOf<Eye?>(null) }
         var rightEye by remember { mutableStateOf<Eye?>(null) }
@@ -116,6 +114,40 @@ class EyeContactScreen(
         var rightEyeOpenData by remember { mutableStateOf<ByteArray?>(null) }
         var rightEyePupilData by remember { mutableStateOf<ByteArray?>(null) }
         var rightEyeClosedData by remember { mutableStateOf<ByteArray?>(null) }
+
+        if (showTroupeEyesPopup) {
+            TroupeEyesPopup(
+                viewModel = viewModel,
+                onDismissRequest = { showTroupeEyesPopup = false },
+                onApply = { eyeState ->
+                    showTroupeEyesPopup = false
+                    scope.launch {
+                        leftEye = eyeState.eyes.left
+                        rightEye = eyeState.eyes.right
+                        followCursor = eyeState.eyes.followCursor
+                        focusOnGame = eyeState.eyes.focusOnGame
+                        checkOnAudience = eyeState.eyes.checkOnAudience
+                        gameScreenLocation = eyeState.eyes.gameScreenLocation.toOffset()
+                        audienceCheckRate = eyeState.eyes.audienceCheckRate.toFloat()
+                        audienceCheckDuration = eyeState.eyes.audienceCheckDuration.toFloat()
+
+                        val lOpenData = async { eyeState.eyes.left.openState.let { viewModel.getImageData(it) } }
+                        val lPupilData = async { eyeState.eyes.left.pupil?.let { viewModel.getImageData(it) } }
+                        val lClosedData = async { eyeState.eyes.left.closedState?.let { viewModel.getImageData(it) } }
+                        val rOpenData = async { eyeState.eyes.right.openState.let { viewModel.getImageData(it) } }
+                        val rPupilData = async { eyeState.eyes.right.pupil?.let { viewModel.getImageData(it) } }
+                        val rClosedData = async { eyeState.eyes.right.closedState?.let { viewModel.getImageData(it) } }
+
+                        leftEyeOpenData = lOpenData.await()
+                        leftEyePupilData = lPupilData.await()
+                        leftEyeClosedData = lClosedData.await()
+                        rightEyeOpenData = rOpenData.await()
+                        rightEyePupilData = rPupilData.await()
+                        rightEyeClosedData = rClosedData.await()
+                    }
+                }
+            )
+        }
 
         LaunchedEffect(selectedState) {
             selectedState?.let { state ->
@@ -171,6 +203,9 @@ class EyeContactScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { showTroupeEyesPopup = true }) {
+                            Icon(Icons.Default.RemoveRedEye, contentDescription = "Select Eyes from Troupe")
+                        }
                         Button(onClick = {
                             val state = selectedState
                             val left = leftEye

@@ -49,6 +49,7 @@ fun StateCreation(
     val coroutineScope = rememberCoroutineScope()
     var showFilePicker by remember { mutableStateOf(false) }
     var pickingFor by remember { mutableStateOf<String?>(null) }
+    var imageWasManuallySelected by remember { mutableStateOf(false) }
 
     ImagePickerDialog(
         show = showFilePicker,
@@ -57,6 +58,7 @@ fun StateCreation(
         onCancel = { showFilePicker = false },
         onResult = { images ->
             if (images.isNotEmpty()) {
+                imageWasManuallySelected = true
                 when (pickingFor) {
                     "main" -> {
                         val (bytes, name) = images.first()
@@ -194,10 +196,42 @@ fun StateCreation(
                         text = { Text(selectionOption) },
                         onClick = {
                             coroutineScope.launch {
-                                val state = activePuppet?.states?.find { it.name == selectionOption }
-                                val mainImage = state?.imageName?.let { viewModel.getImageData(it) }
-                                val blinkImage = state?.blinkImageName?.let { viewModel.getImageData(it) }
-                                viewModel.onStateCreationChange(mainImage, state?.imageName ?: "", blinkImage, state?.blinkImageName ?: "", selectionOption)
+                                val selectedState = activePuppet?.states?.find { it.name == selectionOption }
+
+                                // Case 1: The state we're switching TO has an image.
+                                if (selectedState?.imageName?.isNotBlank() == true) {
+                                    imageWasManuallySelected = false
+                                    val mainImage = selectedState.imageName?.let { viewModel.getImageData(it) }
+                                    val blinkImage = selectedState.blinkImageName?.let { viewModel.getImageData(it) }
+                                    viewModel.onStateCreationChange(
+                                        image = mainImage,
+                                        imageName = selectedState.imageName ?: "", // Should be non-null here but for safety
+                                        blinkImage = blinkImage,
+                                        blinkImageName = selectedState.blinkImageName ?: "",
+                                        stateName = selectionOption
+                                    )
+                                } else {
+                                    // Case 2: The state we're switching TO is empty.
+                                    if (imageWasManuallySelected) {
+                                        // Keep the user's manually selected image, just change the state name
+                                        viewModel.onStateCreationChange(
+                                            image = uiState.selectedImage,
+                                            imageName = uiState.selectedImageName,
+                                            blinkImage = uiState.selectedBlinkImage,
+                                            blinkImageName = uiState.selectedBlinkImageName,
+                                            stateName = selectionOption
+                                        )
+                                    } else {
+                                        // The user is browsing from one state to another empty one. Clear the image.
+                                        viewModel.onStateCreationChange(
+                                            image = null,
+                                            imageName = "",
+                                            blinkImage = null,
+                                            blinkImageName = "",
+                                            stateName = selectionOption
+                                        )
+                                    }
+                                }
                             }
                             expanded = false
                         }
