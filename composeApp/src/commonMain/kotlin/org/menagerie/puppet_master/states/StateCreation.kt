@@ -32,8 +32,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -53,7 +53,9 @@ import org.menagerie.puppet_master.toImageBitmap
 fun StateCreation(
     modifier: Modifier,
     viewModel: MainViewModel,
-    onActiveChange: (Boolean) -> Unit
+    onActiveChange: (Boolean) -> Unit,
+    onFocusChange: (Boolean) -> Unit,
+    rootFocusRequester: FocusRequester
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val activePuppet by viewModel.activePuppet.collectAsState()
@@ -61,7 +63,6 @@ fun StateCreation(
     var showFilePicker by remember { mutableStateOf(false) }
     var pickingFor by remember { mutableStateOf<String?>(null) }
     var imageWasManuallySelected by remember { mutableStateOf(false) }
-    val focusManager = LocalFocusManager.current
 
     ImagePickerDialog(
         show = showFilePicker,
@@ -193,6 +194,9 @@ fun StateCreation(
         LaunchedEffect(isPanelActive) {
             onActiveChange(isPanelActive)
         }
+        LaunchedEffect(isFocused) {
+            onFocusChange(isFocused)
+        }
 
         val predefinedStates = remember { listOf("idle", "talking", "listening", "shocked", "crying") }
         val customStates = remember(activePuppet) {
@@ -216,6 +220,7 @@ fun StateCreation(
                         isFocused = focusState.isFocused
                         if (!focusState.isFocused) {
                             isDropdownExpanded = false
+                            rootFocusRequester.requestFocus()
                         }
                     },
                 value = uiState.newStateName,
@@ -235,7 +240,7 @@ fun StateCreation(
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(
                     onDone = {
-                        focusManager.clearFocus()
+                        rootFocusRequester.requestFocus()
                     }
                 )
             )

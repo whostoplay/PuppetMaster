@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -36,10 +38,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.OperatingMode
@@ -60,6 +65,8 @@ fun SpecialEffectsUI(
     preserveState: Boolean,
     onPreserveStateChanged: (Boolean) -> Unit,
     window: Any?,
+    onFocusChange: (Boolean) -> Unit,
+    rootFocusRequester: FocusRequester
 ) {
     val activeEffect = remember(specialEffectsManager.activeEffectIndex, specialEffectsManager.effects) {
         specialEffectsManager.getActiveEffect()
@@ -80,6 +87,7 @@ fun SpecialEffectsUI(
     var showScaleDetails by remember { mutableStateOf(false) }
     var showVibrationDetails by remember { mutableStateOf(false) }
     var showGlowColorPicker by remember { mutableStateOf(false) }
+    var isTextFieldFocused by remember { mutableStateOf(false) }
 
     LaunchedEffect(activeEffect) {
         activeEffect?.let {
@@ -94,6 +102,10 @@ fun SpecialEffectsUI(
             spinSpeed = it.spinSpeed
             spinDirection = it.spinDirection
         }
+    }
+
+    LaunchedEffect(isTextFieldFocused) {
+        onFocusChange(isTextFieldFocused)
     }
 
     val idleState = remember(activePuppet) {
@@ -192,6 +204,19 @@ fun SpecialEffectsUI(
                         value = effectName,
                         onValueChange = { effectName = it },
                         singleLine = true,
+                        modifier = Modifier.onFocusChanged { focusState ->
+                            isTextFieldFocused = focusState.isFocused
+                            if (!focusState.isFocused) {
+                                isEditingName = false
+                                rootFocusRequester.requestFocus()
+                            }
+                        },
+                        keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(
+                            onDone = {
+                                rootFocusRequester.requestFocus()
+                            }
+                        )
                     )
                 } else {
                     Text(effect.name, modifier = Modifier.pointerInput(Unit) {

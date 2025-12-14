@@ -125,6 +125,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     var showPuppetImportPicker by remember { mutableStateOf(false) }
     var showTroupeLoadPicker by remember { mutableStateOf(false) }
     var showPuppetExportSaver by remember { mutableStateOf(false) }
+    val textFieldFocusStates = remember { mutableStateMapOf<String, Boolean>() }
+    val isTextFieldFocused = textFieldFocusStates.values.any { it }
 
     FilePicker(show = showPuppetImportPicker, fileExtensions = listOf("puppet")) { filePath ->
         if (filePath != null) {
@@ -238,23 +240,27 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             }
             .focusRequester(focusRequester)
             .onKeyEvent {
-                viewModel.onKeyEvent(it)
-                if (isDesktop) {
-                    if (settings.toggleListenHotkey.isHotkey(it)) {
-                        viewModel.toggleListening()
-                        true
-                    } else if (settings.togglePublishingHotkey.isHotkey(it)) {
-                        viewModel.setPublishing(!isPublishing)
-                        true
-                    } else if (settings.toggleOnlineHotkey.isHotkey(it)) {
-                        viewModel.toggleOperatingMode()
-                        true
-                    } else if (settings.toggleFocusHotkey.isHotkey(it)) {
-                        viewModel.toggleFocus()
-                        true
-                    } else if (settings.checkAudienceHotkey.isHotkey(it)) {
-                        viewModel.toggleForceAudienceCheck()
-                        true
+                if (!isTextFieldFocused) {
+                    viewModel.onKeyEvent(it)
+                    if (isDesktop) {
+                        if (settings.toggleListenHotkey.isHotkey(it)) {
+                            viewModel.toggleListening()
+                            true
+                        } else if (settings.togglePublishingHotkey.isHotkey(it)) {
+                            viewModel.setPublishing(!isPublishing)
+                            true
+                        } else if (settings.toggleOnlineHotkey.isHotkey(it)) {
+                            viewModel.toggleOperatingMode()
+                            true
+                        } else if (settings.toggleFocusHotkey.isHotkey(it)) {
+                            viewModel.toggleFocus()
+                            true
+                        } else if (settings.checkAudienceHotkey.isHotkey(it)) {
+                            viewModel.toggleForceAudienceCheck()
+                            true
+                        } else {
+                            false
+                        }
                     } else {
                         false
                     }
@@ -321,7 +327,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 onRenameTroupe = viewModel::renameTroupe,
                                 onLoadTroupe = { showTroupeLoadPicker = true },
                                 onNewTroupeCreated = viewModel::createNewTroupe,
-                                onActiveChange = { isHoveringOn["puppetControls"] = it }
+                                onActiveChange = { isHoveringOn["puppetControls"] = it },
+                                onFocusChange = { textFieldFocusStates["puppetControls"] = it },
+                                rootFocusRequester = focusRequester
                             )
                             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                             ModeControls(operatingMode, viewModel::setOperatingMode)
@@ -418,7 +426,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                     StateCreation(
                                         modifier = Modifier.fillMaxWidth(),
                                         viewModel = viewModel,
-                                        onActiveChange = { isHoveringOn["stateCreation"] = it }
+                                        onActiveChange = { isHoveringOn["stateCreation"] = it },
+                                        onFocusChange = { textFieldFocusStates["stateCreation"] = it },
+                                        rootFocusRequester = focusRequester
                                     )
                                 }
                                 item { HorizontalDivider() }
@@ -455,7 +465,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         uploadsDir = viewModel.uploadsDir,
                                         preserveState = uiState.preserveState,
                                         onPreserveStateChanged = viewModel::onPreserveStateChanged,
-                                        window = window
+                                        window = window,
+                                        onFocusChange = { textFieldFocusStates["specialEffects"] = it },
+                                        rootFocusRequester = focusRequester
                                     )
                                 }
                             } else {
@@ -492,7 +504,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             onRenameTroupe = viewModel::renameTroupe,
                             onLoadTroupe = { showTroupeLoadPicker = true },
                             onNewTroupeCreated = viewModel::createNewTroupe,
-                            onActiveChange = { isHoveringOn["puppetControlsPortrait"] = it }
+                            onActiveChange = { isHoveringOn["puppetControlsPortrait"] = it },
+                            onFocusChange = { textFieldFocusStates["puppetControlsPortrait"] = it },
+                            rootFocusRequester = focusRequester
                         )
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         ModeControls(operatingMode, viewModel::setOperatingMode)
@@ -545,7 +559,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 StateCreation(
                                     modifier = Modifier.fillMaxWidth(),
                                     viewModel = viewModel,
-                                    onActiveChange = { isHoveringOn["stateCreationPortrait"] = it }
+                                    onActiveChange = { isHoveringOn["stateCreationPortrait"] = it },
+                                    onFocusChange = { textFieldFocusStates["stateCreationPortrait"] = it },
+                                    rootFocusRequester = focusRequester
                                 )
                             }
                             item { HorizontalDivider() }
@@ -581,7 +597,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                     uploadsDir = viewModel.uploadsDir,
                                     preserveState = uiState.preserveState,
                                     onPreserveStateChanged = viewModel::onPreserveStateChanged,
-                                    window = window
+                                    window = window,
+                                    onFocusChange = { textFieldFocusStates["specialEffectsPortrait"] = it },
+                                    rootFocusRequester = focusRequester
                                 )
                             }
                         } else {

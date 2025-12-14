@@ -25,6 +25,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
@@ -43,7 +44,9 @@ fun PuppetControls(
     onRenameTroupe: (newName: String) -> Unit,
     onLoadTroupe: () -> Unit,
     onNewTroupeCreated: () -> Unit,
-    onActiveChange: (Boolean) -> Unit
+    onActiveChange: (Boolean) -> Unit,
+    onFocusChange: (Boolean) -> Unit,
+    rootFocusRequester: androidx.compose.ui.focus.FocusRequester
 ) {
     var newPuppetName by remember { mutableStateOf("") }
     var puppetExpanded by remember { mutableStateOf(false) }
@@ -62,6 +65,9 @@ fun PuppetControls(
 
     LaunchedEffect(isPanelActive) {
         onActiveChange(isPanelActive)
+    }
+    LaunchedEffect(isNewPuppetNameFocused) {
+        onFocusChange(isNewPuppetNameFocused)
     }
 
     if (showNameTroupeDialog) {
@@ -123,7 +129,12 @@ fun PuppetControls(
             placeholder = {Text("New Puppet Name")},
             modifier = Modifier
                 .fillMaxWidth()
-                .onFocusChanged { isNewPuppetNameFocused = it.isFocused },
+                .onFocusChanged { focusState ->
+                    isNewPuppetNameFocused = focusState.isFocused
+                    if (!focusState.isFocused) {
+                        rootFocusRequester.requestFocus()
+                    }
+                },
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(
@@ -136,6 +147,7 @@ fun PuppetControls(
                             newPuppetName = ""
                         }
                     }
+                    rootFocusRequester.requestFocus()
                 }
             )
         )
