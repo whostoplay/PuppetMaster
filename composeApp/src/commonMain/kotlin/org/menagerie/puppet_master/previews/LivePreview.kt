@@ -27,13 +27,14 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.ActiveSpecialEffect
+import org.menagerie.puppet_master.Eye
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SERVER_PORT
@@ -117,7 +118,7 @@ fun LivePreview(
     LaunchedEffect(eyeState?.eyes?.focusOnGame, isCheckingAudience) {
         if (eyeState?.eyes?.focusOnGame == true && !isCheckingAudience) {
             while (true) {
-                val randomAngle = Random.nextFloat()  * Math.PI
+                val randomAngle = Random.nextFloat() * Math.PI
                 val randomRadius = Random.nextFloat() * 5f
                 jitter = Offset(
                     x = (cos(randomAngle) * randomRadius).toFloat(),
@@ -228,6 +229,7 @@ fun LivePreview(
                                 pointerPosition
                             }
                         }
+
                         else -> null
                     }
 
@@ -256,57 +258,101 @@ fun LivePreview(
                         null
                     }
 
-                    onFocusPointUpdate(pointerPosition?.let { SerializableOffset(it.x, it.y) })
+                    onFocusPointUpdate(finalFocusPointInImage)
 
-                    loadedLeftPupil?.let { pupilBitmap ->
-                        val leftPupilAngle = if (finalFocusPointInImage != null) {
-                            atan2((finalFocusPointInImage.y - leftEye.position.y).toDouble(), (finalFocusPointInImage.x - leftEye.position.x).toDouble()).toFloat()
-                        } else {
-                            0f
-                        }
-                        var pupilModifier = leftEyeModifier
-                        if (finalFocusPointInImage != null) {
-                            val x = leftEye.position.x + cos(leftPupilAngle) * (leftEye.maxPupilRadiusX * leftEye.scaleX)
-                            val y = leftEye.position.y + sin(leftPupilAngle) * (leftEye.maxPupilRadiusY * leftEye.scaleY)
-
-                            pupilModifier = Modifier.offset(
-                                x = ((x + jitter.x) * imageScaleFactor).dp,
-                                y = ((y + jitter.y) * imageScaleFactor).dp
-                            )
-                                .graphicsLayer(
-                                    scaleX = leftEye.scaleX * imageScaleFactor,
-                                    scaleY = leftEye.scaleY * imageScaleFactor,
-                                    transformOrigin = TransformOrigin(0f, 0f)
+                    val leftPupilPosition = getPupilPosition(
+                        finalFocusPointInImage, leftEye, loadedLeftPupil, loadedLeftOpenEye
+                    )
+                    leftPupilPosition?.let { position ->
+                        loadedLeftPupil?.let {
+                            Image(
+                                bitmap = it,
+                                contentDescription = "Left Pupil",
+                                modifier = Modifier.offset(
+                                    x = ((position.x + jitter.x) * imageScaleFactor).dp,
+                                    y = ((position.y + jitter.y) * imageScaleFactor).dp
                                 )
+                                    .graphicsLayer(
+                                        scaleX = leftEye.scaleX * imageScaleFactor,
+                                        scaleY = leftEye.scaleY * imageScaleFactor,
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                    ),
+                                colorFilter = ColorFilter.colorMatrix(colorMatrix)
+                            )
                         }
-                        Image(bitmap = pupilBitmap, contentDescription = "Left Pupil", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = pupilModifier)
                     }
 
-                    loadedRightPupil?.let { pupilBitmap ->
-                        val rightPupilAngle = if (finalFocusPointInImage != null) {
-                            atan2((finalFocusPointInImage.y - rightEye.position.y).toDouble(), (finalFocusPointInImage.x - rightEye.position.x).toDouble()).toFloat()
-                        } else {
-                            0f
-                        }
-                        var pupilModifier = rightEyeModifier
-                        if (finalFocusPointInImage != null) {
-                            val x = rightEye.position.x + cos(rightPupilAngle) * (rightEye.maxPupilRadiusX * rightEye.scaleX)
-                            val y = rightEye.position.y + sin(rightPupilAngle) * (rightEye.maxPupilRadiusY * rightEye.scaleY)
-
-                            pupilModifier = Modifier.offset(
-                                x = ((x + jitter.x) * imageScaleFactor).dp,
-                                y = ((y + jitter.y) * imageScaleFactor).dp
-                            )
-                                .graphicsLayer(
-                                    scaleX = rightEye.scaleX * imageScaleFactor,
-                                    scaleY = rightEye.scaleY * imageScaleFactor,
-                                    transformOrigin = TransformOrigin(0f, 0f)
+                    val rightPupilPosition = getPupilPosition(
+                        finalFocusPointInImage, rightEye, loadedRightPupil, loadedRightOpenEye
+                    )
+                    rightPupilPosition?.let { position ->
+                        loadedRightPupil?.let {
+                            Image(
+                                bitmap = it,
+                                contentDescription = "Right Pupil",
+                                modifier = Modifier.offset(
+                                    x = ((position.x + jitter.x) * imageScaleFactor).dp,
+                                    y = ((position.y + jitter.y) * imageScaleFactor).dp
                                 )
+                                    .graphicsLayer(
+                                        scaleX = rightEye.scaleX * imageScaleFactor,
+                                        scaleY = rightEye.scaleY * imageScaleFactor,
+                                        transformOrigin = TransformOrigin(0f, 0f)
+                                    ),
+                                colorFilter = ColorFilter.colorMatrix(colorMatrix)
+                            )
                         }
-                        Image(bitmap = pupilBitmap, contentDescription = "Right Pupil", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = pupilModifier)
                     }
                 }
             }
         }
     }
+}
+
+
+private fun getPupilPosition(
+    focusPoint: SerializableOffset?,
+    eyeInfo: Eye,
+    pupilImage: ImageBitmap?,
+    eyeImage: ImageBitmap?
+): Offset? {
+    if (focusPoint == null || pupilImage == null || eyeImage == null) return null
+
+    val eyeImageWidth = eyeImage.width * eyeInfo.scaleX
+    val eyeImageHeight = eyeImage.height * eyeInfo.scaleY
+
+    val eyeCenterX = eyeInfo.position.x + eyeImageWidth / 2f
+    val eyeCenterY = eyeInfo.position.y + eyeImageHeight / 2f
+
+    val focusRelativeToEyeX = focusPoint.x - eyeCenterX
+    val focusRelativeToEyeY = focusPoint.y - eyeCenterY
+
+    val pupilMajorRadius = eyeInfo.maxPupilRadiusX * eyeInfo.scaleX
+    val pupilMinorRadius = eyeInfo.maxPupilRadiusY * eyeInfo.scaleY
+
+    val pupilOffsetX: Float
+    val pupilOffsetY: Float
+
+    if (pupilMajorRadius > 0f && pupilMinorRadius > 0f) {
+        val normalizedX = focusRelativeToEyeX / pupilMajorRadius
+        val normalizedY = focusRelativeToEyeY / pupilMinorRadius
+        val ellipseValue = normalizedX * normalizedX + normalizedY * normalizedY
+
+        if (ellipseValue > 1f) {
+            val scale = 1f / sqrt(ellipseValue)
+            pupilOffsetX = focusRelativeToEyeX * scale
+            pupilOffsetY = focusRelativeToEyeY * scale
+        } else {
+            pupilOffsetX = focusRelativeToEyeX
+            pupilOffsetY = focusRelativeToEyeY
+        }
+    } else {
+        pupilOffsetX = 0f
+        pupilOffsetY = 0f
+    }
+
+    val pupilX = eyeCenterX + pupilOffsetX - (pupilImage.width * eyeInfo.scaleX / 2f)
+    val pupilY = eyeCenterY + pupilOffsetY - (pupilImage.height * eyeInfo.scaleY / 2f)
+
+    return Offset(pupilX, pupilY)
 }
