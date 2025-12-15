@@ -70,7 +70,8 @@ fun SpecialEffectsUI(
     onPreserveStateChanged: (Boolean) -> Unit,
     window: Any?,
     onFocusChange: (Boolean) -> Unit,
-    rootFocusRequester: FocusRequester
+    rootFocusRequester: FocusRequester,
+    backgroundColor: Color,
 ) {
     val activeEffect = remember(specialEffectsManager.activeEffectIndex, specialEffectsManager.effects) {
         specialEffectsManager.getActiveEffect()
@@ -154,7 +155,7 @@ fun SpecialEffectsUI(
                         puppetState = idleState,
                         isBlinking = false,
                         uploadsDir = uploadsDir,
-                        backgroundColor = Color.Green,
+                        backgroundColor = backgroundColor,
                         serverIp = "",
                         activeSpecialEffect = activePreviewEffect,
                         window = window,

@@ -491,7 +491,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         onPreserveStateChanged = viewModel::onPreserveStateChanged,
                                         window = window,
                                         onFocusChange = { textFieldFocusStates["specialEffects"] = it },
-                                        rootFocusRequester = focusRequester
+                                        rootFocusRequester = focusRequester,
+                                        backgroundColor = uiState.backgroundColor,
                                     )
                                 }
                             } else {
