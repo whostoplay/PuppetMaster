@@ -58,11 +58,12 @@ class PuppetStateController(
                 _displayedImageName.value = state?.imageName
                 val effect = state?.appliedEffect
                 if (effect != null) {
-                    val newEffect = ActiveSpecialEffect(effect)
-                    if (getUiState().preserveState) {
-                        newEffect.copyWithPreservedStartTime(activeSpecialEffect.value!!.effect)
+                    val newActiveEffect = if (getUiState().preserveState && activeSpecialEffect.value != null) {
+                        activeSpecialEffect.value!!.copyWithPreservedStartTime(effect)
+                    } else {
+                        ActiveSpecialEffect(effect)
                     }
-                    _activeSpecialEffect.value = newEffect
+                    _activeSpecialEffect.value = newActiveEffect
                 } else {
                     _activeSpecialEffect.value = null
                 }

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -24,6 +25,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +39,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -294,8 +297,17 @@ fun SpecialEffectsUI(
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Spin Direction")
-                Checkbox(checked = spinDirection > 0, onCheckedChange = { spinDirection = if (it) 1 else -1 })
-                Text(if (spinDirection > 0) "Right" else "Left")
+                RadioButton(selected = spinDirection < 0, onClick = { spinDirection = -1 })
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Spin Left",
+                    modifier = Modifier.scale(scaleX = -1f, scaleY = 1f)
+                )
+                RadioButton(selected = spinDirection > 0, onClick = { spinDirection = 1 })
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Spin Right"
+                )
             }
         }
 
