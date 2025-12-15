@@ -56,9 +56,6 @@ fun LivePreview(
     idleImage: ImageBitmap,
     onFocusPointUpdate: (SerializableOffset?) -> Unit,
 ) {
-    LaunchedEffect(puppetState, operatingMode, displayedImageName) {
-        println("LivePreview Update: mode=$operatingMode, puppetState hash=${puppetState.hashCode()}, displayed image name=$displayedImageName")
-    }
 
     var frame by remember { mutableLongStateOf(0L) }
     var jitter by remember { mutableStateOf(Offset.Zero) }

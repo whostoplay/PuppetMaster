@@ -54,6 +54,9 @@ fun Application.module() {
             val fileName = call.parameters["fileName"] ?: return@get call.respond(HttpStatusCode.BadRequest)
             val file = File(uploadsDir, fileName)
             if (file.exists()) {
+                call.response.header(HttpHeaders.CacheControl, "no-cache, no-store, must-revalidate")
+                call.response.header(HttpHeaders.Pragma, "no-cache")
+                call.response.header(HttpHeaders.Expires, "0")
                 call.respondBytes(file.readBytes())
             } else {
                 call.respond(HttpStatusCode.NotFound)
@@ -127,7 +130,7 @@ fun Application.module() {
                     when (jsonElement["type"]?.jsonPrimitive?.content) {
                         "pointer" -> {
                             val position = jsonDecoder.decodeFromJsonElement(MousePosition.serializer(), jsonElement)
-                            stateManager.onMousePositionChanged(position)
+                            stateManager.onMousePositionChanged(SerializableOffset(position.x.toFloat(), position.y.toFloat()))
                         }
 
                         "calibration" -> {

@@ -3,6 +3,9 @@ package org.menagerie.puppet_master
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class MousePosition(val x: Int, val y: Int)
+
+@Serializable
 data class CalibrationData(val topLeft: SerializableOffset, val bottomRight: SerializableOffset)
 
 @Serializable
