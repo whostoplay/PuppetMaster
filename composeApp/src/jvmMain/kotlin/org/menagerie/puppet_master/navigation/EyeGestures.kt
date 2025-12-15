@@ -15,7 +15,7 @@ import kotlinx.coroutines.coroutineScope
 
 actual fun Modifier.combinedEyeGestures(
     onDrag: (dragAmount: Offset) -> Unit,
-    onScale: (scaleFactor: Float) -> Unit,
+    onScale: (scaleFactor: Offset) -> Unit,
     onRadiusChange: (dragAmount: Offset) -> Unit
 ): Modifier = composed {
     val currentOnDrag by rememberUpdatedState(onDrag)
@@ -36,7 +36,7 @@ actual fun Modifier.combinedEyeGestures(
                         when {
                             isShift -> {
                                 // Using Y-axis for scaling up/down
-                                currentOnScale(1.0f + it.positionChange().y / 100f)
+                                currentOnScale(it.positionChange())
                             }
 
                             isAlt -> {

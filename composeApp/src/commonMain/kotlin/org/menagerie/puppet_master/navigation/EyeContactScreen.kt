@@ -74,7 +74,7 @@ import kotlin.math.roundToInt
 
 expect fun Modifier.combinedEyeGestures(
     onDrag: (dragAmount: Offset) -> Unit,
-    onScale: (scaleFactor: Float) -> Unit,
+    onScale: (scaleFactor: Offset) -> Unit,
     onRadiusChange: (dragAmount: Offset) -> Unit
 ): Modifier
 expect fun Modifier.gameScreenGestures(onUpdate: (positionDelta: Offset) -> Unit): Modifier
@@ -695,39 +695,40 @@ fun DraggableEye(
             }
             .graphicsLayer {
                 // Apply the scale factor for display
-                scaleX = eye.scale * imageScaleFactor
-                scaleY = eye.scale * imageScaleFactor
+                scaleX = eye.scaleX * imageScaleFactor
+                scaleY = eye.scaleY * imageScaleFactor
                 transformOrigin = TransformOrigin(0f, 0f)
             }
             .combinedEyeGestures(
                 onDrag = { dragAmount ->
                     // Calculate the total effective scale applied to the eye.
-                    val effectiveScale = imageScaleFactor / eye.scale
-                    if (effectiveScale > 0.0f) {
+                    val effectiveScale = Offset(imageScaleFactor / eye.scaleX, imageScaleFactor/ eye.scaleY)
+                    if (effectiveScale.x > 0.0f && effectiveScale.y > 0.0f) {
                         // Divide the screen drag amount by the total scale to get the correct model-space offset.
-                        val newPosition = eye.position.toOffset() + (dragAmount / effectiveScale)
+                        val newPosition = eye.position.toOffset() + Offset(dragAmount.x / effectiveScale.x, dragAmount.y / effectiveScale.y)
                         if (newPosition.x.isFinite() && newPosition.y.isFinite()) {
                             onUpdate(eye.copy(position = newPosition.toSerializableOffset()))
                         }
                     }
                 },
-                onScale = { scaleFactor ->
+                onScale = { dragAmount ->
                     // This part looks correct!
-                    if (imageScaleFactor > 0.0f && scaleFactor.isFinite() && scaleFactor > 0.0f) {
-                        val newScale = eye.scale * scaleFactor
-                        if (newScale.isFinite()) {
-                            onUpdate(eye.copy(scale = newScale))
-                        }
+                    val scaleSensitivity = 0.01f
+                    val newScaleX = (eye.scaleX + dragAmount.x * scaleSensitivity).coerceAtLeast(0.1f)
+                    val newScaleY = (eye.scaleY + dragAmount.y * scaleSensitivity).coerceAtLeast(0.1f)
+
+                    if (newScaleX.isFinite() && newScaleY.isFinite()) {
+                        onUpdate(eye.copy(scaleX = newScaleX, scaleY = newScaleY))
                     }
                 },
                 onRadiusChange = { dragAmount ->
                     // This logic also needs to account for the eye's own scale.
-                    val effectiveScale = imageScaleFactor / eye.scale
-                    if (effectiveScale > 0f) {
+                    val effectiveScale = Offset(imageScaleFactor / eye.scaleX, imageScaleFactor/ eye.scaleY)
+                    if (effectiveScale.x > 0.0f && effectiveScale.y > 0.0f) {
                         onUpdate(
                             eye.copy(
-                                maxPupilRadiusX = (eye.maxPupilRadiusX + dragAmount.x / effectiveScale).coerceAtLeast(1f),
-                                maxPupilRadiusY = (eye.maxPupilRadiusY + dragAmount.y / effectiveScale).coerceAtLeast(1f)
+                                maxPupilRadiusX = (eye.maxPupilRadiusX + dragAmount.x / effectiveScale.x).coerceAtLeast(1f),
+                                maxPupilRadiusY = (eye.maxPupilRadiusY + dragAmount.y / effectiveScale.y).coerceAtLeast(1f)
                             )
                         )
                     }

@@ -11,7 +11,8 @@ data class Eye(
     val pupil: String? = null,
     val closedState: String? = null,
     val position: SerializableOffset = SerializableOffset(0f, 0f),
-    val scale: Float = 1f,
+    val scaleX: Float = 1f,
+    val scaleY: Float = 1f,
     val maxPupilRadiusX: Float = 75f,
     val maxPupilRadiusY: Float = 75f
 )

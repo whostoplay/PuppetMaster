@@ -194,16 +194,16 @@ fun LivePreview(
                 val leftEyeModifier = Modifier
                     .offset(x = (leftEye.position.x * imageScaleFactor).dp, y = (leftEye.position.y * imageScaleFactor).dp)
                     .graphicsLayer(
-                        scaleX = leftEye.scale * imageScaleFactor,
-                        scaleY = leftEye.scale * imageScaleFactor,
+                        scaleX = leftEye.scaleX * imageScaleFactor,
+                        scaleY = leftEye.scaleY * imageScaleFactor,
                         transformOrigin = TransformOrigin(0f, 0f)
                     )
 
                 val rightEyeModifier = Modifier
                     .offset(x = (rightEye.position.x * imageScaleFactor).dp, y = (rightEye.position.y * imageScaleFactor).dp)
                     .graphicsLayer(
-                        scaleX = rightEye.scale * imageScaleFactor,
-                        scaleY = rightEye.scale * imageScaleFactor,
+                        scaleX = rightEye.scaleX * imageScaleFactor,
+                        scaleY = rightEye.scaleY * imageScaleFactor,
                         transformOrigin = TransformOrigin(0f, 0f)
                     )
 
@@ -266,16 +266,16 @@ fun LivePreview(
                         }
                         var pupilModifier = leftEyeModifier
                         if (finalFocusPointInImage != null) {
-                            val x = leftEye.position.x + cos(leftPupilAngle) * (leftEye.maxPupilRadiusX * leftEye.scale)
-                            val y = leftEye.position.y + sin(leftPupilAngle) * (leftEye.maxPupilRadiusY * leftEye.scale)
+                            val x = leftEye.position.x + cos(leftPupilAngle) * (leftEye.maxPupilRadiusX * leftEye.scaleX)
+                            val y = leftEye.position.y + sin(leftPupilAngle) * (leftEye.maxPupilRadiusY * leftEye.scaleY)
 
                             pupilModifier = Modifier.offset(
                                 x = ((x + jitter.x) * imageScaleFactor).dp,
                                 y = ((y + jitter.y) * imageScaleFactor).dp
                             )
                                 .graphicsLayer(
-                                    scaleX = leftEye.scale * imageScaleFactor,
-                                    scaleY = leftEye.scale * imageScaleFactor,
+                                    scaleX = leftEye.scaleX * imageScaleFactor,
+                                    scaleY = leftEye.scaleY * imageScaleFactor,
                                     transformOrigin = TransformOrigin(0f, 0f)
                                 )
                         }
@@ -290,16 +290,16 @@ fun LivePreview(
                         }
                         var pupilModifier = rightEyeModifier
                         if (finalFocusPointInImage != null) {
-                            val x = rightEye.position.x + cos(rightPupilAngle) * (rightEye.maxPupilRadiusX * rightEye.scale)
-                            val y = rightEye.position.y + sin(rightPupilAngle) * (rightEye.maxPupilRadiusY * rightEye.scale)
+                            val x = rightEye.position.x + cos(rightPupilAngle) * (rightEye.maxPupilRadiusX * rightEye.scaleX)
+                            val y = rightEye.position.y + sin(rightPupilAngle) * (rightEye.maxPupilRadiusY * rightEye.scaleY)
 
                             pupilModifier = Modifier.offset(
                                 x = ((x + jitter.x) * imageScaleFactor).dp,
                                 y = ((y + jitter.y) * imageScaleFactor).dp
                             )
                                 .graphicsLayer(
-                                    scaleX = rightEye.scale * imageScaleFactor,
-                                    scaleY = rightEye.scale * imageScaleFactor,
+                                    scaleX = rightEye.scaleX * imageScaleFactor,
+                                    scaleY = rightEye.scaleY * imageScaleFactor,
                                     transformOrigin = TransformOrigin(0f, 0f)
                                 )
                         }

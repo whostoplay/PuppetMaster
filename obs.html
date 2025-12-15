@@ -192,8 +192,8 @@
                     (finalFocusPointInImage.y + jitter.y) - eyeData.position.y,
                     (finalFocusPointInImage.x + jitter.x) - eyeData.position.x
                 );
-                targetX = Math.cos(angle) * (eyeData.maxPupilRadiusX * eyeData.scale);
-                targetY = Math.sin(angle) * (eyeData.maxPupilRadiusY * eyeData.scale);
+                targetX = Math.cos(angle) * (eyeData.maxPupilRadiusX * eyeData.scaleX);
+                targetY = Math.sin(angle) * (eyeData.maxPupilRadiusY * eyeData.scaleY);
              }
              pupilEl.style.transform = `translate(${targetX * imageScaleFactor}px, ${targetY * imageScaleFactor}px)`;
         };
@@ -206,14 +206,14 @@
         if (!eyeData) return;
         element.style.left = `${imageTopLeftX + (eyeData.position.x * imageScaleFactor)}px`;
         element.style.top = `${imageTopLeftY + (eyeData.position.y * imageScaleFactor)}px`;
-        element.style.width = `${imageCache.width * eyeData.scale * imageScaleFactor}px`;
-        element.style.height = `${imageCache.height * eyeData.scale * imageScaleFactor}px`;
+        element.style.width = `${imageCache.width * eyeData.scaleX * imageScaleFactor}px`;
+        element.style.height = `${imageCache.height * eyeData.scaleY * imageScaleFactor}px`;
 
         if (eyeData.pupil) {
              const pupilEl = element.querySelector('.pupil');
              if (pupilEl) {
-                pupilEl.style.width = `${pupilCache.width * eyeData.scale * imageScaleFactor}px`;
-                pupilEl.style.height = `${pupilCache.height * eyeData.scale * imageScaleFactor}px`;
+                pupilEl.style.width = `${pupilCache.width * eyeData.scaleX * imageScaleFactor}px`;
+                pupilEl.style.height = `${pupilCache.height * eyeData.scaleY * imageScaleFactor}px`;
              }
         }
     }
