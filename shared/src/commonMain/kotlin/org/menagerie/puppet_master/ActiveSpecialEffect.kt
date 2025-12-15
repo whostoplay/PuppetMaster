@@ -71,9 +71,7 @@ class ActiveSpecialEffect(
         return SerializableOffset(normalizedX * offset, normalizedY * offset)
     }
 
-    fun preserveStartTime(previousEffect: ActiveSpecialEffect?) {
-        previousEffect?.let {
-            startTime = it.startTime
-        }
+    fun copyWithPreservedStartTime(newEffect: SpecialEffect): ActiveSpecialEffect {
+        return ActiveSpecialEffect(newEffect, this.startTime)
     }
 }

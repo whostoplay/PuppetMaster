@@ -123,9 +123,12 @@ fun SpecialEffectsUI(
                     spinDirection = spinDirection
                 )
             }
-            val activePreviewEffect = remember(previewEffect) {
-                ActiveSpecialEffect(previewEffect)
+            var activePreviewEffect by remember { mutableStateOf<ActiveSpecialEffect?>(null) }
+
+            LaunchedEffect(previewEffect) {
+                activePreviewEffect = activePreviewEffect?.copyWithPreservedStartTime(previewEffect) ?: ActiveSpecialEffect(previewEffect)
             }
+
             Box(Modifier.height(300.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 if (idleImageBitmap != null) {
                     LivePreview(

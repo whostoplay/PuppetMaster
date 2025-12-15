@@ -60,7 +60,7 @@ class PuppetStateController(
                 if (effect != null) {
                     val newEffect = ActiveSpecialEffect(effect)
                     if (getUiState().preserveState) {
-                        newEffect.preserveStartTime(activeSpecialEffect.value)
+                        newEffect.copyWithPreservedStartTime(activeSpecialEffect.value!!.effect)
                     }
                     _activeSpecialEffect.value = newEffect
                 } else {

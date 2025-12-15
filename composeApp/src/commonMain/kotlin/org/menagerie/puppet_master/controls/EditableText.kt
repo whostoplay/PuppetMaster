@@ -16,6 +16,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -65,9 +67,11 @@ fun EditableText(
     } else {
         Text(
             text = text,
-            modifier = Modifier.pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = { isEditing = true })
-            }
+            modifier = Modifier
+                .pointerHoverIcon(PointerIcon.Text)
+                .pointerInput(Unit) {
+                    detectTapGestures(onDoubleTap = { isEditing = true })
+                }
         )
     }
 }
@@ -121,9 +125,11 @@ fun EditableFloatText(
     } else {
         Text(
             text = "$label: %.2f".format(value),
-            modifier = Modifier.pointerInput(Unit) {
-                detectTapGestures(onDoubleTap = { isEditing = true })
-            }
+            modifier = Modifier
+                .pointerHoverIcon(PointerIcon.Text)
+                .pointerInput(Unit) {
+                    detectTapGestures(onDoubleTap = { isEditing = true })
+                }
         )
     }
 }
