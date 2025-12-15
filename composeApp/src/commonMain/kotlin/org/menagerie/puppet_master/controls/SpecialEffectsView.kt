@@ -2,7 +2,6 @@ package org.menagerie.puppet_master.controls
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,8 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -29,7 +26,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,13 +38,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.OperatingMode
@@ -87,36 +78,23 @@ fun SpecialEffectsUI(
     var scaleSpeed by remember { mutableFloatStateOf(activeEffect?.scaleSpeed ?: 0f) }
     var spinSpeed by remember { mutableFloatStateOf(activeEffect?.spinSpeed ?: 0f) }
     var spinDirection by remember { mutableIntStateOf(activeEffect?.spinDirection ?: 1) }
-    var isEditingName by remember { mutableStateOf(false) }
     var showPreview by remember { mutableStateOf(false) }
     var showScaleDetails by remember { mutableStateOf(false) }
     var showVibrationDetails by remember { mutableStateOf(false) }
     var showGlowColorPicker by remember { mutableStateOf(false) }
-    var isTextFieldFocused by remember { mutableStateOf(false) }
-    val textFieldFocusRequester = remember { FocusRequester() }
 
     LaunchedEffect(activeEffect) {
         activeEffect?.let {
             effectName = it.name
             vibrationDistance = it.vibrationDistance
             vibrationSpeed = it.vibrationSpeed
-            glowIntensity = it.glowIntensity?: 1f
-            glowColor = Color(it.glowColor?: 0xffffff)
+            glowIntensity = it.glowIntensity ?: 1f
+            glowColor = Color(it.glowColor ?: 0xffffff)
             scaleX = it.scaleX
             scaleY = it.scaleY
             scaleSpeed = it.scaleSpeed
             spinSpeed = it.spinSpeed
             spinDirection = it.spinDirection
-        }
-    }
-
-    LaunchedEffect(isTextFieldFocused) {
-        onFocusChange(isTextFieldFocused)
-    }
-
-    LaunchedEffect(isEditingName) {
-        if (isEditingName) {
-            textFieldFocusRequester.requestFocus()
         }
     }
 
@@ -207,44 +185,23 @@ fun SpecialEffectsUI(
         }
 
         activeEffect?.let { effect ->
-            val onNameChangeConfirmed = {
-                val updatedEffect = effect.copy(name = effectName)
-                val updatedManager = specialEffectsManager.updateEffect(specialEffectsManager.activeEffectIndex, updatedEffect)
-                onSpecialEffectsManagerChanged(updatedManager)
-                isEditingName = false
-                rootFocusRequester.requestFocus()
-            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = {
                     onSpecialEffectsManagerChanged(specialEffectsManager.previousEffect())
                 }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Effect")
                 }
-                if (isEditingName) {
-                    TextField(
-                        value = effectName,
-                        onValueChange = { effectName = it },
-                        singleLine = true,
-                        modifier = Modifier
-                            .focusRequester(textFieldFocusRequester)
-                            .onFocusChanged { focusState ->
-                                if (!focusState.isFocused && isTextFieldFocused) {
-                                    onNameChangeConfirmed()
-                                }
-                                isTextFieldFocused = focusState.isFocused
-                            },
-                        keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(
-                            onDone = {
-                                onNameChangeConfirmed()
-                            }
-                        )
-                    )
-                } else {
-                    Text(effect.name, modifier = Modifier.pointerInput(Unit) {
-                        detectTapGestures(onDoubleTap = { isEditingName = true })
-                    })
-                }
+                EditableText(
+                    text = effect.name,
+                    onValueChange = { newName ->
+                        effectName = newName
+                        val updatedEffect = effect.copy(name = newName)
+                        val updatedManager = specialEffectsManager.updateEffect(specialEffectsManager.activeEffectIndex, updatedEffect)
+                        onSpecialEffectsManagerChanged(updatedManager)
+                    },
+                    onFocusChange = onFocusChange,
+                    rootFocusRequester = rootFocusRequester
+                )
                 IconButton(onClick = {
                     onSpecialEffectsManagerChanged(specialEffectsManager.nextEffect())
                 }) {
@@ -272,11 +229,11 @@ fun SpecialEffectsUI(
             )
             if (showScaleDetails) {
                 Column(modifier = Modifier.padding(start = 16.dp)) {
-                    Text("Scale X: %.2f".format(scaleX))
+                    EditableFloatText(label = "Scale X", value = scaleX, onValueChange = { scaleX = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
                     Slider(value = scaleX, onValueChange = { scaleX = it }, valueRange = 0.25f..2f)
-                    Text("Scale Y: %.2f".format(scaleY))
+                    EditableFloatText(label = "Scale Y", value = scaleY, onValueChange = { scaleY = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
                     Slider(value = scaleY, onValueChange = { scaleY = it }, valueRange = 0.25f..2f)
-                    Text("Scale Speed: %.2f".format(scaleSpeed))
+                    EditableFloatText(label = "Scale Speed", value = scaleSpeed, onValueChange = { scaleSpeed = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
                     Slider(value = scaleSpeed, onValueChange = { scaleSpeed = it }, valueRange = 0f..1f)
                 }
             }
@@ -301,15 +258,15 @@ fun SpecialEffectsUI(
             )
             if (showVibrationDetails) {
                 Column(modifier = Modifier.padding(start = 16.dp)) {
-                    Text("Distance: %.2f".format(vibrationDistance))
+                    EditableFloatText(label = "Distance", value = vibrationDistance, onValueChange = { vibrationDistance = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
                     Slider(value = vibrationDistance, onValueChange = { vibrationDistance = it }, valueRange = 0f..1f)
-                    Text("Speed: %.2f".format(vibrationSpeed))
+                    EditableFloatText(label = "Speed", value = vibrationSpeed, onValueChange = { vibrationSpeed = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
                     Slider(value = vibrationSpeed, onValueChange = { vibrationSpeed = it }, valueRange = 0f..1f)
                 }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Glow (Luminance)")
+                EditableFloatText(label = "Glow (Luminance)", value = glowIntensity, onValueChange = { glowIntensity = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
                 Box(
                     modifier = Modifier
                         .size(20.dp)
@@ -325,7 +282,7 @@ fun SpecialEffectsUI(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Spin Speed")
+                EditableFloatText(label = "Spin Speed", value = spinSpeed, onValueChange = { spinSpeed = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
             }
             Slider(
                 value = spinSpeed,
