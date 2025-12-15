@@ -229,6 +229,32 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
         )
     }
 
+    if (uiState.showConnectionErrorDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissConnectionErrorDialog() },
+            title = { Text("Connection Failed") },
+            text = { Text("Could not connect to the server. Would you like to try again?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.connectAndSync()
+                        viewModel.dismissConnectionErrorDialog()
+                    }
+                ) {
+                    Text("Try Again")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.setOperatingMode(OperatingMode.OFFLINE)
+                    viewModel.dismissConnectionErrorDialog()
+                }) {
+                    Text("Work Offline")
+                }
+            }
+        )
+    }
+
     BoxWithConstraints(
         modifier = Modifier.fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)

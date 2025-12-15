@@ -7,6 +7,7 @@ expect class PuppetDataManager(scope: CoroutineScope, context: Any) {
     val uploadsDir: String
     val troupe: StateFlow<PuppetTroupe?>
     val activePuppet: StateFlow<PuppetCharacter?>
+    val connectionState: StateFlow<ConnectionState>
 
     fun setOperatingMode(mode: OperatingMode)
     fun connectAndSync(serverIp: String)

@@ -16,7 +16,12 @@ import androidx.compose.ui.platform.LocalContext
  * @param onImagesSelected A callback that is invoked when the user has selected images. The callback receives a list of pairs, where each pair contains the image data as a byte array and the name of the image file.
  */
 @Composable
-actual fun ImageFilePicker(buttonText: String, onImagesSelected: (List<Pair<ByteArray, String>>) -> Unit) {
+actual fun ImageFilePicker(
+    buttonText: String,
+    initialDirectory: String?,
+    onImagesSelected: (List<Pair<ByteArray, String>>) -> Unit, 
+    onFolderSelected: (String) -> Unit
+) {
     val context = LocalContext.current
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {

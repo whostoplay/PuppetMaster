@@ -28,6 +28,7 @@ data class UiState(
     val backgroundColor: Color = Color.Green,
     val showStateAssignmentDialog: Boolean = false,
     val showOverwriteConfirmDialog: Boolean = false,
+    val showConnectionErrorDialog: Boolean = false,
     val selectedThreshold: Float? = null,
     val preserveState: Boolean = false
 ) {
@@ -39,6 +40,7 @@ data class UiState(
 
         if (showStateAssignmentDialog != other.showStateAssignmentDialog) return false
         if (showOverwriteConfirmDialog != other.showOverwriteConfirmDialog) return false
+        if (showConnectionErrorDialog != other.showConnectionErrorDialog) return false
         if (selectedThreshold != other.selectedThreshold) return false
         if (!selectedImage.contentEquals(other.selectedImage)) return false
         if (selectedImageName != other.selectedImageName) return false
@@ -54,6 +56,7 @@ data class UiState(
     override fun hashCode(): Int {
         var result = showStateAssignmentDialog.hashCode()
         result = 31 * result + showOverwriteConfirmDialog.hashCode()
+        result = 31 * result + showConnectionErrorDialog.hashCode()
         result = 31 * result + (selectedThreshold?.hashCode() ?: 0)
         result = 31 * result + (selectedImage?.contentHashCode() ?: 0)
         result = 31 * result + selectedImageName.hashCode()
@@ -92,6 +95,7 @@ class MainViewModel(context: Any) : ScreenModel {
     val isListening: StateFlow<Boolean> = stateController.isListening
     val audioLevel: StateFlow<Float> = stateController.audioLevel
     val isBlinking: StateFlow<Boolean> = stateController.isBlinking
+    val connectionState: StateFlow<ConnectionState> = dataManager.connectionState
 
     private val _serverState = MutableStateFlow<ServerState?>(null)
     private val serverState: StateFlow<ServerState?> = _serverState.asStateFlow()
@@ -137,6 +141,14 @@ class MainViewModel(context: Any) : ScreenModel {
                 _thresholds.value = puppet?.thresholds ?: emptyMap()
                 _selectedState.value?.let { selected ->
                     _selectedState.value = puppet?.states?.find { it.name == selected.name }
+                }
+            }
+        }
+
+        screenModelScope.launch {
+            connectionState.collect { state ->
+                if (state == ConnectionState.FAILED) {
+                    _uiState.value = _uiState.value.copy(showConnectionErrorDialog = true)
                 }
             }
         }
@@ -237,6 +249,11 @@ class MainViewModel(context: Any) : ScreenModel {
         settingsRepository.saveSettings(newSettings)
     }
 
+    fun setLastImageFolder(folder: String) {
+        val newSettings = _settings.value.copy(lastImageFolder = folder)
+        updateSettings(newSettings)
+    }
+
     suspend fun getImageData(imageName: String): ByteArray? {
         return dataManager.getImageData(imageName)
     }
@@ -281,6 +298,10 @@ class MainViewModel(context: Any) : ScreenModel {
 
     fun hideOverwriteConfirmDialog() {
         _uiState.value = _uiState.value.copy(showOverwriteConfirmDialog = false)
+    }
+
+    fun dismissConnectionErrorDialog() {
+        _uiState.value = _uiState.value.copy(showConnectionErrorDialog = false)
     }
 
     fun setOperatingMode(mode: OperatingMode) {

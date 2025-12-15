@@ -59,6 +59,7 @@ fun StateCreation(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val activePuppet by viewModel.activePuppet.collectAsState()
+    val settings by viewModel.settings.collectAsState()
     val coroutineScope = rememberCoroutineScope()
     var showFilePicker by remember { mutableStateOf(false) }
     var pickingFor by remember { mutableStateOf<String?>(null) }
@@ -68,6 +69,7 @@ fun StateCreation(
         show = showFilePicker,
         title = "Select ${pickingFor ?: "Image(s)"}",
         multiSelect = pickingFor == null,
+        initialDirectory = settings.lastImageFolder,
         onCancel = { showFilePicker = false },
         onResult = { images ->
             if (images.isNotEmpty()) {
@@ -108,7 +110,8 @@ fun StateCreation(
             }
             showFilePicker = false
             pickingFor = null
-        }
+        },
+        onFolderSelected = { viewModel.setLastImageFolder(it) }
     )
 
     Column(modifier = modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {

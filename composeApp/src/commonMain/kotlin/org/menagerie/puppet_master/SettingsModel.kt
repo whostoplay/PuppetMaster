@@ -15,5 +15,6 @@ data class SettingsModel(
     val checkAudienceHotkey: Hotkey = Hotkey(Key.A.keyCode, hold = true),
     val startOffline: Boolean = true,
     val lastTroupeFile: String? = null,
-    val lastPuppetExportFolder: String? = null
+    val lastPuppetExportFolder: String? = null,
+    val lastImageFolder: String? = null
 )

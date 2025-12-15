@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.net.toUri
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.post
@@ -30,6 +31,10 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     private val uploader = Uploader()
     private val client = HttpClient {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true }) }
+        install(HttpTimeout) {
+            connectTimeoutMillis = 15000
+            socketTimeoutMillis = 15000
+        }
     }
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true; allowStructuredMapKeys = true }
     private val settingsRepository = SettingsRepository(context)
@@ -39,6 +44,9 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
     private val _activePuppet = MutableStateFlow<PuppetCharacter?>(null)
     actual val activePuppet: StateFlow<PuppetCharacter?> = _activePuppet
+
+    private val _connectionState = MutableStateFlow(ConnectionState.IDLE)
+    actual val connectionState: StateFlow<ConnectionState> = _connectionState
 
     private var operatingMode: OperatingMode = OperatingMode.OFFLINE
 
@@ -281,8 +289,10 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
     actual fun connectAndSync(serverIp: String) {
         scope.launch {
+            _connectionState.value = ConnectionState.CONNECTING
             try {
                 val serverTroupe = client.get("http://$serverIp:$SERVER_PORT/troupe").body<PuppetTroupe>()
+                _connectionState.value = ConnectionState.CONNECTED
                 val localTroupe = _troupe.value
                 val shouldSync = when {
                     localTroupe == null -> true
@@ -305,6 +315,22 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                                 val blinkImageBytes: ByteArray = client.get(blinkImageUrl).body()
                                 File(uploadsDir, blinkImageName).writeBytes(blinkImageBytes)
                             }
+
+                            state.eyeState?.let { eyeState ->
+                                suspend fun downloadEyeImage(imageName: String?) {
+                                    imageName?.let {
+                                        val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/$it"
+                                        val imageBytes: ByteArray = client.get(imageUrl).body()
+                                        File(uploadsDir, it).writeBytes(imageBytes)
+                                    }
+                                }
+                                downloadEyeImage(eyeState.eyes.left.openState)
+                                downloadEyeImage(eyeState.eyes.left.closedState)
+                                downloadEyeImage(eyeState.eyes.left.pupil)
+                                downloadEyeImage(eyeState.eyes.right.openState)
+                                downloadEyeImage(eyeState.eyes.right.closedState)
+                                downloadEyeImage(eyeState.eyes.right.pupil)
+                            }
                         }
                     }
 
@@ -312,8 +338,8 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                     _activePuppet.value = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
                     saveTroupe(serverTroupe)
                 }
-            } catch (_: Exception) {
-                // Handle error
+            } catch (e: Exception) {
+                _connectionState.value = ConnectionState.FAILED
             }
         }
     }

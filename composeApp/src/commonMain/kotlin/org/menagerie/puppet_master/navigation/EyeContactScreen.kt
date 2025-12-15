@@ -35,6 +35,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,6 +89,7 @@ class EyeContactScreen(
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val scope = rememberCoroutineScope()
+        val settings by viewModel.settings.collectAsState()
 
         var selectedState by remember { mutableStateOf<PuppetStateInfo?>(null) }
         var isStateSelectorExpanded by remember { mutableStateOf(false) }
@@ -368,7 +370,7 @@ class EyeContactScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Left Eye")
-                        EyePartPicker("Open", leftEye?.openState, true) { images ->
+                        EyePartPicker("Open", leftEye?.openState, true, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -380,8 +382,8 @@ class EyeContactScreen(
                                     }
                                 }
                             }
-                        }
-                        EyePartPicker("Pupil", leftEye?.pupil, true) { images ->
+                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                        EyePartPicker("Pupil", leftEye?.pupil, true, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -393,8 +395,8 @@ class EyeContactScreen(
                                     }
                                 }
                             }
-                        }
-                        EyePartPicker("Closed", leftEye?.closedState, true) { images ->
+                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                        EyePartPicker("Closed", leftEye?.closedState, true, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -406,11 +408,11 @@ class EyeContactScreen(
                                     }
                                 }
                             }
-                        }
+                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Right Eye")
-                        EyePartPicker("Open", rightEye?.openState, !syncEyes) { images ->
+                        EyePartPicker("Open", rightEye?.openState, !syncEyes, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -418,8 +420,8 @@ class EyeContactScreen(
                                     rightEyeOpenData = data
                                 }
                             }
-                        }
-                        EyePartPicker("Pupil", rightEye?.pupil, !syncEyes) { images ->
+                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                        EyePartPicker("Pupil", rightEye?.pupil, !syncEyes, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -427,8 +429,8 @@ class EyeContactScreen(
                                     rightEyePupilData = data
                                 }
                             }
-                        }
-                        EyePartPicker("Closed", rightEye?.closedState, !syncEyes) { images ->
+                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                        EyePartPicker("Closed", rightEye?.closedState, !syncEyes, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -436,7 +438,7 @@ class EyeContactScreen(
                                     rightEyeClosedData = data
                                 }
                             }
-                        }
+                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
                     }
                 }
 
@@ -647,14 +649,21 @@ private fun EyePartPicker(
     partName: String,
     imageName: String?,
     enabled: Boolean,
-    onImageSelected: (List<Pair<ByteArray, String>>) -> Unit
+    initialDirectory: String?,
+    onImageSelected: (List<Pair<ByteArray, String>>) -> Unit,
+    onFolderSelected: (String) -> Unit
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         if (enabled) {
-            ImageFilePicker(partName, onImagesSelected = onImageSelected)
+            ImageFilePicker(
+                buttonText = partName, 
+                initialDirectory = initialDirectory,
+                onImagesSelected = onImageSelected, 
+                onFolderSelected = onFolderSelected
+            )
         } else {
             Button(onClick = {}, enabled = false) {
                 Text(partName)

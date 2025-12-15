@@ -10,11 +10,13 @@ actual fun ImagePickerDialog(
     show: Boolean,
     title: String,
     multiSelect: Boolean,
+    initialDirectory: String?,
     onCancel: () -> Unit,
-    onResult: (List<Pair<ByteArray, String>>) -> Unit
+    onResult: (List<Pair<ByteArray, String>>) -> Unit,
+    onFolderSelected: (String) -> Unit
 ) {
     if (show) {
-        val chooser = JFileChooser()
+        val chooser = JFileChooser(initialDirectory?.let { File(it) })
         chooser.dialogTitle = title
         chooser.fileFilter = FileNameExtensionFilter("PNG Images", "png")
         chooser.isMultiSelectionEnabled = multiSelect
@@ -22,14 +24,17 @@ actual fun ImagePickerDialog(
 
         if (result == JFileChooser.APPROVE_OPTION) {
             val files = if (multiSelect) chooser.selectedFiles else arrayOf(chooser.selectedFile)
-            val images = files.mapNotNull { file ->
-                if (file.exists()) {
-                    file.readBytes() to file.name
-                } else {
-                    null
+            if (files.isNotEmpty()) {
+                files.first().parent?.let { onFolderSelected(it) }
+                val images = files.mapNotNull { file ->
+                    if (file.exists()) {
+                        file.readBytes() to file.name
+                    } else {
+                        null
+                    }
                 }
+                onResult(images)
             }
-            onResult(images)
         } else {
             onCancel()
         }
