@@ -3,6 +3,8 @@ package org.menagerie.puppet_master
 import kotlinx.serialization.Serializable
 import kotlin.math.PI
 import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.random.Random
 
 /**
  * Represents the currently active special effect, and calculates its visual properties over time.
@@ -54,10 +56,19 @@ class ActiveSpecialEffect(
         }
         val elapsedTime = (System.currentTimeMillis() - startTime).toFloat()
         val offset = effect.vibrationDistance * maxOffset
-        val angle = (elapsedTime / (1000f / (effect.vibrationSpeed * 2 + 1))) * 2f * PI
-        val x = (sin(angle.toFloat()) * offset).toFloat()
-        val y = (kotlin.math.cos(angle.toFloat()) * offset).toFloat()
-        return SerializableOffset(x, y)
+
+        val vibrationDuration = 1000f / (effect.vibrationSpeed * 32 + 1)
+        val vibrationCycle = (elapsedTime / vibrationDuration).toInt()
+        val random = Random(vibrationCycle.toLong())
+
+        val x = random.nextFloat() * 2f - 1f
+        val y = random.nextFloat() * 2f - 1f
+
+        val magnitude = sqrt(x * x + y * y)
+        val normalizedX = if (magnitude > 0f) x / magnitude else 0f
+        val normalizedY = if (magnitude > 0f) y / magnitude else 0f
+
+        return SerializableOffset(normalizedX * offset, normalizedY * offset)
     }
 
     fun preserveStartTime(previousEffect: ActiveSpecialEffect?) {
