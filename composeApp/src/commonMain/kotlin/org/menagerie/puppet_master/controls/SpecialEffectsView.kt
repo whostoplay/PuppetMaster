@@ -192,13 +192,15 @@ fun SpecialEffectsUI(
             }
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(
-                checked = showPreview,
-                onCheckedChange = { showPreview = it },
-                enabled = idleState != null
-            )
-            Text("Display Preview")
+        if(activeEffect != null) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(
+                    checked = showPreview,
+                    onCheckedChange = { showPreview = it },
+                    enabled = idleState != null
+                )
+                Text("Display Preview")
+            }
         }
 
         activeEffect?.let { effect ->
