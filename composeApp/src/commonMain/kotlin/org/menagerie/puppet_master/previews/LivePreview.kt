@@ -141,14 +141,15 @@ fun LivePreview(
         val glowColor = activeSpecialEffect?.getGlowColor()?.let { Color(it) } ?: Color.White
         val glowIntensity = activeSpecialEffect?.getGlow() ?: 1f
 
-        val colorMatrix = ColorMatrix().apply {
-            setToScale(
-                redScale = glowIntensity * glowColor.red,
-                greenScale = glowIntensity * glowColor.green,
-                blueScale = glowIntensity * glowColor.blue,
-                alphaScale = 1f
+        val colorMatrix = ColorMatrix(
+            floatArrayOf(
+                glowIntensity * glowColor.red, 0f, 0f, 0f, glowColor.red * 0.2f,
+                0f, glowIntensity * glowColor.green, 0f, 0f, glowColor.green * 0.2f,
+                0f, 0f, glowIntensity * glowColor.blue, 0f, glowColor.blue * 0.2f,
+                0f, 0f, 0f, 1f, 0f
             )
-        }
+        )
+
 
         val imageScaleFactor = if (image.width > 0 && image.height > 0) {
             min(maxWidth.value / image.width, maxHeight.value / image.height)
