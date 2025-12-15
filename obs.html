@@ -294,17 +294,10 @@
                 const g = ((glowColor >> 8) & 0xFF) / 255;
                 const b = (glowColor & 0xFF) / 255;
 
-                // This logic correctly blends the tint color with the original image.
-                // When glowIntensity is 0, this results in an identity matrix (no change).
-                const r_ = (1 - glowIntensity) + (r * glowIntensity);
-                const g_ = (1 - glowIntensity) + (g * glowIntensity);
-                const b_ = (1 - glowIntensity) + (b * glowIntensity);
-
-                // Construct the matrix as a single line of 20 space-separated values.
                 const matrix = [
-                    r_, 0, 0, 0, 0,
-                    0, g_, 0, 0, 0,
-                    0, 0, b_, 0, 0,
+                    glowIntensity * r, 0, 0, 0, r * 0.2,
+                    0, glowIntensity * g, 0, 0, g * 0.2,
+                    0, 0, glowIntensity * b, 0, b * 0.2,
                     0, 0, 0, 1, 0
                 ].join(' ');
 

@@ -59,7 +59,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
             animationJob = scope.launch {
                 while (true) {
                     val animationState = calculateAnimationState()
-                    updateStateToSend(state, animationState, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
+                    updateStateToSend(null, animationState, null) // Pass null to avoid overwriting the state
                     delay(16) // roughly 60 fps
                 }
             }
@@ -213,12 +213,22 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
     }
 
     private fun updateStateToSend(state: PuppetStateInfo?, animationState: AnimationState?, mousePosition: SerializableOffset?) {
-        val updatedState = state?.copy(eyeState = state.eyeState?.copy(cursorPosition = mousePosition))
-        val currentData = _stateToSend.value
+        val currentState = _stateToSend.value
+        val currentInfo = currentState?.puppetStateInfo
+
+        val newPuppetInfo = state ?: currentInfo
+        val newAnimationState = animationState ?: currentState?.animationState
+
+        val finalState = (newPuppetInfo?.copy(
+            eyeState = newPuppetInfo.eyeState?.copy(
+                cursorPosition = mousePosition ?: newPuppetInfo.eyeState!!.cursorPosition
+            )
+        ))
+
         _stateToSend.value = ServerState(
-            puppetStateInfo = updatedState,
-            calibrationData = currentData?.calibrationData,
-            animationState = animationState
+            puppetStateInfo = finalState,
+            calibrationData = currentState?.calibrationData,
+            animationState = newAnimationState
         )
     }
 }
