@@ -370,7 +370,7 @@ class EyeContactScreen(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Left Eye")
-                        EyePartPicker("Open", leftEye?.openState, true, onImageSelected = { images ->
+                        EyePartPicker("Iris", leftEye?.openState, true, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -396,7 +396,7 @@ class EyeContactScreen(
                                 }
                             }
                         }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                        EyePartPicker("Closed", leftEye?.closedState, true, onImageSelected = { images ->
+                        EyePartPicker("Blink", leftEye?.closedState, true, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -412,7 +412,7 @@ class EyeContactScreen(
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Right Eye")
-                        EyePartPicker("Open", rightEye?.openState, !syncEyes, onImageSelected = { images ->
+                        EyePartPicker("Iris", rightEye?.openState, !syncEyes, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -430,7 +430,7 @@ class EyeContactScreen(
                                 }
                             }
                         }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                        EyePartPicker("Closed", rightEye?.closedState, !syncEyes, onImageSelected = { images ->
+                        EyePartPicker("Blink", rightEye?.closedState, !syncEyes, onImageSelected = { images ->
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
@@ -487,7 +487,6 @@ class EyeContactScreen(
                                 rightEyeClosedData = rightEyeClosedData,
                                 onRightEyeUpdate = { rightEye = it },
                                 showClosedEyes = isClosedPreview,
-                                followCursor = followCursor,
                                 gameScreenLocation = gameScreenLocation,
                                 onGameScreenLocationChange = { gameScreenLocation = it },
                                 showGameScreenTarget = focusOnGame
@@ -534,7 +533,6 @@ private fun DraggablePreviewSurface(
     rightEyeClosedData: ByteArray?,
     onRightEyeUpdate: (Eye) -> Unit,
     showClosedEyes: Boolean,
-    followCursor: Boolean,
     gameScreenLocation: Offset,
     onGameScreenLocationChange: (Offset) -> Unit,
     showGameScreenTarget: Boolean
@@ -571,7 +569,6 @@ private fun DraggablePreviewSurface(
                         eye = eye,
                         imageScaleFactor = imageScaleFactor,
                         showClosed = showClosedEyes,
-                        followCursor = followCursor
                     ) { newEye ->
                         onLeftEyeUpdate(newEye)
                     }
@@ -585,7 +582,6 @@ private fun DraggablePreviewSurface(
                         eye = eye,
                         imageScaleFactor = imageScaleFactor,
                         showClosed = showClosedEyes,
-                        followCursor = followCursor
                     ) { newEye ->
                         onRightEyeUpdate(newEye)
                     }
@@ -681,7 +677,6 @@ fun DraggableEye(
     eye: Eye,
     imageScaleFactor: Float, // Pass the scale factor
     showClosed: Boolean,
-    followCursor: Boolean,
     onUpdate: (Eye) -> Unit
 ) {
     Box(
@@ -761,7 +756,7 @@ fun DraggableEye(
                 }
             }
 
-            if (followCursor && pupilImage != null) {
+            if(pupilImage != null) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val pupilRadiusX = eye.maxPupilRadiusX
                     val pupilRadiusY = eye.maxPupilRadiusY
