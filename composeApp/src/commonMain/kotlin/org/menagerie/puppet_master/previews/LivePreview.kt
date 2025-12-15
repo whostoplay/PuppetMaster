@@ -61,6 +61,7 @@ fun LivePreview(
     var frame by remember { mutableLongStateOf(0L) }
     var jitter by remember { mutableStateOf(Offset.Zero) }
     var isCheckingAudience by remember { mutableStateOf(false) }
+    var audienceCheckBlink by remember { mutableStateOf(false) }
     val pointerPosition = rememberGlobalPointerPosition(window)
 
     val eyeState = puppetState?.eyeState
@@ -96,7 +97,8 @@ fun LivePreview(
         eyeState?.eyes?.checkOnAudience,
         eyeState?.eyes?.audienceCheckRate,
         eyeState?.eyes?.audienceCheckDuration,
-        isAudienceCheckForced
+        isAudienceCheckForced,
+        loadedBlinkBody
     ) {
         val checkOnAudience = eyeState?.eyes?.checkOnAudience == true
         if (checkOnAudience || isAudienceCheckForced) {
@@ -105,8 +107,18 @@ fun LivePreview(
             if (audienceCheckRate > 0 && audienceCheckDuration > 0) {
                 while (true) {
                     delay(audienceCheckRate)
+                    if (loadedBlinkBody != null) {
+                        audienceCheckBlink = true
+                        delay(100)
+                        audienceCheckBlink = false
+                    }
                     isCheckingAudience = true
                     delay(audienceCheckDuration)
+                    if (loadedBlinkBody != null) {
+                        audienceCheckBlink = true
+                        delay(100)
+                        audienceCheckBlink = false
+                    }
                     isCheckingAudience = false
                 }
             }
@@ -136,7 +148,8 @@ fun LivePreview(
         modifier = Modifier.fillMaxSize().background(backgroundColor).padding(8.dp),
         contentAlignment = Alignment.Center
     ) {
-        val image = (if (isBlinking) loadedBlinkBody else loadedBody) ?: idleImage
+        val isEffectivelyBlinking = isBlinking || audienceCheckBlink
+        val image = (if (isEffectivelyBlinking) loadedBlinkBody else loadedBody) ?: idleImage
 
         val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f)
         val glowColor = activeSpecialEffect?.getGlowColor()?.let { Color(it) } ?: Color.White
@@ -208,17 +221,17 @@ fun LivePreview(
                         transformOrigin = TransformOrigin(0f, 0f)
                     )
 
-                val leftEyeToDisplay = if (isBlinking) loadedLeftClosedEye else loadedLeftOpenEye
+                val leftEyeToDisplay = if (isEffectivelyBlinking) loadedLeftClosedEye else loadedLeftOpenEye
                 leftEyeToDisplay?.let {
                     Image(bitmap = it, contentDescription = "Left Eye", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = leftEyeModifier)
                 }
 
-                val rightEyeToDisplay = if (isBlinking) loadedRightClosedEye else loadedRightOpenEye
+                val rightEyeToDisplay = if (isEffectivelyBlinking) loadedRightClosedEye else loadedRightOpenEye
                 rightEyeToDisplay?.let {
                     Image(bitmap = it, contentDescription = "Right Eye", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = rightEyeModifier)
                 }
 
-                if (!isBlinking) {
+                if (!isEffectivelyBlinking) {
                     val focusPointOnScreen: Offset? = when {
                         isCheckingAudience || isAudienceCheckForced -> null
                         eyeData.eyes.focusOnGame -> Offset(x = imageTopLeftX + (eyeData.eyes.gameScreenLocation.x * scaledWidthPx), y = imageTopLeftY + (eyeData.eyes.gameScreenLocation.y * scaledHeightPx))
@@ -260,8 +273,14 @@ fun LivePreview(
 
                     onFocusPointUpdate(finalFocusPointInImage)
 
+                    val pupilFocusPoint = if (isCheckingAudience || isAudienceCheckForced) {
+                        null
+                    } else {
+                        finalFocusPointInImage
+                    }
+
                     val leftPupilPosition = getPupilPosition(
-                        finalFocusPointInImage, leftEye, loadedLeftPupil, loadedLeftOpenEye
+                        pupilFocusPoint, leftEye, loadedLeftPupil, loadedLeftOpenEye
                     )
                     leftPupilPosition?.let { position ->
                         loadedLeftPupil?.let {
@@ -283,7 +302,7 @@ fun LivePreview(
                     }
 
                     val rightPupilPosition = getPupilPosition(
-                        finalFocusPointInImage, rightEye, loadedRightPupil, loadedRightOpenEye
+                        pupilFocusPoint, rightEye, loadedRightPupil, loadedRightOpenEye
                     )
                     rightPupilPosition?.let { position ->
                         loadedRightPupil?.let {
@@ -316,7 +335,7 @@ private fun getPupilPosition(
     pupilImage: ImageBitmap?,
     eyeImage: ImageBitmap?
 ): Offset? {
-    if (focusPoint == null || pupilImage == null || eyeImage == null) return null
+    if (pupilImage == null || eyeImage == null) return null
 
     val eyeImageWidth = eyeImage.width * eyeInfo.scaleX
     val eyeImageHeight = eyeImage.height * eyeInfo.scaleY
@@ -324,31 +343,36 @@ private fun getPupilPosition(
     val eyeCenterX = eyeInfo.position.x + eyeImageWidth / 2f
     val eyeCenterY = eyeInfo.position.y + eyeImageHeight / 2f
 
-    val focusRelativeToEyeX = focusPoint.x - eyeCenterX
-    val focusRelativeToEyeY = focusPoint.y - eyeCenterY
-
-    val pupilMajorRadius = eyeInfo.maxPupilRadiusX * eyeInfo.scaleX
-    val pupilMinorRadius = eyeInfo.maxPupilRadiusY * eyeInfo.scaleY
-
     val pupilOffsetX: Float
     val pupilOffsetY: Float
 
-    if (pupilMajorRadius > 0f && pupilMinorRadius > 0f) {
-        val normalizedX = focusRelativeToEyeX / pupilMajorRadius
-        val normalizedY = focusRelativeToEyeY / pupilMinorRadius
-        val ellipseValue = normalizedX * normalizedX + normalizedY * normalizedY
-
-        if (ellipseValue > 1f) {
-            val scale = 1f / sqrt(ellipseValue)
-            pupilOffsetX = focusRelativeToEyeX * scale
-            pupilOffsetY = focusRelativeToEyeY * scale
-        } else {
-            pupilOffsetX = focusRelativeToEyeX
-            pupilOffsetY = focusRelativeToEyeY
-        }
-    } else {
+    if (focusPoint == null) {
         pupilOffsetX = 0f
         pupilOffsetY = 0f
+    } else {
+        val focusRelativeToEyeX = focusPoint.x - eyeCenterX
+        val focusRelativeToEyeY = focusPoint.y - eyeCenterY
+
+        val pupilMajorRadius = eyeInfo.maxPupilRadiusX * eyeInfo.scaleX
+        val pupilMinorRadius = eyeInfo.maxPupilRadiusY * eyeInfo.scaleY
+
+        if (pupilMajorRadius > 0f && pupilMinorRadius > 0f) {
+            val normalizedX = focusRelativeToEyeX / pupilMajorRadius
+            val normalizedY = focusRelativeToEyeY / pupilMinorRadius
+            val ellipseValue = normalizedX * normalizedX + normalizedY * normalizedY
+
+            if (ellipseValue > 1f) {
+                val scale = 1f / sqrt(ellipseValue)
+                pupilOffsetX = focusRelativeToEyeX * scale
+                pupilOffsetY = focusRelativeToEyeY * scale
+            } else {
+                pupilOffsetX = focusRelativeToEyeX
+                pupilOffsetY = focusRelativeToEyeY
+            }
+        } else {
+            pupilOffsetX = 0f
+            pupilOffsetY = 0f
+        }
     }
 
     val pupilX = eyeCenterX + pupilOffsetX - (pupilImage.width * eyeInfo.scaleX / 2f)
