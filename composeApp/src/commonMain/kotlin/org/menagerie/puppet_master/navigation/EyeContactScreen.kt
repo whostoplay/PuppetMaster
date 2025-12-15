@@ -701,14 +701,18 @@ fun DraggableEye(
             }
             .combinedEyeGestures(
                 onDrag = { dragAmount ->
-                    if (imageScaleFactor > 0.0f) {
-                        val newPosition = eye.position.toOffset() + (dragAmount / imageScaleFactor)
+                    // Calculate the total effective scale applied to the eye.
+                    val effectiveScale = imageScaleFactor / eye.scale
+                    if (effectiveScale > 0.0f) {
+                        // Divide the screen drag amount by the total scale to get the correct model-space offset.
+                        val newPosition = eye.position.toOffset() + (dragAmount / effectiveScale)
                         if (newPosition.x.isFinite() && newPosition.y.isFinite()) {
                             onUpdate(eye.copy(position = newPosition.toSerializableOffset()))
                         }
                     }
                 },
                 onScale = { scaleFactor ->
+                    // This part looks correct!
                     if (imageScaleFactor > 0.0f && scaleFactor.isFinite() && scaleFactor > 0.0f) {
                         val newScale = eye.scale * scaleFactor
                         if (newScale.isFinite()) {
@@ -717,11 +721,13 @@ fun DraggableEye(
                     }
                 },
                 onRadiusChange = { dragAmount ->
-                    if (imageScaleFactor > 0f) {
+                    // This logic also needs to account for the eye's own scale.
+                    val effectiveScale = imageScaleFactor / eye.scale
+                    if (effectiveScale > 0f) {
                         onUpdate(
                             eye.copy(
-                                maxPupilRadiusX = (eye.maxPupilRadiusX + dragAmount.x / imageScaleFactor).coerceAtLeast(1f),
-                                maxPupilRadiusY = (eye.maxPupilRadiusY + dragAmount.y / imageScaleFactor).coerceAtLeast(1f)
+                                maxPupilRadiusX = (eye.maxPupilRadiusX + dragAmount.x / effectiveScale).coerceAtLeast(1f),
+                                maxPupilRadiusY = (eye.maxPupilRadiusY + dragAmount.y / effectiveScale).coerceAtLeast(1f)
                             )
                         )
                     }
