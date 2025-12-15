@@ -372,11 +372,23 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                 saveImage(serverBlinkImageName, blinkImageBytes)
             }
 
-            val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
-
             _activePuppet.value?.let { currentPuppet ->
-                val otherStates = currentPuppet.states.filter { it.name != stateName }
-                val newStates = otherStates + newState
+                val existingState = currentPuppet.states.find { it.name == stateName }
+
+                val newState = if (existingState != null) {
+                    existingState.copy(
+                        imageName = serverImageName,
+                        blinkImageName = serverBlinkImageName ?: existingState.blinkImageName
+                    )
+                } else {
+                    PuppetStateInfo(
+                        name = stateName,
+                        imageName = serverImageName,
+                        blinkImageName = serverBlinkImageName
+                    )
+                }
+
+                val newStates = currentPuppet.states.filter { it.name != stateName } + newState
                 updatePuppet(currentPuppet.name) { it.copy(states = newStates) }
             }
         }

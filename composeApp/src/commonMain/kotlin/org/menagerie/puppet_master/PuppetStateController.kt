@@ -98,40 +98,23 @@ class PuppetStateController(
     }
 
     fun onKeyEvent(keyEvent: KeyEvent) {
-        println("onKeyEvent received: $keyEvent")
-        val puppet = dataManager.activePuppet.value
-        if (puppet == null) {
-            println("Puppet not found, returning")
-            return
-        }
-        
-        println("Current puppet states and hotkeys:")
-        puppet.states.forEach { state ->
-            println("  - State: '${state.name}', Hotkey: ${state.hotkey}")
-        }
-
+        val puppet = dataManager.activePuppet.value ?: return
         for (state in puppet.states) {
             state.hotkey?.let { hotkey ->
-                println("Checking state '${state.name}' with hotkey: $hotkey")
                 if (hotkey.isHotkey(keyEvent)) {
-                    println("Hotkey match for state '${state.name}'!")
                     if (hotkey.hold) {
                         if (hotkey.isDown) {
-                            println("Activating state '${state.name}' (hold)")
                             _activeState.value = state
                             hotkeyStateActive = true
                         } else {
-                            println("Deactivating state '${state.name}' (hold)")
                             hotkeyStateActive = false
                             returnToIdle()
                         }
                     } else {
                         if (_activeState.value == state && hotkeyStateActive) {
-                            println("Deactivating state '${state.name}' (toggle)")
                             hotkeyStateActive = false
                             returnToIdle()
                         } else {
-                            println("Activating state '${state.name}' (toggle)")
                             _activeState.value = state
                             hotkeyStateActive = true
                         }
@@ -140,7 +123,6 @@ class PuppetStateController(
                 }
             }
         }
-        println("No matching hotkey found for event.")
     }
 
     fun toggleListening() {

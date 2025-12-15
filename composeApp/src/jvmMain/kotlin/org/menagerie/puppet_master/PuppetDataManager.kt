@@ -198,7 +198,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                                     FileOutputStream(imageFile).use {
                                         zis.copyTo(it)
                                     }
-                                }
+                                 }
                             }
                         }
                     }
@@ -358,8 +358,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     }
 
     actual fun createNewState(
-        stateName: String, imageBytes: ByteArray, localImageName: String,
-        blinkImageBytes: ByteArray?, localBlinkImageName: String?,
+        stateName: String,
+        imageBytes: ByteArray,
+        localImageName: String,
+        blinkImageBytes: ByteArray?,
+        localBlinkImageName: String?,
         serverIp: String
     ) {
         scope.launch {
@@ -368,15 +371,28 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
             var serverBlinkImageName: String? = null
             if (blinkImageBytes != null && localBlinkImageName != null) {
-                serverBlinkImageName = if (operatingMode == OperatingMode.ONLINE) uploader.upload(blinkImageBytes, localBlinkImageName, serverIp) else localBlinkImageName
-                saveImage(serverBlinkImageName, blinkImageBytes)
+                val name = if (operatingMode == OperatingMode.ONLINE) uploader.upload(blinkImageBytes, localBlinkImageName, serverIp) else localBlinkImageName
+                saveImage(name, blinkImageBytes)
+                serverBlinkImageName = name
             }
 
-            val newState = PuppetStateInfo(name = stateName, imageName = serverImageName, blinkImageName = serverBlinkImageName)
-
             _activePuppet.value?.let { currentPuppet ->
-                val otherStates = currentPuppet.states.filter { it.name != stateName }
-                val newStates = otherStates + newState
+                val existingState = currentPuppet.states.find { it.name == stateName }
+
+                val newState = if (existingState != null) {
+                    existingState.copy(
+                        imageName = serverImageName,
+                        blinkImageName = serverBlinkImageName ?: existingState.blinkImageName
+                    )
+                } else {
+                    PuppetStateInfo(
+                        name = stateName,
+                        imageName = serverImageName,
+                        blinkImageName = serverBlinkImageName
+                    )
+                }
+
+                val newStates = currentPuppet.states.filter { it.name != stateName } + newState
                 updatePuppet(currentPuppet.name) { it.copy(states = newStates) }
             }
         }
