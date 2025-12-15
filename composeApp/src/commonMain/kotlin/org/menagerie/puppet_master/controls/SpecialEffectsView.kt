@@ -33,6 +33,8 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -75,15 +77,15 @@ fun SpecialEffectsUI(
     }
 
     var effectName by remember { mutableStateOf(activeEffect?.name ?: "") }
-    var vibrationDistance by remember { mutableStateOf(activeEffect?.vibrationDistance ?: 0f) }
-    var vibrationSpeed by remember { mutableStateOf(activeEffect?.vibrationSpeed ?: 0f) }
-    var glowIntensity by remember { mutableStateOf(activeEffect?.glowIntensity ?: 0f) }
+    var vibrationDistance by remember { mutableFloatStateOf(activeEffect?.vibrationDistance ?: 0f) }
+    var vibrationSpeed by remember { mutableFloatStateOf(activeEffect?.vibrationSpeed ?: 0f) }
+    var glowIntensity by remember { mutableFloatStateOf(activeEffect?.glowIntensity ?: 0f) }
     var glowColor by remember { mutableStateOf(Color(activeEffect?.glowColor ?: 0xFFFFFFFF.toInt())) }
-    var scaleX by remember { mutableStateOf(activeEffect?.scaleX ?: 1f) }
-    var scaleY by remember { mutableStateOf(activeEffect?.scaleY ?: 1f) }
-    var scaleSpeed by remember { mutableStateOf(activeEffect?.scaleSpeed ?: 0f) }
-    var spinSpeed by remember { mutableStateOf(activeEffect?.spinSpeed ?: 0f) }
-    var spinDirection by remember { mutableStateOf(activeEffect?.spinDirection ?: 1) }
+    var scaleX by remember { mutableFloatStateOf(activeEffect?.scaleX ?: 1f) }
+    var scaleY by remember { mutableFloatStateOf(activeEffect?.scaleY ?: 1f) }
+    var scaleSpeed by remember { mutableFloatStateOf(activeEffect?.scaleSpeed ?: 0f) }
+    var spinSpeed by remember { mutableFloatStateOf(activeEffect?.spinSpeed ?: 0f) }
+    var spinDirection by remember { mutableIntStateOf(activeEffect?.spinDirection ?: 1) }
     var isEditingName by remember { mutableStateOf(false) }
     var showPreview by remember { mutableStateOf(false) }
     var showScaleDetails by remember { mutableStateOf(false) }
