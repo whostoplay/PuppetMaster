@@ -70,7 +70,7 @@ class MainViewModel(context: Any) : ScreenModel {
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
-    
+
     private val _settings = MutableStateFlow(SettingsModel())
     val settings: StateFlow<SettingsModel> = _settings.asStateFlow()
 
@@ -140,7 +140,7 @@ class MainViewModel(context: Any) : ScreenModel {
                 }
             }
         }
-        
+
         val localActiveState = stateController.activeState
         val localActiveSpecialEffect = stateController.activeSpecialEffect
         val localDisplayedImageName = stateController.displayedImageName
@@ -149,11 +149,19 @@ class MainViewModel(context: Any) : ScreenModel {
             Pair(mode, isPublishing)
         }
 
+        val stateWithCursorUpdates = localActiveState.combine(_normalizedMousePosition) { state, position ->
+            if (state?.eyeState?.eyes?.followCursor == true) {
+                state.copy(eyeState = state.eyeState!!.copy(cursorPosition = position))
+            } else {
+                state
+            }
+        }
+
         activeState = modeFlow.flatMapLatest { (mode, isPublishing) ->
             if (mode == OperatingMode.ONLINE && !isPublishing) {
                 serverState.map { it?.puppetStateInfo }
             } else {
-                localActiveState
+                stateWithCursorUpdates
             }
         }.stateIn(screenModelScope, SharingStarted.Lazily, localActiveState.value)
 
@@ -339,7 +347,7 @@ class MainViewModel(context: Any) : ScreenModel {
     fun selectState(state: PuppetStateInfo) {
         _selectedState.value = state
     }
-    
+
     fun selectStateByName(stateName: String) {
         val state = activePuppet.value?.states?.find { it.name == stateName } ?: return
         selectState(state)
@@ -353,7 +361,7 @@ class MainViewModel(context: Any) : ScreenModel {
             forceCreateNewState()
         }
     }
-    
+
     fun forceCreateNewState() {
         val uiState = _uiState.value
         dataManager.createNewState(
@@ -504,7 +512,7 @@ class MainViewModel(context: Any) : ScreenModel {
 
     fun onSpecialEffectUpdated(effect: SpecialEffect) {
         screenModelScope.launch {
-            troupe.value?.let { 
+            troupe.value?.let {
                 val updatedManager = it.specialEffectsManager.updateEffect(it.specialEffectsManager.activeEffectIndex, effect)
                 dataManager.saveTroupe(it.copy(specialEffectsManager = updatedManager))
              }
@@ -570,23 +578,24 @@ class MainViewModel(context: Any) : ScreenModel {
                     combine(
                         stateController.activeState,
                         stateController.displayedImageName,
-                        normalizedMousePosition
-                    ) { state, imageName, mousePosition ->
-                        val currentState = state?.copy(
-                            imageName = imageName ?: state.imageName,
-                            blinkImageName = state.blinkImageName,
-                            minBlinkRate = state.minBlinkRate,
-                            maxBlinkRate = state.maxBlinkRate,
-                            appliedEffect = state.appliedEffect
-                        )
-                        val mousePos = if (state?.eyeState?.eyes?.followCursor == true && mousePosition != null) {
-                            SerializableOffset(x = mousePosition.x, y = mousePosition.y)
+                        _normalizedMousePosition
+                    ) { state, imageName, position ->
+                        val stateWithCursor = if (state?.eyeState?.eyes?.followCursor == true) {
+                            state.copy(eyeState = state.eyeState!!.copy(cursorPosition = position))
                         } else {
-                            null
+                            state
                         }
+
+                        val currentState = stateWithCursor?.copy(
+                            imageName = imageName ?: stateWithCursor.imageName,
+                            blinkImageName = stateWithCursor.blinkImageName,
+                            minBlinkRate = stateWithCursor.minBlinkRate,
+                            maxBlinkRate = stateWithCursor.maxBlinkRate,
+                            appliedEffect = stateWithCursor.appliedEffect
+                        )
                         ServerState(
                             puppetStateInfo = currentState,
-                            effectStartTime = if (state?.appliedEffect != null) effectStartTime else null,
+                            effectStartTime = if (stateWithCursor?.appliedEffect != null) effectStartTime else null,
                         )
                     }.collectLatest { serverState ->
                         send(json.encodeToString(serverState))
@@ -603,8 +612,6 @@ class MainViewModel(context: Any) : ScreenModel {
     }
 
     fun onNormalizedMousePositionChanged(position: SerializableOffset?) {
-        if(activeState.value?.eyeState?.eyes?.followCursor?: false) {
-            _normalizedMousePosition.value = position
-        }
+        _normalizedMousePosition.value = position
     }
 }

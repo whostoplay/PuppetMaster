@@ -50,17 +50,12 @@ private val imageLoader = ImageLoader {
  * @return The loaded image as an [ImageBitmap], or null if the image is loading or fails to load.
  */
 @Composable
-actual fun rememberImageFromUrl(url: String, forceReloadKey: Any?): ImageBitmap? {
-    val imageBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url, key2 = forceReloadKey) {
+actual fun rememberImageFromUrl(url: String): ImageBitmap? {
+    val imageBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
         value = if (url.isNotBlank()) {
             withContext(Dispatchers.IO) {
                 try {
-                    val finalUrl = if (url.startsWith("http")) {
-                        "$url?cache_bust=${forceReloadKey?.hashCode() ?: System.currentTimeMillis()}"
-                    } else {
-                        url
-                    }
-                    val request = ImageRequest(finalUrl.removePrefix("file://"))
+                    val request = ImageRequest(url.removePrefix("file://"))
                     when (val result = imageLoader.execute(request)) {
                         is ImageResult.Image -> {
                             result.image.toComposeImageBitmap()
@@ -69,7 +64,7 @@ actual fun rememberImageFromUrl(url: String, forceReloadKey: Any?): ImageBitmap?
                             Image.makeFromBitmap(result.bitmap).toComposeImageBitmap()
                         }
                         is ImageResult.Error -> {
-                            println("rememberImageFromUrl: Failed for $finalUrl with error: ${result.error}")
+                            println("rememberImageFromUrl: Failed for $url with error: ${result.error}")
                             null
                         }
                         else -> {

@@ -274,24 +274,22 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
         var rightPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
 
         if (idleImage != null) {
-            key(activeState, isBlinking, activeSpecialEffect) {
-                LivePreview(
-                    operatingMode = operatingMode,
-                    puppetState = activeState,
-                    isBlinking = isBlinking,
-                    uploadsDir = viewModel.uploadsDir,
-                    backgroundColor = uiState.backgroundColor,
-                    serverIp = settings.serverIpAddress,
-                    activeSpecialEffect = activeSpecialEffect,
-                    window = window,
-                    isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
-                    displayedImageName = displayedImageName,
-                    idleImage = idleImage,
-                    onFocusPointUpdate = { offset ->
-                        viewModel.onNormalizedMousePositionChanged(offset)
-                    }
-                )
-            }
+            LivePreview(
+                operatingMode = operatingMode,
+                puppetState = activeState,
+                isBlinking = isBlinking,
+                uploadsDir = viewModel.uploadsDir,
+                backgroundColor = uiState.backgroundColor,
+                serverIp = settings.serverIpAddress,
+                activeSpecialEffect = activeSpecialEffect,
+                window = window,
+                isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
+                displayedImageName = displayedImageName,
+                idleImage = idleImage,
+                onFocusPointUpdate = { offset ->
+                    viewModel.onNormalizedMousePositionChanged(offset)
+                }
+            )
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (troupe == null) {

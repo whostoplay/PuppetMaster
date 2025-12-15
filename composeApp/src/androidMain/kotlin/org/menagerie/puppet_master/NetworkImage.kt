@@ -20,10 +20,10 @@ import kotlinx.coroutines.withContext
  * @return The loaded image as an [ImageBitmap], or null if the image is loading or fails to load.
  */
 @Composable
-actual fun rememberImageFromUrl(url: String, forceReloadKey: Any?): ImageBitmap? {
+actual fun rememberImageFromUrl(url: String): ImageBitmap? {
     val imageLoader = LocalImageLoader.current
 
-    val imageBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url, key2 = forceReloadKey) {
+    val imageBitmap by produceState<ImageBitmap?>(initialValue = null, key1 = url) {
         value = if (url.isNotBlank()) {
             withContext(Dispatchers.IO) {
                 val request = ImageRequest(url)

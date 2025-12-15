@@ -8,4 +8,4 @@ import androidx.compose.ui.graphics.ImageBitmap
  * Returns null if the image is loading or fails to load.
  */
 @Composable
-expect fun rememberImageFromUrl(url: String, forceReloadKey: Any?): ImageBitmap?
+expect fun rememberImageFromUrl(url: String): ImageBitmap?

@@ -124,7 +124,7 @@ fun SpecialEffectsUI(
     val idleImageUrl = remember(idleState, uploadsDir) {
         idleState?.imageName?.let { "file://$uploadsDir/$it" }
     }
-    val idleImageBitmap = idleImageUrl?.let { rememberImageFromUrl(it, activePuppet) }
+    val idleImageBitmap = idleImageUrl?.let { rememberImageFromUrl(it) }
 
     EffectPreview(show = showPreview, onDismissRequest = { showPreview = false }) {
         if (idleState != null) {
