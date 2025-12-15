@@ -484,7 +484,6 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                     SpecialEffectsUI(
                                         specialEffectsManager = currentTroupe.specialEffectsManager,
                                         onSpecialEffectsManagerChanged = viewModel::onSpecialEffectsManagerChanged,
-                                        onSaveEffect = { effect -> viewModel.onSpecialEffectUpdated(effect) },
                                         activePuppet = currentPuppet,
                                         uploadsDir = viewModel.uploadsDir,
                                         preserveState = uiState.preserveState,
@@ -617,7 +616,6 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                 SpecialEffectsUI(
                                     specialEffectsManager = currentTroupe.specialEffectsManager,
                                     onSpecialEffectsManagerChanged = viewModel::onSpecialEffectsManagerChanged,
-                                    onSaveEffect = { effect -> viewModel.onSpecialEffectUpdated(effect) },
                                     activePuppet = currentPuppet,
                                     uploadsDir = viewModel.uploadsDir,
                                     preserveState = uiState.preserveState,

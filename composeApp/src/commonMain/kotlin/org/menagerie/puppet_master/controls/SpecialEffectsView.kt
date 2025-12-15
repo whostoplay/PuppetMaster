@@ -57,7 +57,6 @@ import org.menagerie.puppet_master.rememberImageFromUrl
 fun SpecialEffectsUI(
     specialEffectsManager: SpecialEffectsManager,
     onSpecialEffectsManagerChanged: (SpecialEffectsManager) -> Unit,
-    onSaveEffect: (effect: SpecialEffect) -> Unit,
     activePuppet: PuppetCharacter?,
     uploadsDir: String,
     preserveState: Boolean,
@@ -67,9 +66,7 @@ fun SpecialEffectsUI(
     rootFocusRequester: FocusRequester,
     backgroundColor: Color,
 ) {
-    val activeEffect = remember(specialEffectsManager.activeEffectIndex, specialEffectsManager.effects) {
-        specialEffectsManager.getActiveEffect()
-    }
+    val activeEffect = remember(specialEffectsManager) { specialEffectsManager.getActiveEffect() }
 
     var effectName by remember { mutableStateOf(activeEffect?.name ?: "") }
     var vibrationDistance by remember { mutableFloatStateOf(activeEffect?.vibrationDistance ?: 0f) }
@@ -98,6 +95,26 @@ fun SpecialEffectsUI(
             scaleSpeed = it.scaleSpeed
             spinSpeed = it.spinSpeed
             spinDirection = it.spinDirection
+        }
+    }
+
+    val onValuesChanged = {
+        if (specialEffectsManager.isCreatingEffect) {
+            val effect = activeEffect?.copy(
+                name = effectName,
+                vibrationDistance = vibrationDistance,
+                vibrationSpeed = vibrationSpeed,
+                glowIntensity = glowIntensity,
+                glowColor = glowColor.toArgb(),
+                scaleX = scaleX,
+                scaleY = scaleY,
+                scaleSpeed = scaleSpeed,
+                spinSpeed = spinSpeed,
+                spinDirection = spinDirection
+            )
+            if (effect != null) {
+                onSpecialEffectsManagerChanged(specialEffectsManager.updateNewEffect(effect))
+            }
         }
     }
 
@@ -159,7 +176,7 @@ fun SpecialEffectsUI(
         AlertDialog(
             onDismissRequest = { showGlowColorPicker = false },
             title = { Text("Select Glow Color") },
-            text = { ColorPicker(true) { glowColor = it; showGlowColorPicker = false } },
+            text = { ColorPicker(true) { glowColor = it; showGlowColorPicker = false; onValuesChanged() } },
             confirmButton = { Button(onClick = { showGlowColorPicker = false }) { Text("Close") } }
         )
     }
@@ -168,13 +185,14 @@ fun SpecialEffectsUI(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Special Effects")
             IconButton(onClick = {
-                onSpecialEffectsManagerChanged(specialEffectsManager.addEffect())
-            }) {
+                onSpecialEffectsManagerChanged(specialEffectsManager.startCreatingEffect())
+            }, enabled = !specialEffectsManager.isCreatingEffect) {
                 Icon(Icons.Filled.Add, contentDescription = "Add Effect")
             }
-            IconButton(onClick = {
-                onSpecialEffectsManagerChanged(specialEffectsManager.deleteEffect(specialEffectsManager.activeEffectIndex))
-            }, enabled = activeEffect != null) {
+            IconButton(
+                onClick = { onSpecialEffectsManagerChanged(specialEffectsManager.deleteEffect(specialEffectsManager.activeEffectIndex)) },
+                enabled = activeEffect != null && !specialEffectsManager.isCreatingEffect
+            ) {
                 Icon(Icons.Filled.Delete, contentDescription = "Delete Effect")
             }
         }
@@ -192,25 +210,25 @@ fun SpecialEffectsUI(
 
         activeEffect?.let { effect ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = {
-                    onSpecialEffectsManagerChanged(specialEffectsManager.previousEffect())
-                }) {
+                IconButton(
+                    onClick = { onSpecialEffectsManagerChanged(specialEffectsManager.previousEffect()) },
+                    enabled = !specialEffectsManager.isCreatingEffect
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Effect")
                 }
                 EditableText(
                     text = effect.name,
                     onValueChange = { newName ->
                         effectName = newName
-                        val updatedEffect = effect.copy(name = newName)
-                        val updatedManager = specialEffectsManager.updateEffect(specialEffectsManager.activeEffectIndex, updatedEffect)
-                        onSpecialEffectsManagerChanged(updatedManager)
+                        onValuesChanged()
                     },
                     onFocusChange = onFocusChange,
                     rootFocusRequester = rootFocusRequester
                 )
-                IconButton(onClick = {
-                    onSpecialEffectsManagerChanged(specialEffectsManager.nextEffect())
-                }) {
+                IconButton(
+                    onClick = { onSpecialEffectsManagerChanged(specialEffectsManager.nextEffect()) },
+                    enabled = !specialEffectsManager.isCreatingEffect
+                ) {
                     Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Effect")
                 }
             }
@@ -231,16 +249,17 @@ fun SpecialEffectsUI(
                     scaleX = it
                     scaleY = it
                 },
+                onValueChangeFinished = onValuesChanged,
                 valueRange = 0.25f..2f
             )
             if (showScaleDetails) {
                 Column(modifier = Modifier.padding(start = 16.dp)) {
-                    EditableFloatText(label = "Scale X", value = scaleX, onValueChange = { scaleX = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
-                    Slider(value = scaleX, onValueChange = { scaleX = it }, valueRange = 0.25f..2f)
-                    EditableFloatText(label = "Scale Y", value = scaleY, onValueChange = { scaleY = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
-                    Slider(value = scaleY, onValueChange = { scaleY = it }, valueRange = 0.25f..2f)
-                    EditableFloatText(label = "Scale Speed", value = scaleSpeed, onValueChange = { scaleSpeed = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
-                    Slider(value = scaleSpeed, onValueChange = { scaleSpeed = it }, valueRange = 0f..1f)
+                    EditableFloatText(label = "Scale X", value = scaleX, onValueChange = { scaleX = it; onValuesChanged() }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
+                    Slider(value = scaleX, onValueChange = { scaleX = it }, onValueChangeFinished = onValuesChanged, valueRange = 0.25f..2f)
+                    EditableFloatText(label = "Scale Y", value = scaleY, onValueChange = { scaleY = it; onValuesChanged() }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
+                    Slider(value = scaleY, onValueChange = { scaleY = it }, onValueChangeFinished = onValuesChanged, valueRange = 0.25f..2f)
+                    EditableFloatText(label = "Scale Speed", value = scaleSpeed, onValueChange = { scaleSpeed = it; onValuesChanged() }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
+                    Slider(value = scaleSpeed, onValueChange = { scaleSpeed = it }, onValueChangeFinished = onValuesChanged, valueRange = 0f..1f)
                 }
             }
 
@@ -259,20 +278,21 @@ fun SpecialEffectsUI(
                 onValueChange = {
                     vibrationDistance = it
                     vibrationSpeed = it
-                 },
+                },
+                onValueChangeFinished = onValuesChanged,
                 valueRange = 0f..1f
             )
             if (showVibrationDetails) {
                 Column(modifier = Modifier.padding(start = 16.dp)) {
-                    EditableFloatText(label = "Distance", value = vibrationDistance, onValueChange = { vibrationDistance = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
-                    Slider(value = vibrationDistance, onValueChange = { vibrationDistance = it }, valueRange = 0f..1f)
-                    EditableFloatText(label = "Speed", value = vibrationSpeed, onValueChange = { vibrationSpeed = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
-                    Slider(value = vibrationSpeed, onValueChange = { vibrationSpeed = it }, valueRange = 0f..1f)
+                    EditableFloatText(label = "Distance", value = vibrationDistance, onValueChange = { vibrationDistance = it; onValuesChanged() }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
+                    Slider(value = vibrationDistance, onValueChange = { vibrationDistance = it }, onValueChangeFinished = onValuesChanged, valueRange = 0f..1f)
+                    EditableFloatText(label = "Speed", value = vibrationSpeed, onValueChange = { vibrationSpeed = it; onValuesChanged() }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
+                    Slider(value = vibrationSpeed, onValueChange = { vibrationSpeed = it }, onValueChangeFinished = onValuesChanged, valueRange = 0f..1f)
                 }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                EditableFloatText(label = "Glow (Luminance)", value = glowIntensity, onValueChange = { glowIntensity = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
+                EditableFloatText(label = "Glow (Luminance)", value = glowIntensity, onValueChange = { glowIntensity = it; onValuesChanged() }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
                 Box(
                     modifier = Modifier
                         .size(20.dp)
@@ -284,26 +304,28 @@ fun SpecialEffectsUI(
             Slider(
                 value = glowIntensity,
                 onValueChange = { glowIntensity = it },
+                onValueChangeFinished = onValuesChanged,
                 valueRange = 0f..6f
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
-                EditableFloatText(label = "Spin Speed", value = spinSpeed, onValueChange = { spinSpeed = it }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
+                EditableFloatText(label = "Spin Speed", value = spinSpeed, onValueChange = { spinSpeed = it; onValuesChanged() }, onFocusChange = onFocusChange, rootFocusRequester = rootFocusRequester)
             }
             Slider(
                 value = spinSpeed,
                 onValueChange = { spinSpeed = it },
+                onValueChangeFinished = onValuesChanged,
                 valueRange = 0f..20f
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Spin Direction")
-                RadioButton(selected = spinDirection < 0, onClick = { spinDirection = -1 })
+                RadioButton(selected = spinDirection < 0, onClick = { spinDirection = -1; onValuesChanged() })
                 Icon(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = "Spin Left",
                     modifier = Modifier.scale(scaleX = -1f, scaleY = 1f)
                 )
-                RadioButton(selected = spinDirection > 0, onClick = { spinDirection = 1 })
+                RadioButton(selected = spinDirection > 0, onClick = { spinDirection = 1; onValuesChanged() })
                 Icon(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = "Spin Right"
@@ -315,29 +337,44 @@ fun SpecialEffectsUI(
             Checkbox(checked = preserveState, onCheckedChange = onPreserveStateChanged)
             Text("Preserve this state across puppet changes")
         }
-        Button(
-            onClick = {
-                activeEffect?.let {
-                    onSaveEffect(
-                        it.copy(
-                            name = effectName,
-                            vibrationDistance = vibrationDistance,
-                            vibrationSpeed = vibrationSpeed,
-                            glowIntensity = glowIntensity,
-                            glowColor = glowColor.toArgb(),
-                            scaleX = scaleX,
-                            scaleY = scaleY,
-                            scaleSpeed = scaleSpeed,
-                            spinSpeed = spinSpeed,
-                            spinDirection = spinDirection
-                        )
-                    )
+
+        if (specialEffectsManager.isCreatingEffect) {
+            Row {
+                Button(
+                    onClick = { onSpecialEffectsManagerChanged(specialEffectsManager.saveNewEffect()) },
+                    enabled = effectName != "New Effect" && specialEffectsManager.isNameUnique(effectName)
+                ) {
+                    Text("Save")
                 }
-            },
-            enabled = effectName != "New Effect" && specialEffectsManager.isNameUnique(effectName, specialEffectsManager.activeEffectIndex)
-        ) {
-            Text("Save")
+                Button(onClick = { onSpecialEffectsManagerChanged(specialEffectsManager.discardNewEffect()) }) {
+                    Text("Cancel")
+                }
+            }
+        } else if (activeEffect != null) {
+            Button(
+                onClick = {
+                    val updatedEffect = activeEffect.copy(
+                        name = effectName,
+                        vibrationDistance = vibrationDistance,
+                        vibrationSpeed = vibrationSpeed,
+                        glowIntensity = glowIntensity,
+                        glowColor = glowColor.toArgb(),
+                        scaleX = scaleX,
+                        scaleY = scaleY,
+                        scaleSpeed = scaleSpeed,
+                        spinSpeed = spinSpeed,
+                        spinDirection = spinDirection
+                    )
+                    onSpecialEffectsManagerChanged(
+                        specialEffectsManager.updateEffect(specialEffectsManager.activeEffectIndex, updatedEffect)
+                    )
+                },
+                enabled = effectName != "New Effect" && specialEffectsManager.isNameUnique(effectName, specialEffectsManager.activeEffectIndex)
+            ) {
+                Text("Save")
+            }
         }
+
         if(effectName == "New Effect" || !specialEffectsManager.isNameUnique(effectName, specialEffectsManager.activeEffectIndex)) {
             Text(
                 text = if(effectName == "New Effect") "Rename Before Saving" else "Name Must Be Unique",

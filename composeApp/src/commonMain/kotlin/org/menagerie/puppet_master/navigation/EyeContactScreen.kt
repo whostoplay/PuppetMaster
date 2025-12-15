@@ -91,7 +91,7 @@ class EyeContactScreen(
         val scope = rememberCoroutineScope()
         val settings by viewModel.settings.collectAsState()
 
-        var selectedState by remember { mutableStateOf<PuppetStateInfo?>(null) }
+        var selectedState by remember { mutableStateOf(puppet?.states?.firstOrNull()) }
         var isStateSelectorExpanded by remember { mutableStateOf(false) }
         var showTroupeEyesPopup by remember { mutableStateOf(false) }
 
@@ -333,7 +333,7 @@ class EyeContactScreen(
                 if (selectedState?.blinkImageName != null) {
                     var blinkRateRange by remember(minBlinkRate, maxBlinkRate) { mutableStateOf(minBlinkRate..maxBlinkRate) }
                     Column(modifier = Modifier.fillMaxWidth(0.8f)) {
-                        Text("Blink Rate Range: ${blinkRateRange.start.roundToInt()}ms - ${blinkRateRange.endInclusive.roundToInt()}ms")
+                        Text("Blink Rate Range: ${'$'}{blinkRateRange.start.roundToInt()}ms - ${'$'}{blinkRateRange.endInclusive.roundToInt()}ms")
                         RangeSlider(
                             value = blinkRateRange,
                             onValueChange = {
@@ -510,7 +510,7 @@ private fun LabeledSlider(
     range: ClosedFloatingPointRange<Float>
 ) {
     Column(modifier = Modifier.fillMaxWidth(0.8f)) {
-        Text("$label: ${value.roundToInt()}ms")
+        Text("$label: ${'$'}{value.roundToInt()}ms")
         Slider(
             value = value,
             onValueChange = onValueChange,
