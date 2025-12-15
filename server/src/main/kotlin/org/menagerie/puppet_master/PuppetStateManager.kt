@@ -59,13 +59,13 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
             animationJob = scope.launch {
                 while (true) {
                     val animationState = calculateAnimationState()
-                    updateStateToSend(state, animationState)
+                    updateStateToSend(state, animationState, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
                     delay(16) // roughly 60 fps
                 }
             }
         } else {
             // No effect, ensure animation is cleared
-            updateStateToSend(_stateToSend.value?.puppetStateInfo, null)
+            updateStateToSend(_stateToSend.value?.puppetStateInfo, null, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
         }
     }
 
@@ -74,7 +74,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         blinkingJob?.cancel()
 
         // Send the main state update
-        updateStateToSend(state, calculateAnimationState())
+        updateStateToSend(state, calculateAnimationState(), _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
 
         if (state?.blinkImageName != null) {
             blinkingJob = scope.launch {
@@ -88,9 +88,9 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
                     // In headless mode, if the state is still the active one, perform a blink
                     if (isHeadless() && _activeState.value == state) {
                         val blinkState = state.copy(imageName = state.blinkImageName!!)
-                        updateStateToSend(blinkState, _stateToSend.value?.animationState)
+                        updateStateToSend(blinkState, _stateToSend.value?.animationState, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
                         delay(150)
-                        updateStateToSend(state, _stateToSend.value?.animationState)
+                        updateStateToSend(state, _stateToSend.value?.animationState, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
                     }
                 }
             }
@@ -145,9 +145,9 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
-    fun onMousePositionChanged(mousePosition: MousePosition) {
+    fun onMousePositionChanged(mousePosition: SerializableOffset) {
         val currentState = _stateToSend.value
-        _stateToSend.value = currentState?.copy(mousePosition = mousePosition)
+        updateStateToSend(currentState?.puppetStateInfo, currentState?.animationState, mousePosition)
     }
 
     fun onCalibrationReceived(calibrationData: CalibrationData) {
@@ -165,7 +165,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
             ServerState(state)
         }
 
-        receivedState.mousePosition?.let { onMousePositionChanged(it) }
+        receivedState.puppetStateInfo?.eyeState?.cursorPosition?.let { onMousePositionChanged(it) }
         receivedState.calibrationData?.let { onCalibrationReceived(it) }
 
         val stateInfo = receivedState.puppetStateInfo
@@ -212,11 +212,11 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
-    private fun updateStateToSend(state: PuppetStateInfo?, animationState: AnimationState?) {
+    private fun updateStateToSend(state: PuppetStateInfo?, animationState: AnimationState?, mousePosition: SerializableOffset?) {
+        val updatedState = state?.copy(eyeState = state.eyeState?.copy(cursorPosition = mousePosition))
         val currentData = _stateToSend.value
         _stateToSend.value = ServerState(
-            puppetStateInfo = state,
-            mousePosition = currentData?.mousePosition,
+            puppetStateInfo = updatedState,
             calibrationData = currentData?.calibrationData,
             animationState = animationState
         )

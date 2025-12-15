@@ -3,10 +3,7 @@ package org.menagerie.puppet_master
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class MousePosition(val x: Int, val y: Int)
-
-@Serializable
-data class CalibrationData(val topLeft: MousePosition, val bottomRight: MousePosition)
+data class CalibrationData(val topLeft: SerializableOffset, val bottomRight: SerializableOffset)
 
 @Serializable
 data class AnimationState(
@@ -22,7 +19,6 @@ data class AnimationState(
 @Serializable
 data class ServerState(
     val puppetStateInfo: PuppetStateInfo? = null,
-    val mousePosition: MousePosition? = null,
     val calibrationData: CalibrationData? = null,
     val animationState: AnimationState? = null,
     val effectStartTime: Long? = null,

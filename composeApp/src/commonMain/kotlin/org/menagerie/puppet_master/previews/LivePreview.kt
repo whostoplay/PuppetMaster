@@ -225,7 +225,13 @@ fun LivePreview(
                     val focusPointOnScreen: Offset? = when {
                         isCheckingAudience || isAudienceCheckForced -> null
                         eyeData.eyes.focusOnGame -> Offset(x = imageTopLeftX + (eyeData.eyes.gameScreenLocation.x * scaledWidthPx), y = imageTopLeftY + (eyeData.eyes.gameScreenLocation.y * scaledHeightPx))
-                        eyeData.eyes.followCursor && pointerPosition != null -> pointerPosition
+                        eyeData.eyes.followCursor -> {
+                            if (operatingMode == OperatingMode.ONLINE) {
+                                eyeData.cursorPosition?.let { Offset(it.x, it.y) }
+                            } else {
+                                pointerPosition
+                            }
+                        }
                         else -> null
                     }
 

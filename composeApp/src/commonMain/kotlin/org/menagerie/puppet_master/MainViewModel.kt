@@ -580,14 +580,13 @@ class MainViewModel(context: Any) : ScreenModel {
                             appliedEffect = state.appliedEffect
                         )
                         val mousePos = if (state?.eyeState?.eyes?.followCursor == true && mousePosition != null) {
-                            MousePosition(x = mousePosition.x.toInt(), y = mousePosition.y.toInt())
+                            SerializableOffset(x = mousePosition.x, y = mousePosition.y)
                         } else {
                             null
                         }
                         ServerState(
                             puppetStateInfo = currentState,
                             effectStartTime = if (state?.appliedEffect != null) effectStartTime else null,
-                            mousePosition = mousePos
                         )
                     }.collectLatest { serverState ->
                         send(json.encodeToString(serverState))

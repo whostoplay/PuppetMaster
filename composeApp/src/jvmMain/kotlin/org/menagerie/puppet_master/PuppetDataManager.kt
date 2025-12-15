@@ -296,6 +296,22 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                                 val blinkImageBytes: ByteArray = client.get(blinkImageUrl).body()
                                 File(uploadsDir, blinkImageName).writeBytes(blinkImageBytes)
                             }
+                            
+                            state.eyeState?.let { eyeState ->
+                                suspend fun downloadEyeImage(imageName: String?) {
+                                    imageName?.let {
+                                        val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/$it"
+                                        val imageBytes: ByteArray = client.get(imageUrl).body()
+                                        File(uploadsDir, it).writeBytes(imageBytes)
+                                    }
+                                }
+                                downloadEyeImage(eyeState.eyes.left.openState)
+                                downloadEyeImage(eyeState.eyes.left.closedState)
+                                downloadEyeImage(eyeState.eyes.left.pupil)
+                                downloadEyeImage(eyeState.eyes.right.openState)
+                                downloadEyeImage(eyeState.eyes.right.closedState)
+                                downloadEyeImage(eyeState.eyes.right.pupil)
+                            }
                         }
                     }
 
