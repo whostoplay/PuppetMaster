@@ -107,6 +107,9 @@ class SettingsScreen(
                         HotkeySelector("Check Audience Hotkey", settings.checkAudienceHotkey) {
                             viewModel.updateSettings(settings.copy(checkAudienceHotkey = it))
                         }
+                        HotkeySelector("Toggle Controls Hotkey", settings.toggleControlsHotkey) {
+                            viewModel.updateSettings(settings.copy(toggleControlsHotkey = it))
+                        }
                     }
                 }
                 Column(modifier = Modifier.padding(innerPadding).padding(16.dp).weight(1f)) {}

@@ -10,6 +10,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineScope
@@ -28,14 +29,14 @@ import java.util.zip.ZipOutputStream
 actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, private val context: Any) {
 
     actual val uploadsDir = getUploadsDir(context)
-    private val uploader = Uploader()
     private val client = HttpClient {
-        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true }) }
+        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true; isLenient = true; allowStructuredMapKeys = true }) }
         install(HttpTimeout) {
             connectTimeoutMillis = 15000
             socketTimeoutMillis = 15000
         }
     }
+    private val uploader = Uploader(client)
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true; allowStructuredMapKeys = true }
     private val settingsRepository = SettingsRepository(context)
 
@@ -291,52 +292,68 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         scope.launch {
             _connectionState.value = ConnectionState.CONNECTING
             try {
-                val serverTroupe = client.get("http://$serverIp:$SERVER_PORT/troupe").body<PuppetTroupe>()
-                _connectionState.value = ConnectionState.CONNECTED
-                val localTroupe = _troupe.value
-                val shouldSync = when {
-                    localTroupe == null -> true
-                    localTroupe.puppets.isEmpty() && serverTroupe.puppets.isNotEmpty() -> true
-                    else -> serverTroupe.puppets.any { serverPuppet ->
-                        val localPuppet = localTroupe.puppets.find { it.name == serverPuppet.name }
-                        localPuppet == null || localPuppet.lastUpdated < serverPuppet.lastUpdated
-                    }
-                }
+                val response = client.get("http://$serverIp:$SERVER_PORT/troupe")
 
-                if (shouldSync) {
-                    serverTroupe.puppets.forEach { puppet ->
-                        puppet.states.forEach { state ->
-                            val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/${state.imageName}"
-                            val imageBytes: ByteArray = client.get(imageUrl).body()
-                            File(uploadsDir, state.imageName).writeBytes(imageBytes)
-
-                            state.blinkImageName?.let { blinkImageName ->
-                                val blinkImageUrl = "http://$serverIp:$SERVER_PORT/uploads/$blinkImageName"
-                                val blinkImageBytes: ByteArray = client.get(blinkImageUrl).body()
-                                File(uploadsDir, blinkImageName).writeBytes(blinkImageBytes)
-                            }
-
-                            state.eyeState?.let { eyeState ->
-                                suspend fun downloadEyeImage(imageName: String?) {
-                                    imageName?.let {
-                                        val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/$it"
-                                        val imageBytes: ByteArray = client.get(imageUrl).body()
-                                        File(uploadsDir, it).writeBytes(imageBytes)
-                                    }
-                                }
-                                downloadEyeImage(eyeState.eyes.left.openState)
-                                downloadEyeImage(eyeState.eyes.left.closedState)
-                                downloadEyeImage(eyeState.eyes.left.pupil)
-                                downloadEyeImage(eyeState.eyes.right.openState)
-                                downloadEyeImage(eyeState.eyes.right.closedState)
-                                downloadEyeImage(eyeState.eyes.right.pupil)
+                when (response.status) {
+                    HttpStatusCode.OK -> {
+                        val serverTroupe = response.body<PuppetTroupe>()
+                        _connectionState.value = ConnectionState.CONNECTED
+                        val localTroupe = _troupe.value
+                        val shouldSync = when {
+                            localTroupe == null -> true
+                            localTroupe.puppets.isEmpty() && serverTroupe.puppets.isNotEmpty() -> true
+                            else -> serverTroupe.puppets.any { serverPuppet ->
+                                val localPuppet = localTroupe.puppets.find { it.name == serverPuppet.name }
+                                localPuppet == null || localPuppet.lastUpdated < serverPuppet.lastUpdated
                             }
                         }
-                    }
 
-                    _troupe.value = serverTroupe
-                    _activePuppet.value = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
-                    saveTroupe(serverTroupe)
+                        if (shouldSync) {
+                            serverTroupe.puppets.forEach { puppet ->
+                                puppet.states.forEach { state ->
+                                    val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/${state.imageName}"
+                                    val imageBytes: ByteArray = client.get(imageUrl).body()
+                                    File(uploadsDir, state.imageName).writeBytes(imageBytes)
+
+                                    state.blinkImageName?.let { blinkImageName ->
+                                        val blinkImageUrl = "http://$serverIp:$SERVER_PORT/uploads/$blinkImageName"
+                                        val blinkImageBytes: ByteArray = client.get(blinkImageUrl).body()
+                                        File(uploadsDir, blinkImageName).writeBytes(blinkImageBytes)
+                                    }
+
+                                    state.eyeState?.let { eyeState ->
+                                        suspend fun downloadEyeImage(imageName: String?) {
+                                            imageName?.let {
+                                                val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/$it"
+                                                val imageBytes: ByteArray = client.get(imageUrl).body()
+                                                File(uploadsDir, it).writeBytes(imageBytes)
+                                            }
+                                        }
+                                        downloadEyeImage(eyeState.eyes.left.openState)
+                                        downloadEyeImage(eyeState.eyes.left.closedState)
+                                        downloadEyeImage(eyeState.eyes.left.pupil)
+                                        downloadEyeImage(eyeState.eyes.right.openState)
+                                        downloadEyeImage(eyeState.eyes.right.closedState)
+                                        downloadEyeImage(eyeState.eyes.right.pupil)
+                                    }
+                                }
+                            }
+
+                            _troupe.value = serverTroupe
+                            _activePuppet.value = serverTroupe.puppets.find { it.name == serverTroupe.activePuppetName }
+                            saveTroupe(serverTroupe)
+                        }
+                    }
+                    HttpStatusCode.NotFound -> {
+                        _connectionState.value = ConnectionState.CONNECTED
+                        // If we have a local troupe, publish it to the server.
+                        _troupe.value?.let {
+                            publishTroupe(serverIp)
+                        }
+                    }
+                    else -> {
+                        _connectionState.value = ConnectionState.FAILED
+                    }
                 }
             } catch (e: Exception) {
                 _connectionState.value = ConnectionState.FAILED

@@ -116,9 +116,11 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val isDesktop = isDesktop()
     var showControls by remember { mutableStateOf(isDesktop) }
     var controlsLocked by remember { mutableStateOf(!isDesktop) }
+    var controlsHiddenByKey by remember { mutableStateOf(false) }
     val isHoveringOn = remember { mutableStateMapOf<String, Boolean>() }
     val isHoveringOnControls = isHoveringOn.values.any { it }
-    val controlsAlpha by animateFloatAsState(if (showControls || controlsLocked) 1f else 0f)
+    val controlsVisible = (showControls || controlsLocked) && !controlsHiddenByKey
+    val controlsAlpha by animateFloatAsState(if (controlsVisible) 1f else 0f)
 
     var idleImageData by remember { mutableStateOf<ByteArray?>(null) }
 
@@ -282,6 +284,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                             true
                         } else if (settings.toggleFocusHotkey.isHotkey(it)) {
                             viewModel.toggleFocus()
+                            true
+                        } else if (settings.toggleControlsHotkey.isHotkey(it)) {
+                            controlsHiddenByKey = !controlsHiddenByKey
                             true
                         } else if (settings.checkAudienceHotkey.isHotkey(it)) {
                             viewModel.toggleForceAudienceCheck()
@@ -483,9 +488,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         )
                                     }
                                 }
-                                item {Spacer(Modifier.height(64.dp))}
-                                item { HorizontalDivider(thickness = 8.dp) }
-                                item {Spacer(Modifier.height(64.dp))}
+                                item { Spacer(Modifier.height(64.dp)) }
+                                item {HorizontalDivider(thickness = 8.dp)}
+                                item { Spacer(Modifier.height(64.dp)) }
                                 item {
                                     SpecialEffectsUI(
                                         specialEffectsManager = currentTroupe.specialEffectsManager,
@@ -605,7 +610,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         .clickable { viewModel.selectState(state) }
                                         .background(if (state == selectedState) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                                         .padding(8.dp)
-                                )
+                                    )
                             }
                             item {
                                 selectedState?.let { state ->

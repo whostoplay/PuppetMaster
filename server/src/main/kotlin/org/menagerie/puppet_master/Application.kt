@@ -2,6 +2,8 @@ package org.menagerie.puppet_master
 
 import io.ktor.http.*
 import io.ktor.http.content.*
+import io.ktor.serialization.deserialize
+import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
@@ -15,7 +17,6 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -46,6 +47,7 @@ fun Application.module() {
         timeout = Duration.ofSeconds(15)
         maxFrameSize = Long.MAX_VALUE
         masking = false
+        contentConverter = KotlinxWebsocketSerializationConverter(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true })
     }
 
     routing {
@@ -168,9 +170,8 @@ fun Application.module() {
             stateManager.manualControlActive = true
             try {
                 for (frame in incoming) {
-                    if (frame is Frame.Text) {
-                        stateManager.onClientSentState(frame.readText())
-                    }
+                    val serverState = converter!!.deserialize<ServerState>(frame)
+                    stateManager.onClientSentState(serverState)
                 }
             } finally {
                 stateManager.onClientDisconnected()
@@ -181,8 +182,7 @@ fun Application.module() {
             stateManager.obsConnectionCount++
             try {
                 stateManager.stateToSend.collectLatest { state ->
-                    val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true }
-                    send(Frame.Text(json.encodeToString(state)))
+                    sendSerialized(state)
                 }
             } finally {
                 stateManager.obsConnectionCount--

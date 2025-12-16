@@ -26,10 +26,15 @@ actual class SettingsRepository actual constructor(context: Any) {
      */
     actual fun loadSettings(): SettingsModel {
         val settingsJson = prefs.getString("settings", null)
-        return if (settingsJson != null) {
+        val settings = if (settingsJson != null) {
             json.decodeFromString(settingsJson)
         } else {
             SettingsModel()
+        }
+        return if (settings.serverIpAddress.isBlank()) {
+            settings.copy(serverIpAddress = "127.0.0.1")
+        } else {
+            settings
         }
     }
 }

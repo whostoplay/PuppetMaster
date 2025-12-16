@@ -5,14 +5,17 @@ import androidx.compose.ui.input.key.KeyEvent
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import io.ktor.client.*
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.plugins.websocket.*
 import io.ktor.http.*
+import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
+import io.ktor.serialization.kotlinx.json.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 enum class OperatingMode {
@@ -112,7 +115,18 @@ class MainViewModel(context: Any) : ScreenModel {
     private val _isAudienceCheckForced = MutableStateFlow(false)
     val isAudienceCheckForced: StateFlow<Boolean> = _isAudienceCheckForced.asStateFlow()
 
-    private val client = HttpClient { install(WebSockets) }
+    private val client = HttpClient {
+        install(WebSockets) {
+            contentConverter = KotlinxWebsocketSerializationConverter(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true })
+        }
+        install(ContentNegotiation) {
+            json(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true })
+        }
+        install(HttpTimeout) {
+            connectTimeoutMillis = 15000
+            socketTimeoutMillis = 15000
+        }
+    }
     private var serverStateJob: Job? = null
     private var clientControlSocketJob: Job? = null
 
@@ -129,8 +143,6 @@ class MainViewModel(context: Any) : ScreenModel {
     val activeState: StateFlow<PuppetStateInfo?>
     val activeSpecialEffect: StateFlow<ActiveSpecialEffect?>
     val displayedImageName: StateFlow<String?>
-
-    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true }
 
     init {
         _settings.value = settingsRepository.loadSettings()
@@ -575,14 +587,14 @@ class MainViewModel(context: Any) : ScreenModel {
         stateController.stopBlinking()
         serverStateJob = screenModelScope.launch {
             try {
-                client.webSocket(method = HttpMethod.Get, host = settings.value.serverIpAddress, port = SERVER_PORT, path = "/obs") {
-                    for (frame in incoming) {
-                        if (frame is Frame.Text) {
-                            _serverState.value = json.decodeFromString<ServerState>(frame.readText())
-                        }
+                client.webSocketSession(method = HttpMethod.Get, host = settings.value.serverIpAddress, port = SERVER_PORT, path = "/obs").let { session ->
+                    while (true) {
+                        val serverState = session.incoming.receive() as? ServerState
+                        _serverState.value = serverState
                     }
                 }
-            } catch (e: Exception) { /* Handle error */
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
     }
@@ -590,12 +602,12 @@ class MainViewModel(context: Any) : ScreenModel {
     private fun startClientControl() {
         clientControlSocketJob = screenModelScope.launch {
             try {
-                client.webSocket(
+                client.webSocketSession(
                     method = HttpMethod.Get,
                     host = settings.value.serverIpAddress,
                     port = SERVER_PORT,
                     path = "/client-control"
-                ) {
+                ).let { session ->
                     combine(
                         stateController.activeState,
                         stateController.displayedImageName,
@@ -619,11 +631,11 @@ class MainViewModel(context: Any) : ScreenModel {
                             effectStartTime = if (stateWithCursor?.appliedEffect != null) effectStartTime else null,
                         )
                     }.collectLatest { serverState ->
-                        send(json.encodeToString(serverState))
+                        session.sendSerialized(serverState)
                     }
                 }
             } catch (e: Exception) {
-                // Handle error
+                e.printStackTrace()
             }
         }
     }

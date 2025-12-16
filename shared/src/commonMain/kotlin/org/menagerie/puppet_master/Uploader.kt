@@ -2,23 +2,15 @@ package org.menagerie.puppet_master
 
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
-import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.json.Json
 
 /**
  * A client for uploading files to the server.
  */
-class Uploader {
-    private val client = HttpClient {
-        install(ContentNegotiation) {
-            json(Json { allowStructuredMapKeys = true })
-        }
-    }
+class Uploader(private val client: HttpClient) {
 
     /**
      * Uploads a file to the server as a byte array.

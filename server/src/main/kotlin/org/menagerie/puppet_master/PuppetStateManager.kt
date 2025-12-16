@@ -155,16 +155,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         _stateToSend.value = currentState?.copy(calibrationData = calibrationData)
     }
 
-    fun onClientSentState(stateJson: String) {
-        val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true }
-        val receivedState = try {
-            json.decodeFromString<ServerState>(stateJson)
-        } catch (e: Exception) {
-            val imageName = stateJson
-            val state = troupeManager.activePuppet?.states?.find { it.imageName == imageName || it.blinkImageName == imageName }
-            ServerState(state)
-        }
-
+    fun onClientSentState(receivedState: ServerState) {
         receivedState.puppetStateInfo?.eyeState?.cursorPosition?.let { onMousePositionChanged(it) }
         receivedState.calibrationData?.let { onCalibrationReceived(it) }
 
@@ -185,8 +176,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
             val newState = troupeManager.activePuppet?.states?.find { it.name == currentStateSentByClient.name }
 
             if (newState != null) {
-                val json = Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; classDiscriminator = "type" }
-                onClientSentState(json.encodeToString(ServerState(newState)))
+                onClientSentState(ServerState(newState))
             } else {
                 onClientDisconnected()
             }

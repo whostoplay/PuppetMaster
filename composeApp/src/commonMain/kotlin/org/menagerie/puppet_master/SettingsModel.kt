@@ -13,6 +13,7 @@ data class SettingsModel(
     val toggleOnlineHotkey: Hotkey = Hotkey(Key.O.keyCode),
     val toggleFocusHotkey: Hotkey = Hotkey(Key.F.keyCode),
     val checkAudienceHotkey: Hotkey = Hotkey(Key.A.keyCode, hold = true),
+    val toggleControlsHotkey: Hotkey = Hotkey(Key.H.keyCode),
     val startOffline: Boolean = true,
     val lastTroupeFile: String? = null,
     val lastPuppetExportFolder: String? = null,
