@@ -483,7 +483,9 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         )
                                     }
                                 }
-                                item { HorizontalDivider() }
+                                item {Spacer(Modifier.height(64.dp))}
+                                item { HorizontalDivider(thickness = 8.dp) }
+                                item {Spacer(Modifier.height(64.dp))}
                                 item {
                                     SpecialEffectsUI(
                                         specialEffectsManager = currentTroupe.specialEffectsManager,

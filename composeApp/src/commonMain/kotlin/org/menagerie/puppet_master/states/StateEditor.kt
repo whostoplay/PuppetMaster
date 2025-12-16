@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.states
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -154,17 +155,17 @@ fun StateEditor(
                     }
                 }
             }
-
             Row {
-                Spacer(modifier = Modifier.weight(.5f))
                 HotkeySelector(
                     modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.Center,
                     label = "State Hotkey",
                     hotkey = state.hotkey ?: Hotkey(Key.Unknown.keyCode),
                     onHotkeyChanged = { newHotkey ->
                         onStateHotkeyChanged(state.name, newHotkey)
                     }
                 )
+                Spacer(modifier = Modifier.weight(.7f))
             }
         }
     }

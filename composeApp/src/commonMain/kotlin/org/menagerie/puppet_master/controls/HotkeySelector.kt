@@ -43,6 +43,7 @@ fun HotkeySelector(
     label: String,
     hotkey: Hotkey,
     modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.SpaceBetween,
     onHotkeyChanged: (Hotkey) -> Unit,
 ) {
     var isEditing by remember { mutableStateOf(false) }
@@ -69,7 +70,7 @@ fun HotkeySelector(
         Row(
             modifier = Modifier.padding(top = 8.dp).weight(1f),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = horizontalArrangement
         ) {
             println(hotkey.key)
             Text(label)
@@ -124,7 +125,6 @@ fun HotkeySelector(
                     }
             )
         }
-        Spacer(modifier = Modifier.weight(.25f))
         Row(
             modifier = Modifier.padding(top = 8.dp).weight(.5f),
             verticalAlignment = Alignment.CenterVertically,
