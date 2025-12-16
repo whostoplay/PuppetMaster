@@ -66,6 +66,7 @@ import org.menagerie.puppet_master.ImageFilePicker
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetStateInfo
+import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.decodeToImageBitmap
 import org.menagerie.puppet_master.toOffset
 import org.menagerie.puppet_master.toSerializableOffset
@@ -291,7 +292,8 @@ class EyeContactScreen(
                                     ) ?: Eye(
                                         openState = lEye.openState,
                                         pupil = lEye.pupil,
-                                        closedState = lEye.closedState
+                                        closedState = lEye.closedState,
+                                        position = SerializableOffset(150f, 0f)
                                     )
                                     rightEyeOpenData = leftEyeOpenData
                                     rightEyePupilData = leftEyePupilData
@@ -416,7 +418,7 @@ class EyeContactScreen(
                             images.firstOrNull()?.let { (data, name) ->
                                 scope.launch {
                                     viewModel.uploadImageData(name, data)
-                                    rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name)
+                                    rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name, position = SerializableOffset(150f,0f))
                                     rightEyeOpenData = data
                                 }
                             }
