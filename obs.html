@@ -77,7 +77,11 @@
     socket.onmessage = function(event) {
         const serverState = JSON.parse(event.data);
         currentPuppetStateInfo = serverState.puppetStateInfo;
-        pointerPosition = serverState.mousePosition;
+        if (serverState.puppetStateInfo && serverState.puppetStateInfo.eyeState) {
+            pointerPosition = serverState.puppetStateInfo.eyeState.cursorPosition;
+        } else {
+            pointerPosition = null;
+        }
         currentAnimationState = serverState.animationState;
 
         if (!currentPuppetStateInfo || !currentPuppetStateInfo.imageName) {

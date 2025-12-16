@@ -209,11 +209,13 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         val newPuppetInfo = state ?: currentInfo
         val newAnimationState = animationState ?: currentState?.animationState
 
-        val finalState = (newPuppetInfo?.copy(
-            eyeState = newPuppetInfo.eyeState?.copy(
-                cursorPosition = mousePosition ?: newPuppetInfo.eyeState!!.cursorPosition
+        val finalState = newPuppetInfo?.let {
+            it.copy(
+                eyeState = it.eyeState?.copy(
+                    cursorPosition = mousePosition ?: it.eyeState?.cursorPosition
+                )
             )
-        ))
+        }
 
         _stateToSend.value = ServerState(
             puppetStateInfo = finalState,
