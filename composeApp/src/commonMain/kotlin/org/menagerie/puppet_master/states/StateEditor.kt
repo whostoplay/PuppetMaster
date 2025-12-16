@@ -46,7 +46,7 @@ fun StateEditor(
     onStateUpdated: (PuppetStateInfo) -> Unit,
     onStateHotkeyChanged: (String, Hotkey) -> Unit
 ) {
-    val blinkSliderValueRange = 200f..10000f
+    val blinkSliderValueRange = 16f..10000f
     var blinkRateRange by remember(selectedState) {
         val start = selectedState?.minBlinkRate?.toFloat()?.coerceIn(blinkSliderValueRange) ?: 2000f
         val end = selectedState?.maxBlinkRate?.toFloat()?.coerceIn(blinkSliderValueRange) ?: 8000f

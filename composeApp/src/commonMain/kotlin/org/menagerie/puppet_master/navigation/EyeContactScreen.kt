@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.RemoveRedEye
@@ -239,229 +242,227 @@ class EyeContactScreen(
                 )
             }
         ) { innerPadding ->
-            Column(
+            Row(
                 modifier = Modifier.fillMaxSize().padding(innerPadding).padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // State Selector
-                ExposedDropdownMenuBox(
-                    expanded = isStateSelectorExpanded,
-                    onExpandedChange = { isStateSelectorExpanded = !isStateSelectorExpanded }
+                // Controls Column
+                Column(
+                    modifier = Modifier.fillMaxHeight().weight(1f).padding(end = 16.dp).verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    TextField(
-                        value = selectedState?.name ?: "Select a State",
-                        onValueChange = {},
-                        readOnly = true,
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isStateSelectorExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth()
-                    )
-
-                    ExposedDropdownMenu(
+                    // State Selector
+                    ExposedDropdownMenuBox(
                         expanded = isStateSelectorExpanded,
-                        onDismissRequest = { isStateSelectorExpanded = false }
+                        onExpandedChange = { isStateSelectorExpanded = !isStateSelectorExpanded }
                     ) {
-                        puppet?.states?.forEach { state ->
-                            DropdownMenuItem(
-                                text = { Text(state.name) },
-                                onClick = {
-                                    selectedState = state
-                                    isStateSelectorExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
+                        TextField(
+                            value = selectedState?.name ?: "Select a State",
+                            onValueChange = {},
+                            readOnly = true,
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isStateSelectorExpanded) },
+                            modifier = Modifier.menuAnchor().fillMaxWidth()
+                        )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Checkbox(
-                        checked = syncEyes,
-                        onCheckedChange = { isChecked ->
-                            syncEyes = isChecked
-                            if (isChecked) {
-                                leftEye?.let { lEye ->
-                                    rightEye = rightEye?.copy(
-                                        openState = lEye.openState,
-                                        pupil = lEye.pupil,
-                                        closedState = lEye.closedState
-                                    ) ?: Eye(
-                                        openState = lEye.openState,
-                                        pupil = lEye.pupil,
-                                        closedState = lEye.closedState,
-                                        position = SerializableOffset(150f, 0f)
-                                    )
-                                    rightEyeOpenData = leftEyeOpenData
-                                    rightEyePupilData = leftEyePupilData
-                                    rightEyeClosedData = leftEyeClosedData
-                                }
+                        ExposedDropdownMenu(
+                            expanded = isStateSelectorExpanded,
+                            onDismissRequest = { isStateSelectorExpanded = false }
+                        ) {
+                            puppet?.states?.forEach { state ->
+                                DropdownMenuItem(
+                                    text = { Text(state.name) },
+                                    onClick = {
+                                        selectedState = state
+                                        isStateSelectorExpanded = false
+                                    }
+                                )
                             }
                         }
-                    )
-                    Text("Sync Eye Parts")
-                }
+                    }
 
-                if (leftEye?.pupil != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
                         Checkbox(
-                            enabled = !focusOnGame,
-                            checked = followCursor,
-                            onCheckedChange = { followCursor = it })
-                        Text("Follow Cursor")
-                        Spacer(Modifier.width(8.dp))
-                        Checkbox(
-                            enabled = !followCursor,
-                            checked = focusOnGame,
-                            onCheckedChange = { focusOnGame = it })
-                        Text("Focus on Game")
-                        Spacer(Modifier.width(8.dp))
-                        Checkbox(
-                            checked = checkOnAudience,
-                            onCheckedChange = { checkOnAudience = it })
-                        Text("Check on Audience")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                if (selectedState?.blinkImageName != null) {
-                    var blinkRateRange by remember(minBlinkRate, maxBlinkRate) { mutableStateOf(minBlinkRate..maxBlinkRate) }
-                    Column(modifier = Modifier.fillMaxWidth(0.8f)) {
-                        Text("Blink Rate Range: ${'$'}{blinkRateRange.start.roundToInt()}ms - ${'$'}{blinkRateRange.endInclusive.roundToInt()}ms")
-                        RangeSlider(
-                            value = blinkRateRange,
-                            onValueChange = {
-                                blinkRateRange = it
-                                minBlinkRate = it.start
-                                maxBlinkRate = it.endInclusive
-                            },
-                            valueRange = 100f..10000f,
-                        )
-                    }
-                }
-
-                if (checkOnAudience) {
-                    LabeledSlider(
-                        label = "Audience Check Rate",
-                        value = audienceCheckRate,
-                        onValueChange = { audienceCheckRate = it },
-                        range = 1000f..20000f
-                    )
-                    LabeledSlider(
-                        label = "Audience Check Duration",
-                        value = audienceCheckDuration,
-                        onValueChange = { audienceCheckDuration = it },
-                        range = 500f..5000f
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Eye Image Selection
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Left Eye")
-                        EyePartPicker("Iris", leftEye?.openState, true, onImageSelected = { images ->
-                            images.firstOrNull()?.let { (data, name) ->
-                                scope.launch {
-                                    viewModel.uploadImageData(name, data)
-                                    leftEye = leftEye?.copy(openState = name) ?: Eye(openState = name)
-                                    leftEyeOpenData = data
-                                    if (syncEyes) {
-                                        rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name)
-                                        rightEyeOpenData = data
+                            checked = syncEyes,
+                            onCheckedChange = { isChecked ->
+                                syncEyes = isChecked
+                                if (isChecked) {
+                                    leftEye?.let { lEye ->
+                                        rightEye = rightEye?.copy(
+                                            openState = lEye.openState,
+                                            pupil = lEye.pupil,
+                                            closedState = lEye.closedState
+                                        ) ?: Eye(
+                                            openState = lEye.openState,
+                                            pupil = lEye.pupil,
+                                            closedState = lEye.closedState,
+                                            position = SerializableOffset(150f, 0f)
+                                        )
+                                        rightEyeOpenData = leftEyeOpenData
+                                        rightEyePupilData = leftEyePupilData
+                                        rightEyeClosedData = leftEyeClosedData
                                     }
                                 }
                             }
-                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                        EyePartPicker("Pupil", leftEye?.pupil, true, onImageSelected = { images ->
-                            images.firstOrNull()?.let { (data, name) ->
-                                scope.launch {
-                                    viewModel.uploadImageData(name, data)
-                                    leftEye = leftEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
-                                    leftEyePupilData = data
-                                    if (syncEyes) {
+                        )
+                        Text("Sync Eye Parts")
+                    }
+
+                    if (leftEye?.pupil != null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Checkbox(
+                                enabled = !focusOnGame,
+                                checked = followCursor,
+                                onCheckedChange = { followCursor = it })
+                            Text("Follow Cursor")
+                            Spacer(Modifier.width(8.dp))
+                            Checkbox(
+                                enabled = !followCursor,
+                                checked = focusOnGame,
+                                onCheckedChange = { focusOnGame = it })
+                            Text("Focus on Game")
+                            Spacer(Modifier.width(8.dp))
+                            Checkbox(
+                                checked = checkOnAudience,
+                                onCheckedChange = { checkOnAudience = it })
+                            Text("Check on Audience")
+                        }
+                    }
+
+                    if (selectedState?.blinkImageName != null) {
+                        var blinkRateRange by remember(minBlinkRate, maxBlinkRate) { mutableStateOf(minBlinkRate..maxBlinkRate) }
+                        Column(modifier = Modifier.fillMaxWidth(0.8f)) {
+                            Text("Blink Rate Range: ${blinkRateRange.start.roundToInt()}ms - ${blinkRateRange.endInclusive.roundToInt()}ms")
+                            RangeSlider(
+                                value = blinkRateRange,
+                                onValueChange = {
+                                    blinkRateRange = it
+                                    minBlinkRate = it.start
+                                    maxBlinkRate = it.endInclusive
+                                },
+                                valueRange = 16f..10000f,
+                            )
+                        }
+                    }
+
+                    if (checkOnAudience) {
+                        LabeledSlider(
+                            label = "Audience Check Rate",
+                            value = audienceCheckRate,
+                            onValueChange = { audienceCheckRate = it },
+                            range = 1000f..20000f
+                        )
+                        LabeledSlider(
+                            label = "Audience Check Duration",
+                            value = audienceCheckDuration,
+                            onValueChange = { audienceCheckDuration = it },
+                            range = 500f..5000f
+                        )
+                    }
+
+                    // Eye Image Selection
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Left Eye")
+                            EyePartPicker("Iris", leftEye?.openState, true, onImageSelected = { images ->
+                                images.firstOrNull()?.let { (data, name) ->
+                                    scope.launch {
+                                        viewModel.uploadImageData(name, data)
+                                        leftEye = leftEye?.copy(openState = name) ?: Eye(openState = name)
+                                        leftEyeOpenData = data
+                                        if (syncEyes) {
+                                            rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name)
+                                            rightEyeOpenData = data
+                                        }
+                                    }
+                                }
+                            }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                            EyePartPicker("Pupil", leftEye?.pupil, true, onImageSelected = { images ->
+                                images.firstOrNull()?.let { (data, name) ->
+                                    scope.launch {
+                                        viewModel.uploadImageData(name, data)
+                                        leftEye = leftEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
+                                        leftEyePupilData = data
+                                        if (syncEyes) {
+                                            rightEye = rightEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
+                                            rightEyePupilData = data
+                                        }
+                                    }
+                                }
+                            }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                            EyePartPicker("Blink", leftEye?.closedState, true, onImageSelected = { images ->
+                                images.firstOrNull()?.let { (data, name) ->
+                                    scope.launch {
+                                        viewModel.uploadImageData(name, data)
+                                        leftEye = leftEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
+                                        leftEyeClosedData = data
+                                        if (syncEyes) {
+                                            rightEye = rightEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
+                                            rightEyeClosedData = data
+                                        }
+                                    }
+                                }
+                            }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Right Eye")
+                            EyePartPicker("Iris", rightEye?.openState, !syncEyes, onImageSelected = { images ->
+                                images.firstOrNull()?.let { (data, name) ->
+                                    scope.launch {
+                                        viewModel.uploadImageData(name, data)
+                                        rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name, position = SerializableOffset(150f,0f))
+                                        rightEyeOpenData = data
+                                    }
+                                }
+                            }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                            EyePartPicker("Pupil", rightEye?.pupil, !syncEyes, onImageSelected = { images ->
+                                images.firstOrNull()?.let { (data, name) ->
+                                    scope.launch {
+                                        viewModel.uploadImageData(name, data)
                                         rightEye = rightEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
                                         rightEyePupilData = data
                                     }
                                 }
-                            }
-                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                        EyePartPicker("Blink", leftEye?.closedState, true, onImageSelected = { images ->
-                            images.firstOrNull()?.let { (data, name) ->
-                                scope.launch {
-                                    viewModel.uploadImageData(name, data)
-                                    leftEye = leftEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
-                                    leftEyeClosedData = data
-                                    if (syncEyes) {
+                            }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                            EyePartPicker("Blink", rightEye?.closedState, !syncEyes, onImageSelected = { images ->
+                                images.firstOrNull()?.let { (data, name) ->
+                                    scope.launch {
+                                        viewModel.uploadImageData(name, data)
                                         rightEye = rightEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
                                         rightEyeClosedData = data
                                     }
                                 }
-                            }
-                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                            }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+                        }
                     }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Right Eye")
-                        EyePartPicker("Iris", rightEye?.openState, !syncEyes, onImageSelected = { images ->
-                            images.firstOrNull()?.let { (data, name) ->
-                                scope.launch {
-                                    viewModel.uploadImageData(name, data)
-                                    rightEye = rightEye?.copy(openState = name) ?: Eye(openState = name, position = SerializableOffset(150f,0f))
-                                    rightEyeOpenData = data
-                                }
-                            }
-                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                        EyePartPicker("Pupil", rightEye?.pupil, !syncEyes, onImageSelected = { images ->
-                            images.firstOrNull()?.let { (data, name) ->
-                                scope.launch {
-                                    viewModel.uploadImageData(name, data)
-                                    rightEye = rightEye?.copy(pupil = name) ?: Eye(openState = "", pupil = name)
-                                    rightEyePupilData = data
-                                }
-                            }
-                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                        EyePartPicker("Blink", rightEye?.closedState, !syncEyes, onImageSelected = { images ->
-                            images.firstOrNull()?.let { (data, name) ->
-                                scope.launch {
-                                    viewModel.uploadImageData(name, data)
-                                    rightEye = rightEye?.copy(closedState = name) ?: Eye(openState = "", closedState = name)
-                                    rightEyeClosedData = data
-                                }
-                            }
-                        }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("Closed Eyes Preview")
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(
+                            checked = isClosedPreview,
+                            onCheckedChange = { isClosedPreview = it }
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text("Closed Eyes Preview")
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Switch(
-                        checked = isClosedPreview,
-                        onCheckedChange = { isClosedPreview = it }
-                    )
-                }
-
-                // Preview Area
+                // Display Column
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxHeight().weight(1f).padding(start = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     val state = selectedState
@@ -498,7 +499,6 @@ class EyeContactScreen(
                         Text("Select a state to begin.")
                     }
                 }
-
             }
         }
     }
@@ -512,7 +512,7 @@ private fun LabeledSlider(
     range: ClosedFloatingPointRange<Float>
 ) {
     Column(modifier = Modifier.fillMaxWidth(0.8f)) {
-        Text("$label: ${'$'}{value.roundToInt()}ms")
+        Text("$label: ${value.roundToInt()}ms")
         Slider(
             value = value,
             onValueChange = onValueChange,
