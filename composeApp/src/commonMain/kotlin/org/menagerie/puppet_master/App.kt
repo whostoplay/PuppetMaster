@@ -153,6 +153,8 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
         val idleState = activePuppet?.states?.find { it.name == "idle" } ?: activePuppet?.states?.firstOrNull()
         if (idleState != null) {
             idleImageData = viewModel.getImageData(idleState.imageName)
+        } else {
+            idleImageData = null
         }
     }
     val idleImage = idleImageData?.toImageBitmap()
@@ -300,22 +302,24 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
         var rightPanelWidth by remember { mutableFloatStateOf(1 / 3f) }
 
         if (idleImage != null) {
-            LivePreview(
-                operatingMode = operatingMode,
-                puppetState = activeState,
-                isBlinking = isBlinking,
-                uploadsDir = viewModel.uploadsDir,
-                backgroundColor = uiState.backgroundColor,
-                serverIp = settings.serverIpAddress,
-                activeSpecialEffect = activeSpecialEffect,
-                window = window,
-                isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
-                displayedImageName = displayedImageName,
-                idleImage = idleImage,
-                onFocusPointUpdate = { offset ->
-                    viewModel.onNormalizedMousePositionChanged(offset)
-                }
-            )
+            key(activePuppet) {
+                LivePreview(
+                    operatingMode = operatingMode,
+                    puppetState = activeState,
+                    isBlinking = isBlinking,
+                    uploadsDir = viewModel.uploadsDir,
+                    backgroundColor = uiState.backgroundColor,
+                    serverIp = settings.serverIpAddress,
+                    activeSpecialEffect = activeSpecialEffect,
+                    window = window,
+                    isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
+                    displayedImageName = displayedImageName,
+                    idleImage = idleImage,
+                    onFocusPointUpdate = { offset ->
+                        viewModel.onNormalizedMousePositionChanged(offset)
+                    }
+                )
+            }
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 if (troupe == null) {
@@ -493,7 +497,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         rootFocusRequester = focusRequester,
                                         backgroundColor = uiState.backgroundColor,
                                     )
-                                }
+                                 }
                             } else {
                                 item {
                                     Box(
@@ -599,7 +603,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                                         .clickable { viewModel.selectState(state) }
                                         .background(if (state == selectedState) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
                                         .padding(8.dp)
-                                    )
+                                )
                             }
                             item {
                                 selectedState?.let { state ->
