@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+        TODO: For production builds, this should be removed.
+        Cleartext traffic should be disabled and all network communication
+        should use HTTPS.
+    -->
+    <base-config cleartextTrafficPermitted="true"/>
+</network-security-config>

@@ -1,53 +1,28 @@
 package org.menagerie.puppet_master
 
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
 import io.ktor.http.*
 import io.ktor.http.content.*
+import io.ktor.serialization.deserialize
+import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.*
 import io.ktor.server.engine.*
 import io.ktor.server.http.content.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.cors.routing.CORS
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
-import io.ktor.utils.io.core.readBytes
-import io.ktor.utils.io.readRemaining
 import io.ktor.websocket.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
-import kotlin.time.Duration.Companion.seconds
-
-// --- Data Models & Persistence ---
-
-val gson = Gson()
-val configFile = File("avatar_config.json")
-
-fun saveConfiguration(config: AvatarConfiguration) {
-    configFile.writeText(gson.toJson(config))
-}
-
-fun loadConfiguration(): AvatarConfiguration {
-    if (!configFile.exists()) {
-        // Create a default config if one doesn't exist
-        return AvatarConfiguration(
-            lastUpdated = System.currentTimeMillis(),
-            states = listOf(
-                AvatarStateInfo("idle", "idle.png"),
-                AvatarStateInfo("talking", "talking.png")
-            )
-        )
-    }
-    val type = object : TypeToken<AvatarConfiguration>() {}.type
-    return gson.fromJson(configFile.readText(), type)
-}
-
-// --- Main Application ---
+import java.time.Duration
+import java.util.zip.ZipInputStream
 
 fun main() {
     embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
@@ -55,76 +30,162 @@ fun main() {
 }
 
 fun Application.module() {
-    val uploadsDir = File("uploads").apply { mkdirs() }
-    var avatarConfig = loadConfiguration()
+    val troupeManager = TroupeManager()
+    val stateManager = PuppetStateManager(this, troupeManager)
+    val jsonDecoder = Json { ignoreUnknownKeys = true; allowStructuredMapKeys = true }
 
-    val activeState = MutableStateFlow(avatarConfig.states.find { it.name == "idle" } ?: avatarConfig.states.first())
+    install(CORS) {
+        anyHost()
+        allowHeader(HttpHeaders.ContentType)
+    }
 
     install(ContentNegotiation) {
-        json()
+        json(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true })
     }
     install(WebSockets) {
-        pingPeriod = 15.seconds
-        timeout = 15.seconds
+        pingPeriod = Duration.ofSeconds(15)
+        timeout = Duration.ofSeconds(15)
         maxFrameSize = Long.MAX_VALUE
         masking = false
+        contentConverter = KotlinxWebsocketSerializationConverter(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true })
     }
 
     routing {
-        staticFiles("/uploads", uploadsDir)
-
-        // --- Configuration API for the Client ---
-
-        get("/config") {
-            call.respond(avatarConfig)
+        val uploadsDir = File("uploads").apply { mkdirs() }
+        get("/uploads/{fileName}") {
+            val fileName = call.parameters["fileName"] ?: return@get call.respond(HttpStatusCode.BadRequest)
+            val file = File(uploadsDir, fileName)
+            if (file.exists()) {
+                call.response.header(HttpHeaders.CacheControl, "no-cache, no-store, must-revalidate")
+                call.response.header(HttpHeaders.Pragma, "no-cache")
+                call.response.header(HttpHeaders.Expires, "0")
+                call.respondBytes(file.readBytes())
+            } else {
+                call.respond(HttpStatusCode.NotFound)
+            }
         }
 
-        post("/config") {
-            val newConfig = call.receive<AvatarConfiguration>()
-            avatarConfig = newConfig
-            saveConfiguration(avatarConfig)
-            activeState.value = avatarConfig.states.find { it.name == "idle" } ?: avatarConfig.states.first()
+        get("/troupe") {
+            troupeManager.troupe?.let { call.respond(it) } ?: call.respond(HttpStatusCode.NotFound)
+        }
+
+        post("/troupe") {
+            val newTroupe = call.receive<PuppetTroupe>()
+            troupeManager.updateTroupe(newTroupe)
+            stateManager.onTroupeUpdated()
             call.respond(HttpStatusCode.OK)
         }
 
         post("/upload") {
             val multipart = call.receiveMultipart()
             var fileName = ""
+            var troupeJsonFile: File? = null
             multipart.forEachPart { part ->
                 if (part is PartData.FileItem) {
                     fileName = part.originalFileName as String
-                    val fileBytes = part.provider().readRemaining().readBytes()
-                    File(uploadsDir, fileName).writeBytes(fileBytes)
+                    val fileBytes = part.streamProvider().readBytes()
+                    if (fileName.endsWith(".troupe") || fileName.endsWith(".puppet")) {
+                        // It's a zip archive, so we need to extract it
+                        ZipInputStream(fileBytes.inputStream()).use { zis ->
+                            var entry = zis.nextEntry
+                            while (entry != null) {
+                                val file = File(uploadsDir, entry.name)
+                                if (entry.isDirectory) {
+                                    file.mkdirs()
+                                } else {
+                                    file.parentFile?.mkdirs()
+                                    file.outputStream().use { fos ->
+                                        zis.copyTo(fos)
+                                    }
+                                    if (file.name == "troupe.json") {
+                                        troupeJsonFile = file
+                                    }
+                                }
+                                entry = zis.nextEntry
+                            }
+                        }
+
+                        if (fileName.endsWith(".troupe")) {
+                            troupeJsonFile?.let {
+                                if (it.exists()) {
+                                    val troupe = jsonDecoder.decodeFromString(PuppetTroupe.serializer(), it.readText())
+                                    troupeManager.updateTroupe(troupe)
+                                    stateManager.onTroupeUpdated()
+                                }
+                            }
+                        }
+                    } else {
+                        // It's a single file, so we just write it
+                        File(uploadsDir, fileName).writeBytes(fileBytes)
+                    }
                 }
                 part.dispose()
             }
             call.respondText(fileName)
         }
 
-        // --- Real-time Endpoints ---
-
-        webSocket("/audio-input") {
+        webSocket("/mouse") {
             for (frame in incoming) {
                 if (frame is Frame.Text) {
-                    val isSpeaking = frame.readText().toBoolean()
-                    val targetStateName = if (isSpeaking) "talking" else "idle"
-                    avatarConfig.states.find { it.name == targetStateName }?.let {
-                        activeState.value = it
+                    val text = frame.readText()
+                    val jsonElement = jsonDecoder.parseToJsonElement(text).jsonObject
+                    when (jsonElement["type"]?.jsonPrimitive?.content) {
+                        "pointer" -> {
+                            val position = jsonDecoder.decodeFromJsonElement(MousePosition.serializer(), jsonElement)
+                            stateManager.onMousePositionChanged(SerializableOffset(position.x.toFloat(), position.y.toFloat()))
+                        }
+
+                        "calibration" -> {
+                            val calibrationData = jsonDecoder.decodeFromJsonElement(CalibrationData.serializer(), jsonElement)
+                            stateManager.onCalibrationReceived(calibrationData)
+                        }
                     }
                 }
             }
         }
 
-        webSocket("/obs") {
-            activeState.asStateFlow().collect { state ->
-                val imageFile = File(uploadsDir, state.imageName)
-                if (imageFile.exists()) {
-                    val imageUrl = "http://127.0.0.1:$SERVER_PORT/uploads/${state.imageName}"
-                    outgoing.send(Frame.Text(imageUrl))
-                } else {
-                    // If file doesn't exist, clear the image in OBS
-                    outgoing.send(Frame.Text(""))
+        webSocket("/audio-input") {
+            if (stateManager.obsConnectionCount > 0 && troupeManager.activePuppet != null) {
+                for (frame in incoming) {
+                    if (stateManager.manualControlActive) {
+                        close(CloseReason(CloseReason.Codes.NORMAL, "Client took control"))
+                        break
+                    }
+                    if (frame is Frame.Text) {
+                        frame.readText().toFloatOrNull()?.let { level ->
+                            stateManager.onAudioLevelChanged(level)
+                        }
+                    }
                 }
+            } else {
+                close(CloseReason(CloseReason.Codes.NORMAL, "Server not in headless mode or no active puppet"))
+            }
+        }
+
+        webSocket("/client-control") {
+            if (troupeManager.activePuppet == null) {
+                close(CloseReason(CloseReason.Codes.NORMAL, "No active puppet configured on server"))
+                return@webSocket
+            }
+            stateManager.manualControlActive = true
+            try {
+                for (frame in incoming) {
+                    val serverState = converter!!.deserialize<ServerState>(frame)
+                    stateManager.onClientSentState(serverState)
+                }
+            } finally {
+                stateManager.onClientDisconnected()
+            }
+        }
+
+        webSocket("/obs") {
+            stateManager.obsConnectionCount++
+            try {
+                stateManager.stateToSend.collectLatest { state ->
+                    sendSerialized(state)
+                }
+            } finally {
+                stateManager.obsConnectionCount--
             }
         }
     }

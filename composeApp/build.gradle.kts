@@ -28,6 +28,7 @@ kotlin {
             implementation(compose.runtime)
             implementation(compose.foundation)
             implementation(compose.material3)
+            implementation(libs.compose.material.icons.extended)
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
@@ -37,6 +38,10 @@ kotlin {
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.gson)
+            implementation(libs.voyager.navigator)
+            implementation(libs.voyager.screenmodel)
+            implementation(libs.voyager.transitions)
+            implementation(libs.compose.imageloader)
 
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.contentnegotiation)
@@ -48,6 +53,7 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation(libs.kotlinx.coroutinesSwing)
+            implementation(libs.ktor.client.cio)
         }
     }
 }
@@ -89,8 +95,23 @@ compose.desktop {
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
-            packageName = "org.menagerie.puppet_master"
+            packageName = "puppet-master"
             packageVersion = "1.0.0"
+
+            linux {
+                packageName = "puppet-master"
+                // This points to our custom resources, including the .desktop file
+                // which defines the application name for the Linux app menu.
+                appResourcesRootDir.set(project.layout.projectDirectory.dir("src/jvmMain/resources/dist"))
+            }
+
+            macOS {
+                packageName = "Puppet Master"
+            }
+
+            windows {
+                menuGroup = "Puppet Master"
+            }
         }
     }
 }

@@ -1,0 +1,165 @@
+package org.menagerie.puppet_master.states
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.RangeSlider
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.unit.dp
+import org.menagerie.puppet_master.Hotkey
+import org.menagerie.puppet_master.PuppetStateInfo
+import org.menagerie.puppet_master.SpecialEffectsManager
+import org.menagerie.puppet_master.controls.HotkeySelector
+import kotlin.math.roundToLong
+
+/**
+ * A composable that provides a UI for editing the properties of a puppet state.
+ *
+ * @param modifier The modifier to be applied to the composable.
+ * @param selectedState The currently selected puppet state.
+ * @param specialEffectsManager The manager for special effects.
+ * @param onStateUpdated A callback that is invoked when any property of the state is changed.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StateEditor(
+    modifier: Modifier,
+    selectedState: PuppetStateInfo?,
+    specialEffectsManager: SpecialEffectsManager,
+    onStateUpdated: (PuppetStateInfo) -> Unit,
+    onStateHotkeyChanged: (String, Hotkey) -> Unit
+) {
+    val blinkSliderValueRange = 16f..10000f
+    var blinkRateRange by remember(selectedState) {
+        val start = selectedState?.minBlinkRate?.toFloat()?.coerceIn(blinkSliderValueRange) ?: 2000f
+        val end = selectedState?.maxBlinkRate?.toFloat()?.coerceIn(blinkSliderValueRange) ?: 8000f
+        mutableStateOf(start..end)
+    }
+
+    val audienceCheckRateRange = 1000f..20000f
+    var audienceCheckRate by remember(selectedState) {
+        mutableFloatStateOf(selectedState?.eyeState?.eyes?.audienceCheckRate?.toFloat()?.coerceIn(audienceCheckRateRange) ?: 8000f)
+    }
+
+    val audienceCheckDurationRange = 500f..5000f
+    var audienceCheckDuration by remember(selectedState) {
+        mutableFloatStateOf(selectedState?.eyeState?.eyes?.audienceCheckDuration?.toFloat()?.coerceIn(audienceCheckDurationRange) ?: 1500f)
+    }
+
+    var showEffectDropdown by remember { mutableStateOf(false) }
+
+    Column(modifier = modifier.padding(8.dp)) {
+        Text(text = "Edit State: ${selectedState?.name ?: ""}")
+        selectedState?.let { state ->
+            if (state.blinkImageName != null || state.eyeState?.eyes?.left?.closedState != null) {
+                Text(text = "Blink Rate Range: ${blinkRateRange.start.toLong()} - ${blinkRateRange.endInclusive.toLong()} ms")
+                RangeSlider(
+                    value = blinkRateRange,
+                    onValueChange = { newRange -> blinkRateRange = newRange },
+                    onValueChangeFinished = {
+                        onStateUpdated(
+                            state.copy(
+                                minBlinkRate = blinkRateRange.start.roundToLong(),
+                                maxBlinkRate = blinkRateRange.endInclusive.roundToLong()
+                            )
+                        )
+                    },
+                    valueRange = blinkSliderValueRange
+                )
+            }
+
+            state.eyeState?.let { eyeState ->
+                if (eyeState.eyes.checkOnAudience) {
+                    Text(text = "Audience Check Rate: ${audienceCheckRate.roundToLong()} ms")
+                    Slider(
+                        value = audienceCheckRate,
+                        onValueChange = { audienceCheckRate = it },
+                        onValueChangeFinished = {
+                            onStateUpdated(
+                                state.copy(
+                                    eyeState = eyeState.copy(
+                                        eyes = eyeState.eyes.copy(audienceCheckRate = audienceCheckRate.roundToLong())
+                                    )
+                                )
+                            )
+                        },
+                        valueRange = audienceCheckRateRange
+                    )
+
+                    Text(text = "Audience Check Duration: ${audienceCheckDuration.roundToLong()} ms")
+                    Slider(
+                        value = audienceCheckDuration,
+                        onValueChange = { audienceCheckDuration = it },
+                        onValueChangeFinished = {
+                            onStateUpdated(
+                                state.copy(
+                                    eyeState = eyeState.copy(
+                                        eyes = eyeState.eyes.copy(audienceCheckDuration = audienceCheckDuration.roundToLong())
+                                    )
+                                )
+                            )
+                        },
+                        valueRange = audienceCheckDurationRange
+                    )
+                }
+            }
+
+            Box {
+                Text(
+                    text = "Applied Effect: ${state.appliedEffect?.name ?: "None"}",
+                    modifier = Modifier.fillMaxWidth().clickable { showEffectDropdown = true }
+                )
+                DropdownMenu(
+                    expanded = showEffectDropdown,
+                    onDismissRequest = { showEffectDropdown = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("None") },
+                        onClick = {
+                            onStateUpdated(state.copy(appliedEffect = null))
+                            showEffectDropdown = false
+                        }
+                    )
+                    specialEffectsManager.effects.forEach { effect ->
+                        DropdownMenuItem(
+                            text = { Text(effect.name) },
+                            onClick = {
+                                onStateUpdated(state.copy(appliedEffect = effect))
+                                showEffectDropdown = false
+                            }
+                        )
+                    }
+                }
+            }
+            Row {
+                HotkeySelector(
+                    modifier = Modifier.weight(1f),
+                    horizontalArrangement = Arrangement.Center,
+                    label = "State Hotkey",
+                    hotkey = state.hotkey ?: Hotkey(Key.Unknown.keyCode),
+                    onHotkeyChanged = { newHotkey ->
+                        onStateHotkeyChanged(state.name, newHotkey)
+                    }
+                )
+                Spacer(modifier = Modifier.weight(.7f))
+            }
+        }
+    }
+}
