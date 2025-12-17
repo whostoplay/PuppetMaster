@@ -2,6 +2,8 @@ package org.menagerie.puppet_master.previews
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.forEachGesture
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,6 +26,7 @@ import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
@@ -64,7 +67,8 @@ fun LivePreview(
     var jitter by remember { mutableStateOf(Offset.Zero) }
     var isCheckingAudience by remember { mutableStateOf(false) }
     var audienceCheckBlink by remember { mutableStateOf(false) }
-    val pointerPosition = rememberGlobalPointerPosition(window)
+    var touchPosition by remember { mutableStateOf<Offset?>(null) }
+    val mousePosition = rememberGlobalPointerPosition(window)
 
     val eyeState = puppetState?.eyeState
 
@@ -147,7 +151,20 @@ fun LivePreview(
 
     // --- Rendering ---
     BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().background(backgroundColor).padding(8.dp),
+        modifier = Modifier.fillMaxSize().background(backgroundColor).padding(8.dp)
+            .pointerInput(Unit) {
+                forEachGesture {
+                    awaitPointerEventScope {
+                        awaitFirstDown(requireUnconsumed = false)
+                        do {
+                            val event = awaitPointerEvent()
+                            touchPosition = event.changes.firstOrNull()?.position
+                            event.changes.forEach { it.consume() }
+                        } while (event.changes.any { it.pressed })
+                        touchPosition = null
+                    }
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         val isEffectivelyBlinking = isBlinking || audienceCheckBlink
@@ -251,7 +268,7 @@ fun LivePreview(
                             if (operatingMode == OperatingMode.ONLINE) {
                                 eyeData.cursorPosition?.let { Offset(it.x, it.y) }
                             } else {
-                                pointerPosition
+                                mousePosition ?: touchPosition
                             }
                         }
 
