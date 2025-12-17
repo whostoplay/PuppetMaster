@@ -1,13 +1,14 @@
 package org.menagerie.puppet_master
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.withContext
 import kotlin.math.pow
 import kotlin.random.Random
 
@@ -69,33 +70,66 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
-    // Updates the puppet state info and restarts the blinking loop if necessary.
-    private fun updateStateAndBlinking(state: PuppetStateInfo?) {
-        blinkingJob?.cancel()
+// In PuppetStateManager
 
-        // Send the main state update
-        updateStateToSend(state, calculateAnimationState(), _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
 
-        if (state?.blinkImageName != null) {
-            blinkingJob = scope.launch {
-                while (true) {
-                    val delayTime = if (state.minBlinkRate >= state.maxBlinkRate) {
-                        state.maxBlinkRate
-                    } else {
-                        Random.nextLong(state.minBlinkRate, state.maxBlinkRate)
-                    }
-                    delay(delayTime)
-                    // In headless mode, if the state is still the active one, perform a blink
-                    if (isHeadless() && _activeState.value == state) {
-                        val blinkState = state.copy(imageName = state.blinkImageName!!)
-                        updateStateToSend(blinkState, _stateToSend.value?.animationState, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
+    // Call this method once when the PuppetStateManager is initialized.
+// For example, in its init block or a dedicated start() method.
+    fun startBlinkingLoop() {
+        // Prevent launching multiple jobs if called more than once.
+        if (blinkingJob?.isActive == true) return
+
+        blinkingJob = CoroutineScope(Dispatchers.Default).launch {
+            while (true) {
+                // Wait a random amount of time before the next blink.
+                val delayTime = Random.nextLong(1500, 5000)
+                delay(delayTime)
+
+                // Capture the current state at this moment.
+                val currentState = _activeState.value ?: continue
+
+                // Check if the current state is one that *should* blink.
+                if (isHeadless() && currentState.blinkImageName != null) {
+
+                    // Use a NonCancellable block to ensure the blink completes.
+                    withContext(NonCancellable) {
+                        val blinkState = currentState.copy(imageName = currentState.blinkImageName!!)
+
+                        // Send the blinking image
+                        updateStateToSend(
+                            blinkState,
+                            _stateToSend.value?.animationState,
+                            _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition
+                        )
+
                         delay(150)
-                        updateStateToSend(state, _stateToSend.value?.animationState, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
+
+                        // IMPORTANT: Revert to the CURRENT active state, which may have
+                        // changed during the 150ms delay. This prevents getting stuck.
+                        updateStateToSend(
+                            _activeState.value,
+                            _stateToSend.value?.animationState,
+                            _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition
+                        )
                     }
                 }
             }
         }
     }
+
+    // You will also need a method to stop it when the manager is disposed.
+    fun stopBlinkingLoop() {
+        blinkingJob?.cancel()
+        blinkingJob = null
+    }
+
+    // Now, updateStateAndBlinking becomes MUCH simpler.
+// It no longer manages the blinking job at all.
+    private fun updateStateAndBlinking(state: PuppetStateInfo?) {
+        // Just update the state. The persistent blinkingJob will handle the rest.
+        updateStateToSend(state, _stateToSend.value?.animationState, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
+    }
+
 
 
     private fun calculateAnimationState(): AnimationState? {

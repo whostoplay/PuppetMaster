@@ -54,7 +54,6 @@ class PuppetStateController(
 
         scope.launch {
             activeState.collect { state ->
-                clientBlinkingJob?.cancel()
                 _displayedImageName.value = state?.imageName
                 val effect = state?.appliedEffect
                 if (effect != null) {
@@ -67,32 +66,41 @@ class PuppetStateController(
                 } else {
                     _activeSpecialEffect.value = null
                 }
+            }
+        }
+        startBlinkingLoop()
+    }
 
-                if (state != null && (state.blinkImageName != null || state.eyeState?.eyes?.left?.closedState != null)) {
-                    clientBlinkingJob = scope.launch {
-                        while (true) {
-                            val delayTime = if (state.minBlinkRate >= state.maxBlinkRate) {
-                                state.maxBlinkRate
-                            } else {
-                                Random.nextLong(state.minBlinkRate, state.maxBlinkRate)
-                            }
-                            delay(delayTime)
-
-                            val isClientInControl = operatingMode == OperatingMode.OFFLINE || isPublishing
-
-                            if (isClientInControl && activeState.value == state) {
-                                _isBlinking.value = true
-                                if (state.blinkImageName != null) {
-                                    _displayedImageName.value = state.blinkImageName
-                                }
-                                delay(150)
-                                _isBlinking.value = false
-                                if (state.blinkImageName != null) {
-                                    _displayedImageName.value = state.imageName
-                                }
-                            }
-                        }
+    private fun startBlinkingLoop() {
+        clientBlinkingJob = scope.launch {
+            while (true) {
+                val state = activeState.value
+                val delayTime = if (state != null) {
+                    if (state.minBlinkRate >= state.maxBlinkRate) {
+                        state.maxBlinkRate
+                    } else {
+                        Random.nextLong(state.minBlinkRate, state.maxBlinkRate)
                     }
+                } else {
+                    5000L
+                }
+                delay(delayTime)
+
+                val currentState = activeState.value ?: continue
+
+                val shouldBlink = currentState.blinkImageName != null || currentState.eyeState?.eyes?.left?.closedState != null
+                if (!shouldBlink) continue
+
+                val isClientInControl = operatingMode == OperatingMode.OFFLINE || isPublishing
+
+                if (isClientInControl) {
+                    _isBlinking.value = true
+                    if (currentState.blinkImageName != null) {
+                        _displayedImageName.value = currentState.blinkImageName
+                    }
+                    delay(150)
+                    _isBlinking.value = false
+                    _displayedImageName.value = activeState.value?.imageName
                 }
             }
         }

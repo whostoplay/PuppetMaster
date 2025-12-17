@@ -72,7 +72,6 @@ fun HotkeySelector(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = horizontalArrangement
         ) {
-            println(hotkey.key)
             Text(label)
             TextField(
                 value = if (isEditing) "Press any key..." else if(hotkey.key == 4294967296) "Not Assigned" else hotkey.toString(),
