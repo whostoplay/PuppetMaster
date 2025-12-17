@@ -53,24 +53,28 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
     init {
         scope.launch {
-            val settings = settingsRepository.loadSettings()
-            val troupeFile = settings.lastTroupeFile?.let { File(it) }
+            reloadLastTroupe()
+        }
+    }
 
-            val localTroupe = if (troupeFile?.exists() == true) {
-                loadTroupeFromFile(troupeFile.absolutePath)
+    actual fun reloadLastTroupe() {
+        val settings = settingsRepository.loadSettings()
+        val troupeFile = settings.lastTroupeFile?.let { File(it) }
+
+        val localTroupe = if (troupeFile?.exists() == true) {
+            loadTroupeFromFile(troupeFile.absolutePath)
+        } else {
+            val mostRecentTroupe = (context as Context).filesDir.listFiles { _, name -> name.endsWith(".troupe") }?.maxByOrNull { it.lastModified() }
+            if (mostRecentTroupe != null) {
+                loadTroupeFromFile(mostRecentTroupe.absolutePath)
             } else {
-                val mostRecentTroupe = (context as Context).filesDir.listFiles { _, name -> name.endsWith(".troupe") }?.maxByOrNull { it.lastModified() }
-                if (mostRecentTroupe != null) {
-                    loadTroupeFromFile(mostRecentTroupe.absolutePath)
-                } else {
-                    null
-                }
+                null
             }
+        }
 
-            if (localTroupe != null) {
-                _troupe.value = localTroupe
-                _activePuppet.value = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
-            }
+        if (localTroupe != null) {
+            _troupe.value = localTroupe
+            _activePuppet.value = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
         }
     }
 

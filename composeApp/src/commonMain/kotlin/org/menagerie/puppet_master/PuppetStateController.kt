@@ -201,7 +201,11 @@ class PuppetStateController(
     }
 
     fun onOffline() {
-        _activeState.value = dataManager.activePuppet.value?.states?.find { it.name == "idle" }
+        if (dataManager.activePuppet.value == null) {
+            scope.launch { dataManager.reloadLastTroupe() }
+        } else {
+            _activeState.value = dataManager.activePuppet.value?.states?.find { it.name == "idle" }
+        }
     }
 
     fun stopBlinking() {

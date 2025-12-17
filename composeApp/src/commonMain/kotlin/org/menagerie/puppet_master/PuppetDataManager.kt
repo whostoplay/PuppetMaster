@@ -33,4 +33,5 @@ expect class PuppetDataManager(scope: CoroutineScope, context: Any) {
     fun importPuppet(filePath: String, newTroupeName: String? = null)
     fun saveTroupeAs(filePath: String)
     fun createNewTroupe()
+    fun reloadLastTroupe()
 }
