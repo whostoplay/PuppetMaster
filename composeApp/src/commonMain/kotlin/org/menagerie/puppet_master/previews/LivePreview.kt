@@ -26,9 +26,11 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -206,7 +208,12 @@ fun LivePreview(
                 val rightEye = eyeData.eyes.right
 
                 val leftEyeModifier = Modifier
-                    .offset(x = (leftEye.position.x * imageScaleFactor).dp, y = (leftEye.position.y * imageScaleFactor).dp)
+                    .offset {
+                        IntOffset(
+                            (leftEye.position.x * imageScaleFactor).roundToInt(),
+                            (leftEye.position.y * imageScaleFactor).roundToInt()
+                        )
+                    }
                     .graphicsLayer(
                         scaleX = leftEye.scaleX * imageScaleFactor,
                         scaleY = leftEye.scaleY * imageScaleFactor,
@@ -214,7 +221,12 @@ fun LivePreview(
                     )
 
                 val rightEyeModifier = Modifier
-                    .offset(x = (rightEye.position.x * imageScaleFactor).dp, y = (rightEye.position.y * imageScaleFactor).dp)
+                    .offset {
+                        IntOffset(
+                            (rightEye.position.x * imageScaleFactor).roundToInt(),
+                            (rightEye.position.y * imageScaleFactor).roundToInt()
+                        )
+                    }
                     .graphicsLayer(
                         scaleX = rightEye.scaleX * imageScaleFactor,
                         scaleY = rightEye.scaleY * imageScaleFactor,
@@ -287,10 +299,12 @@ fun LivePreview(
                             Image(
                                 bitmap = it,
                                 contentDescription = "Left Pupil",
-                                modifier = Modifier.offset(
-                                    x = ((position.x + jitter.x) * imageScaleFactor).dp,
-                                    y = ((position.y + jitter.y) * imageScaleFactor).dp
-                                )
+                                modifier = Modifier.offset {
+                                    IntOffset(
+                                        ((position.x + jitter.x) * imageScaleFactor).roundToInt(),
+                                        ((position.y + jitter.y) * imageScaleFactor).roundToInt()
+                                    )
+                                }
                                     .graphicsLayer(
                                         scaleX = leftEye.scaleX * imageScaleFactor,
                                         scaleY = leftEye.scaleY * imageScaleFactor,
@@ -309,10 +323,12 @@ fun LivePreview(
                             Image(
                                 bitmap = it,
                                 contentDescription = "Right Pupil",
-                                modifier = Modifier.offset(
-                                    x = ((position.x + jitter.x) * imageScaleFactor).dp,
-                                    y = ((position.y + jitter.y) * imageScaleFactor).dp
-                                )
+                                modifier = Modifier.offset {
+                                    IntOffset(
+                                        ((position.x + jitter.x) * imageScaleFactor).roundToInt(),
+                                        ((position.y + jitter.y) * imageScaleFactor).roundToInt()
+                                    )
+                                }
                                     .graphicsLayer(
                                         scaleX = rightEye.scaleX * imageScaleFactor,
                                         scaleY = rightEye.scaleY * imageScaleFactor,

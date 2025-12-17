@@ -652,11 +652,14 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
 
                 Row(
                     modifier = Modifier.fillMaxSize(),
-                    verticalAlignment = Alignment.Bottom,
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     Button(onClick = { showLeftDrawer = true }) { Text("Puppet Controls") }
                     Button(onClick = { showRightDrawer = true }) { Text("State Controls") }
+                }
+                Row(modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.SpaceEvenly){
                     Button(onClick = {
                         navigator.push(
                             EyeContactScreen(
