@@ -15,7 +15,6 @@ import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -65,12 +64,6 @@ fun StateEditor(
     }
 
     var showEffectDropdown by remember { mutableStateOf(false) }
-
-    LaunchedEffect(selectedState, specialEffectsManager.effects) {
-        if (selectedState != null && selectedState.appliedEffect == null && specialEffectsManager.effects.isNotEmpty()) {
-            onStateUpdated(selectedState.copy(appliedEffect = specialEffectsManager.effects.first()))
-        }
-    }
 
     Column(modifier = modifier.padding(8.dp)) {
         Text(text = "Edit State: ${selectedState?.name ?: ""}")
