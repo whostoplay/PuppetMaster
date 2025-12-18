@@ -80,6 +80,13 @@ object Constants {
             const val PUPPET_CONTROLS_BUTTON = "Puppet Controls"
             const val STATE_CONTROLS_BUTTON = "State Controls"
         }
+
+        object Hotkeys {
+            const val CTRL = "CTRL"
+            const val ALT = "ALT"
+            const val SHIFT = "SHIFT"
+            const val SEPARATOR = " + "
+        }
     }
 
     object Puppet {
