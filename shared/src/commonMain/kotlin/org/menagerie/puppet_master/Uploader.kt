@@ -26,7 +26,7 @@ class Uploader(private val client: HttpClient) {
             else -> "image/png"
         }
         val response = client.submitFormWithBinaryData(
-            url = "http://$serverIp:$SERVER_PORT/upload",
+            url = "http://$serverIp:${Constants.Server.PORT}/upload",
             formData = formData {
                 append("file", bytes, Headers.build {
                     append(HttpHeaders.ContentType, contentType)

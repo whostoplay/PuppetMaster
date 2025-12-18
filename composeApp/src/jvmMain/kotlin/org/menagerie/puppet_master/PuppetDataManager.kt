@@ -287,7 +287,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         scope.launch {
             _connectionState.value = ConnectionState.CONNECTING
             try {
-                val response = client.get("http://$serverIp:$SERVER_PORT/troupe")
+                val response = client.get("http://$serverIp:${Constants.Server.PORT}/troupe")
 
                 when (response.status) {
                     HttpStatusCode.OK -> {
@@ -306,12 +306,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                         if (shouldSync) {
                             serverTroupe.puppets.forEach { puppet ->
                                 puppet.states.forEach { state ->
-                                    val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/${state.imageName}"
+                                    val imageUrl = "http://$serverIp:${Constants.Server.PORT}/uploads/${state.imageName}"
                                     val imageBytes: ByteArray = client.get(imageUrl).body()
                                     File(uploadsDir, state.imageName).writeBytes(imageBytes)
 
                                     state.blinkImageName?.let { blinkImageName ->
-                                        val blinkImageUrl = "http://$serverIp:$SERVER_PORT/uploads/$blinkImageName"
+                                        val blinkImageUrl = "http://$serverIp:${Constants.Server.PORT}/uploads/$blinkImageName"
                                         val blinkImageBytes: ByteArray = client.get(blinkImageUrl).body()
                                         File(uploadsDir, blinkImageName).writeBytes(blinkImageBytes)
                                     }
@@ -319,7 +319,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                                     state.eyeState?.let { eyeState ->
                                         suspend fun downloadEyeImage(imageName: String?) {
                                             imageName?.let {
-                                                val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/$it"
+                                                val imageUrl = "http://$serverIp:${Constants.Server.PORT}/uploads/$it"
                                                 val imageBytes: ByteArray = client.get(imageUrl).body()
                                                 File(uploadsDir, it).writeBytes(imageBytes)
                                             }
@@ -479,7 +479,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                         }
                     }
                 }
-                client.post("http://$serverIp:$SERVER_PORT/troupe") { contentType(ContentType.Application.Json); setBody(troupe) }
+                client.post("http://$serverIp:${Constants.Server.PORT}/troupe") { contentType(ContentType.Application.Json); setBody(troupe) }
             }
         }
     }

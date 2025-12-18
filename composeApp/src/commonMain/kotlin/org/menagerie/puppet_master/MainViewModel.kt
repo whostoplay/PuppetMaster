@@ -587,7 +587,7 @@ class MainViewModel(context: Any) : ScreenModel {
         stateController.stopBlinking()
         serverStateJob = screenModelScope.launch {
             try {
-                client.webSocketSession(method = HttpMethod.Get, host = settings.value.serverIpAddress, port = SERVER_PORT, path = "/obs").let { session ->
+                client.webSocketSession(method = HttpMethod.Get, host = settings.value.serverIpAddress, port = Constants.Server.PORT, path = "/obs").let { session ->
                     while (true) {
                         val serverState = session.incoming.receive() as? ServerState
                         _serverState.value = serverState
@@ -605,7 +605,7 @@ class MainViewModel(context: Any) : ScreenModel {
                 client.webSocketSession(
                     method = HttpMethod.Get,
                     host = settings.value.serverIpAddress,
-                    port = SERVER_PORT,
+                    port = Constants.Server.PORT,
                     path = "/client-control"
                 ).let { session ->
                     combine(

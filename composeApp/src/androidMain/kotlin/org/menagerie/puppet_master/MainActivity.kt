@@ -18,6 +18,10 @@ import com.seiko.imageloader.intercept.DiskCacheInterceptor
 import com.seiko.imageloader.intercept.MemoryCacheInterceptor
 import okio.Path.Companion.toOkioPath
 
+/**
+ * The main activity for the Android application.
+ * This activity sets up the Compose content and provides an [ImageLoader] to the `App` composable.
+ */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -31,6 +35,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/**
+ * Generates an [ImageLoader] with a memory and disk cache.
+ *
+ * @param context The application context.
+ * @return An [ImageLoader] instance.
+ */
 private fun generateImageLoader(context: Context): ImageLoader {
     return ImageLoader { 
         components {
@@ -39,21 +49,15 @@ private fun generateImageLoader(context: Context): ImageLoader {
         interceptor {
             addInterceptor(MemoryCacheInterceptor {
                 MemoryCache {
-                    maxSizePercent(context, 0.25)
+                    maxSizePercent(context, Constants.Caching.MEMORY_CACHE_MAX_SIZE_PERCENT)
                 }
             })
             addInterceptor(DiskCacheInterceptor {
                 DiskCache {
-                    directory(context.cacheDir.resolve("image_cache").toOkioPath())
-                    maxSizeBytes(512L * 1024 * 1024)
+                    directory(context.cacheDir.resolve(Constants.Caching.IMAGE_CACHE_DIRECTORY).toOkioPath())
+                    maxSizeBytes(Constants.Caching.DISK_CACHE_MAX_SIZE_BYTES)
                 }
             })
         }
     }
-}
-
-@Preview
-@Composable
-fun AppAndroidPreview() {
-    App()
 }

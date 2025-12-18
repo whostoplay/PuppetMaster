@@ -39,10 +39,10 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.ActiveSpecialEffect
+import org.menagerie.puppet_master.Constants
 import org.menagerie.puppet_master.Eye
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
-import org.menagerie.puppet_master.SERVER_PORT
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.rememberGlobalPointerPosition
 import org.menagerie.puppet_master.rememberImageFromUrl
@@ -75,7 +75,7 @@ fun LivePreview(
     fun getImageUrl(imageName: String?): String? {
         return when {
             imageName.isNullOrBlank() -> null
-            operatingMode == OperatingMode.ONLINE -> "http://$serverIp:$SERVER_PORT/uploads/$imageName"
+            operatingMode == OperatingMode.ONLINE -> "http://$serverIp:${Constants.Server.PORT}/uploads/$imageName"
             else -> "file://$uploadsDir/$imageName"
         }
     }

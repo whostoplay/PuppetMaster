@@ -6,6 +6,14 @@ import cafe.adriel.voyager.transitions.SlideOrientation
 import cafe.adriel.voyager.transitions.SlideTransition
 import org.menagerie.puppet_master.ui.theme.MainTheme
 
+/**
+ * The main entry point for the application's navigation.
+ *
+ * This composable sets up the navigation stack using Voyager's `Navigator` and applies a `SlideTransition`.
+ * The initial screen is [SplashScreen].
+ *
+ * @param window The window object, which can be passed to the initial screen.
+ */
 @Composable
 fun AppNavigator(window: Any? = null) {
     MainTheme {
