@@ -44,7 +44,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.ActiveSpecialEffect
+import org.menagerie.puppet_master.AnimationState
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.SpecialEffect
@@ -144,9 +146,31 @@ fun SpecialEffectsUI(
                 )
             }
             var activePreviewEffect by remember { mutableStateOf<ActiveSpecialEffect?>(null) }
+            var animationState by remember { mutableStateOf(AnimationState()) }
 
             LaunchedEffect(previewEffect) {
                 activePreviewEffect = activePreviewEffect?.copyWithPreservedStartTime(previewEffect) ?: ActiveSpecialEffect(previewEffect)
+            }
+
+            LaunchedEffect(activePreviewEffect) {
+                if (activePreviewEffect != null) {
+                    while (true) {
+                        val effect = activePreviewEffect ?: break
+                        val offset = effect.getVibrationOffset(1920f / 20f)
+                        animationState = AnimationState(
+                            rotation = effect.getRotation(),
+                            scaleX = effect.getScaleX(),
+                            scaleY = effect.getScaleY(),
+                            translationX = offset.x,
+                            translationY = offset.y,
+                            glowColor = effect.getGlowColor(),
+                            glowIntensity = effect.getGlow()
+                        )
+                        delay(16) // roughly 60 fps
+                    }
+                } else {
+                    animationState = AnimationState()
+                }
             }
 
             Box(Modifier.height(300.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -158,10 +182,10 @@ fun SpecialEffectsUI(
                         uploadsDir = uploadsDir,
                         backgroundColor = backgroundColor,
                         serverIp = "",
-                        activeSpecialEffect = activePreviewEffect,
+                        animationState = animationState,
                         window = window,
                         isAudienceCheckForced = false,
-                        displayedImageName = null,
+                        displayedImageName = idleState.imageName,
                         idleImage = idleImageBitmap,
                         onFocusPointUpdate = {}
                     )

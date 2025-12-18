@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -38,7 +37,7 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlinx.coroutines.delay
-import org.menagerie.puppet_master.ActiveSpecialEffect
+import org.menagerie.puppet_master.AnimationState
 import org.menagerie.puppet_master.Constants
 import org.menagerie.puppet_master.Eye
 import org.menagerie.puppet_master.OperatingMode
@@ -55,15 +54,13 @@ fun LivePreview(
     uploadsDir: String,
     backgroundColor: Color,
     serverIp: String,
-    activeSpecialEffect: ActiveSpecialEffect?,
+    animationState: AnimationState,
     isAudienceCheckForced: Boolean,
     window: Any?,
     displayedImageName: String?,
     idleImage: ImageBitmap,
     onFocusPointUpdate: (SerializableOffset?) -> Unit,
 ) {
-
-    var frame by remember { mutableLongStateOf(0L) }
     var jitter by remember { mutableStateOf(Offset.Zero) }
     var isCheckingAudience by remember { mutableStateOf(false) }
     var audienceCheckBlink by remember { mutableStateOf(false) }
@@ -88,16 +85,6 @@ fun LivePreview(
     val loadedRightOpenEye = getImageUrl(eyeState?.eyes?.right?.openState)?.let { rememberImageFromUrl(it) }
     val loadedRightClosedEye = getImageUrl(eyeState?.eyes?.right?.closedState)?.let { rememberImageFromUrl(it) }
     val loadedRightPupil = getImageUrl(eyeState?.eyes?.right?.pupil)?.let { rememberImageFromUrl(it) }
-
-    // --- General Effects ---
-    LaunchedEffect(activeSpecialEffect) {
-        if (activeSpecialEffect != null) {
-            while (true) {
-                frame = System.currentTimeMillis()
-                delay(16) // roughly 60 fps
-            }
-        }
-    }
 
     LaunchedEffect(
         eyeState?.eyes?.checkOnAudience,
@@ -170,9 +157,8 @@ fun LivePreview(
         val isEffectivelyBlinking = isBlinking || audienceCheckBlink
         val image = (if (isEffectivelyBlinking) loadedBlinkBody else loadedBody) ?: idleImage
 
-        val offset = activeSpecialEffect?.getVibrationOffset(maxWidth.value / 20f)
-        val glowColor = activeSpecialEffect?.getGlowColor()?.let { Color(it) } ?: Color.White
-        val glowIntensity = activeSpecialEffect?.getGlow() ?: 1f
+        val glowColor = Color(animationState.glowColor)
+        val glowIntensity = animationState.glowIntensity
 
         val colorMatrix = ColorMatrix(
             floatArrayOf(
@@ -182,7 +168,6 @@ fun LivePreview(
                 0f, 0f, 0f, 1f, 0f
             )
         )
-
 
         val imageScaleFactor = if (image.width > 0 && image.height > 0) {
             min(maxWidth.value / image.width, maxHeight.value / image.height)
@@ -199,15 +184,15 @@ fun LivePreview(
         val imageTopLeftY = (with(density) { maxHeight.toPx() } - scaledHeightPx) / 2f
 
         val puppetModifier = Modifier.graphicsLayer(
-            scaleX = activeSpecialEffect?.getScaleX() ?: 1f,
-            scaleY = activeSpecialEffect?.getScaleY() ?: 1f,
-            rotationZ = activeSpecialEffect?.getRotation() ?: 0f,
-            translationX = offset?.x ?: 0f,
-            translationY = offset?.y ?: 0f,
+            scaleX = animationState.scaleX,
+            scaleY = animationState.scaleY,
+            rotationZ = animationState.rotation,
+            translationX = animationState.translationX,
+            translationY = animationState.translationY,
             shadowElevation = glowIntensity * 30f,
             ambientShadowColor = glowColor,
             spotShadowColor = glowColor
-        ).let { if (frame > 0) it else it } // force recomposition
+        )
 
         Box(
             modifier = Modifier.size(scaledWidth, scaledHeight).then(puppetModifier)
@@ -215,7 +200,7 @@ fun LivePreview(
             Image(
                 bitmap = image,
                 contentDescription = "Live Preview",
-                colorFilter = ColorFilter.colorMatrix(colorMatrix),
+                colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.FillBounds
             )
@@ -252,12 +237,12 @@ fun LivePreview(
 
                 val leftEyeToDisplay = if (isEffectivelyBlinking) loadedLeftClosedEye else loadedLeftOpenEye
                 leftEyeToDisplay?.let {
-                    Image(bitmap = it, contentDescription = "Left Eye", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = leftEyeModifier)
+                    Image(bitmap = it, contentDescription = "Left Eye", modifier = leftEyeModifier, colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null)
                 }
 
                 val rightEyeToDisplay = if (isEffectivelyBlinking) loadedRightClosedEye else loadedRightOpenEye
                 rightEyeToDisplay?.let {
-                    Image(bitmap = it, contentDescription = "Right Eye", colorFilter = ColorFilter.colorMatrix(colorMatrix), modifier = rightEyeModifier)
+                    Image(bitmap = it, contentDescription = "Right Eye", modifier = rightEyeModifier, colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null)
                 }
 
                 if (!isEffectivelyBlinking) {
@@ -276,7 +261,7 @@ fun LivePreview(
                     }
 
                     val finalFocusPointInImage: SerializableOffset? = if (focusPointOnScreen != null) {
-                        val rotationInDegrees = activeSpecialEffect?.getRotation() ?: 0f
+                        val rotationInDegrees = animationState.rotation
                         val pointInImageXUnrotated = (focusPointOnScreen.x - imageTopLeftX) / imageScaleFactor
                         val pointInImageYUnrotated = (focusPointOnScreen.y - imageTopLeftY) / imageScaleFactor
 
@@ -327,7 +312,7 @@ fun LivePreview(
                                         scaleY = leftEye.scaleY * imageScaleFactor,
                                         transformOrigin = TransformOrigin(0f, 0f)
                                     ),
-                                colorFilter = ColorFilter.colorMatrix(colorMatrix)
+                                colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null
                             )
                         }
                     }
@@ -351,7 +336,7 @@ fun LivePreview(
                                         scaleY = rightEye.scaleY * imageScaleFactor,
                                         transformOrigin = TransformOrigin(0f, 0f)
                                     ),
-                                colorFilter = ColorFilter.colorMatrix(colorMatrix)
+                                colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null
                             )
                         }
                     }

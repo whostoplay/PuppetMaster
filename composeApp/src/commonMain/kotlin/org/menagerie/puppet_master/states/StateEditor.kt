@@ -158,7 +158,6 @@ fun StateEditor(
                         onStateHotkeyChanged(state.name, newHotkey)
                     }
                 )
-                Spacer(modifier = Modifier.weight(.7f))
             }
         }
     }

@@ -25,7 +25,7 @@ import java.time.Duration
 import java.util.zip.ZipInputStream
 
 fun main() {
-    embeddedServer(Netty, port = SERVER_PORT, host = "0.0.0.0", module = Application::module)
+    embeddedServer(Netty, port = Constants.Server.PORT, host = "0.0.0.0", module = Application::module)
         .start(wait = true)
 }
 

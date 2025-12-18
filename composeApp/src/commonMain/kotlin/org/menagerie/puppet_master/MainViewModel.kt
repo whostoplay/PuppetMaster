@@ -130,7 +130,6 @@ class MainViewModel(context: Any) : ScreenModel {
     private var serverStateJob: Job? = null
     private var clientControlSocketJob: Job? = null
 
-    private val specialEffectsController = SpecialEffectsController()
     val animationState: StateFlow<AnimationState>
         get() = _animationState
     private val _animationState = MutableStateFlow(AnimationState())
@@ -141,7 +140,7 @@ class MainViewModel(context: Any) : ScreenModel {
     val normalizedMousePosition: StateFlow<SerializableOffset?> = _normalizedMousePosition.asStateFlow()
 
     val activeState: StateFlow<PuppetStateInfo?>
-    val activeSpecialEffect: StateFlow<ActiveSpecialEffect?>
+    private var activeSpecialEffect: ActiveSpecialEffect? = null
     val displayedImageName: StateFlow<String?>
 
     init {
@@ -166,7 +165,6 @@ class MainViewModel(context: Any) : ScreenModel {
         }
 
         val localActiveState = stateController.activeState
-        val localActiveSpecialEffect = stateController.activeSpecialEffect
         val localDisplayedImageName = stateController.displayedImageName
 
         val modeFlow = operatingMode.combine(isPublishing) { mode, isPublishing ->
@@ -189,14 +187,6 @@ class MainViewModel(context: Any) : ScreenModel {
             }
         }.stateIn(screenModelScope, SharingStarted.Lazily, localActiveState.value)
 
-        activeSpecialEffect = modeFlow.flatMapLatest { (mode, isPublishing) ->
-            if (mode == OperatingMode.ONLINE && !isPublishing) {
-                serverState.map { it?.puppetStateInfo?.appliedEffect?.let { ActiveSpecialEffect(it) } }
-            } else {
-                localActiveSpecialEffect
-            }
-        }.stateIn(screenModelScope, SharingStarted.Lazily, localActiveSpecialEffect.value)
-
         displayedImageName = modeFlow.flatMapLatest { (mode, isPublishing) ->
             if (mode == OperatingMode.ONLINE && !isPublishing) {
                 serverState.map { it?.puppetStateInfo?.imageName }
@@ -207,48 +197,47 @@ class MainViewModel(context: Any) : ScreenModel {
 
         screenModelScope.launch {
             activeState.collect { state ->
-                animationJob?.cancel()
-                val effect = state?.appliedEffect
-                val startTime = if (operatingMode.value == OperatingMode.ONLINE && !isPublishing.value) {
-                    serverState.value?.effectStartTime ?: 0L
-                } else {
-                    System.currentTimeMillis()
-                }
-
-                if (effect != null) {
-                    effectStartTime = startTime
-                    animationJob = launch {
-                        while (true) {
-                            val elapsedTime = System.currentTimeMillis() - effectStartTime
-                            _animationState.value = calculateAnimationState(effect, elapsedTime)
-                            kotlinx.coroutines.delay(16) // roughly 60 fps
-                        }
+                val newEffect = state?.appliedEffect
+                if (newEffect != activeSpecialEffect?.effect) {
+                    val startTime = if (operatingMode.value == OperatingMode.ONLINE && !isPublishing.value) {
+                        serverState.value?.effectStartTime
+                    } else {
+                        System.currentTimeMillis()
                     }
-                } else {
-                    _animationState.value = AnimationState()
+                    updateSpecialEffect(state, startTime)
                 }
             }
         }
     }
 
-    private fun calculateAnimationState(effect: SpecialEffect, elapsedTime: Long): AnimationState {
-        val scaleX = specialEffectsController.getAnimatedScale(effect.scaleX, effect.scaleSpeed, elapsedTime)
-        val scaleY = specialEffectsController.getAnimatedScale(effect.scaleY, effect.scaleSpeed, elapsedTime)
-        val rotation = specialEffectsController.getRotation(effect.spinSpeed, effect.spinDirection, elapsedTime)
-        val (translationX, translationY) = specialEffectsController.getVibration(
-            effect.vibrationDistance,
-            effect.vibrationSpeed,
-            elapsedTime,
-            1920f // assuming a default width, this might need to be configurable
-        )
+    private fun updateSpecialEffect(state: PuppetStateInfo?, startTime: Long? = null) {
+        animationJob?.cancel()
+        activeSpecialEffect = state?.appliedEffect?.let { ActiveSpecialEffect(it, startTime ?: System.currentTimeMillis()) }
+
+        if (activeSpecialEffect != null) {
+            effectStartTime = startTime ?: System.currentTimeMillis()
+            animationJob = screenModelScope.launch {
+                while (true) {
+                    _animationState.value = calculateAnimationState()
+                    kotlinx.coroutines.delay(16) // roughly 60 fps
+                }
+            }
+        } else {
+            _animationState.value = AnimationState()
+        }
+    }
+
+    private fun calculateAnimationState(): AnimationState {
+        val effect = activeSpecialEffect ?: return AnimationState()
+        val offset = effect.getVibrationOffset(1920f / 20f)
         return AnimationState(
-            rotation = rotation,
-            scaleX = scaleX,
-            scaleY = scaleY,
-            translationX = translationX,
-            translationY = translationY,
-            glowColor = effect.glowColor ?: 0xFFFFFFFF.toInt(),
-            glowIntensity = effect.glowIntensity ?: 0f
+            rotation = effect.getRotation(),
+            scaleX = effect.getScaleX(),
+            scaleY = effect.getScaleY(),
+            translationX = offset.x,
+            translationY = offset.y,
+            glowColor = effect.getGlowColor(),
+            glowIntensity = effect.getGlow()
         )
     }
 
