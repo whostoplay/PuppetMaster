@@ -32,6 +32,25 @@ import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetTroupe
 
+/**
+ * A composable that provides UI controls for managing puppets and troupes.
+ *
+ * This includes selecting an active puppet, creating new puppets, loading, renaming, and creating new troupes,
+ * as well as importing and exporting individual puppets.
+ *
+ * @param troupe The current [PuppetTroupe], or null if no troupe is loaded.
+ * @param activePuppet The currently active [PuppetCharacter], or null if none is selected.
+ * @param onPuppetSelected Callback invoked with the name of the puppet when a puppet is selected.
+ * @param onPuppetCreated Callback invoked when a new puppet is created. It provides the new puppet's name and an optional new troupe name.
+ * @param onImportPuppet Callback to trigger the import of a puppet.
+ * @param onExportPuppet Callback to trigger the export of the active puppet, providing its name.
+ * @param onRenameTroupe Callback to rename the current troupe, providing the new name.
+ * @param onLoadTroupe Callback to trigger loading a troupe.
+ * @param onNewTroupeCreated Callback to trigger the creation of a new, empty troupe.
+ * @param onActiveChange Callback to report whether the user is currently interacting with the controls (e.g., hovering or focusing).
+ * @param onFocusChange Callback to report whether any input fields within the controls have focus.
+ * @param rootFocusRequester A [FocusRequester] to return focus to the main application area after an action is completed.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PuppetControls(

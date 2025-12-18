@@ -15,8 +15,10 @@ import org.menagerie.puppet_master.OperatingMode
 /**
  * A composable that provides a switch to toggle between online and offline operating modes.
  *
- * @param operatingMode The current operating mode.
- * @param onModeChanged A callback that is invoked when the operating mode is changed.
+ * Displays "Offline" and "Online" text with a switch in between to indicate the current mode.
+ *
+ * @param operatingMode The current [OperatingMode].
+ * @param onModeChanged A callback that is invoked with the new [OperatingMode] when the switch is toggled.
  */
 @Composable
 fun ModeControls(

@@ -9,6 +9,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 
+/**
+ * Android implementation for showing a preview of an effect.
+ *
+ * @param show Whether to show the effect preview.
+ * @param onDismissRequest Callback for when the preview is dismissed.
+ * @param content The content of the effect preview.
+ */
 @Composable
 actual fun EffectPreview(
     show: Boolean,

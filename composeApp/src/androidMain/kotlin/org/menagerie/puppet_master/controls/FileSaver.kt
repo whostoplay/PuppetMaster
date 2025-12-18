@@ -6,6 +6,18 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 
+/**
+ * Android implementation for saving files.
+ *
+ * This actual fun uses the [ActivityResultContracts.StartActivityForResult] to launch a system file picker
+ * for creating a document.
+ *
+ * @param show Controls the visibility of the file saver. If true, the file saver is shown.
+ * @param defaultFileName The default name for the file to be saved.
+ * @param fileExtensions A list of file extensions that are allowed to be saved.
+ * @param onFileSaved A callback function that is invoked when a file is saved.
+ * It returns the Uri of the saved file as a string, or null if the operation was canceled.
+ */
 @Composable
 actual fun FileSaver(
     show: Boolean,

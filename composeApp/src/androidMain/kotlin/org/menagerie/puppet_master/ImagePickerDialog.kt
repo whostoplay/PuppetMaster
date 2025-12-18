@@ -7,6 +7,18 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
+/**
+ * Android implementation of an image picker dialog.
+ * This function launches the system's file picker to select one or more PNG images.
+ *
+ * @param show Whether to show the dialog.
+ * @param title The title of the dialog. This is not used on Android.
+ * @param multiSelect Whether to allow multiple image selection.
+ * @param initialDirectory The initial directory to open. This is not used on Android.
+ * @param onCancel Called when the dialog is cancelled.
+ * @param onResult Called with the selected image(s) as a list of pairs of [ByteArray] and file name.
+ * @param onFolderSelected Called when a folder is selected. This is not used on Android.
+ */
 @Composable
 actual fun ImagePickerDialog(
     show: Boolean,

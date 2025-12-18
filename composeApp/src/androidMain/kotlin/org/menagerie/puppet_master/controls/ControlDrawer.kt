@@ -7,6 +7,13 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
+/**
+ * A modal bottom sheet that displays controls for the application.
+ *
+ * @param show Whether to show the bottom sheet.
+ * @param onDismissRequest Called when the user requests to dismiss the bottom sheet.
+ * @param content The content to display inside the bottom sheet.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 actual fun ControlDrawer(

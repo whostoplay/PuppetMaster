@@ -21,8 +21,17 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
+/**
+ * Manages puppet data, including troupes, puppets, and states.
+ * Handles local storage, synchronization with a server, and import/export operations.
+ * @param scope The coroutine scope for launching background tasks.
+ * @param context The application context.
+ */
 actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, private val context: Any) {
 
+    /**
+     * The directory where uploaded files are stored.
+     */
     actual val uploadsDir = getUploadsDir(context)
     private val client = HttpClient {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true; isLenient = true; allowStructuredMapKeys = true }) }
@@ -36,12 +45,21 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     private val settingsRepository = SettingsRepository(context)
 
     private val _troupe = MutableStateFlow<PuppetTroupe?>(null)
+    /**
+     * The current puppet troupe.
+     */
     actual val troupe: StateFlow<PuppetTroupe?> = _troupe
 
     private val _activePuppet = MutableStateFlow<PuppetCharacter?>(null)
+    /**
+     * The currently active puppet in the troupe.
+     */
     actual val activePuppet: StateFlow<PuppetCharacter?> = _activePuppet
 
     private val _connectionState = MutableStateFlow(ConnectionState.IDLE)
+    /**
+     * The current connection state to the server.
+     */
     actual val connectionState: StateFlow<ConnectionState> = _connectionState
 
     private var operatingMode: OperatingMode = OperatingMode.OFFLINE
@@ -52,6 +70,9 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Reloads the last used troupe from settings.
+     */
     actual fun reloadLastTroupe() {
         val settings = settingsRepository.loadSettings()
         val troupeFile = settings.lastTroupeFile?.let { File(it) }
@@ -73,15 +94,29 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Gets the image data for a given image name.
+     * @param imageName The name of the image to retrieve.
+     * @return The image data as a byte array, or null if the image is not found.
+     */
     actual suspend fun getImageData(imageName: String): ByteArray? {
         val file = File(uploadsDir, imageName)
         return if (file.exists() && file.isFile) file.readBytes() else null
     }
 
+    /**
+     * Sets the operating mode (online or offline).
+     * @param mode The new operating mode.
+     */
     actual fun setOperatingMode(mode: OperatingMode) {
         operatingMode = mode
     }
 
+    /**
+     * Saves the current troupe.
+     * If in online mode, it also publishes the troupe to the server.
+     * @param troupe The troupe to save.
+     */
     actual fun saveTroupe(troupe: PuppetTroupe) {
         val newPuppets = troupe.puppets.map { puppet ->
             val newStates = puppet.states.map { it.copy() }
@@ -102,6 +137,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Saves the current troupe to a specific file path.
+     * The troupe is saved as a zip file containing the troupe data in a "troupe.json" file and all associated images in an "images" directory.
+     * @param filePath The path to save the troupe file to.
+     */
     actual fun saveTroupeAs(filePath: String) {
         _troupe.value?.let { troupe ->
             val imageNames = troupe.puppets.flatMap { puppet ->
@@ -146,6 +186,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Loads a troupe from a file.
+     * The method reads a zip file, extracts the "troupe.json" and images, and updates the current troupe.
+     * @param filePath The path to the troupe file.
+     * @return The loaded puppet troupe, or null if loading fails.
+     */
     actual fun loadTroupeFromFile(filePath: String): PuppetTroupe? {
         val file = File(filePath)
         if (!file.exists()) return null
@@ -184,6 +230,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Imports a puppet from a file.
+     * The puppet is imported from a ".puppet" zip file and added to the current troupe. If no troupe exists, a new one can be created.
+     * @param filePath The path to the puppet file.
+     * @param newTroupeName The name for a new troupe if one needs to be created.
+     */
     actual fun importPuppet(filePath: String, newTroupeName: String?) {
         val file = File(filePath)
         if (!file.exists() || !file.name.endsWith(".puppet")) return
@@ -223,6 +275,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Exports a puppet to a file.
+     * The puppet is exported as a ".puppet" zip file containing the puppet data and associated images.
+     * @param puppetName The name of the puppet to export.
+     * @param exportPath The path to export the puppet file to.
+     */
     actual fun exportPuppet(puppetName: String, exportPath: String) {
         _troupe.value?.puppets?.find { it.name == puppetName }?.let { puppet ->
             val imageNames = puppet.states.flatMap { state ->
@@ -265,6 +323,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Renames the current troupe.
+     * This also deletes the old troupe file.
+     * @param newName The new name for the troupe.
+     */
     actual fun renameTroupe(newName: String) {
         _troupe.value?.let { currentTroupe ->
             val newTroupe = currentTroupe.copy(name = newName)
@@ -276,6 +339,10 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Creates a new, empty troupe.
+     * This clears the current troupe and active puppet.
+     */
     actual fun createNewTroupe() {
         _troupe.value = null
         _activePuppet.value = null
@@ -283,6 +350,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         settingsRepository.saveSettings(settings)
     }
 
+    /**
+     * Connects to a server and synchronizes the troupe data.
+     * If the server has a more up-to-date troupe, it is downloaded. If the server has no troupe, the local troupe is published.
+     * @param serverIp The IP address of the server.
+     */
     actual fun connectAndSync(serverIp: String) {
         scope.launch {
             _connectionState.value = ConnectionState.CONNECTING
@@ -358,6 +430,10 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     }
 
 
+    /**
+     * Sets the active puppet.
+     * @param name The name of the puppet to set as active.
+     */
     actual fun setActivePuppet(name: String) {
         _troupe.value?.let { currentTroupe ->
             val newTroupe = currentTroupe.copy(activePuppetName = name)
@@ -367,6 +443,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Creates a new puppet.
+     * If a troupe exists, the puppet is added to it. Otherwise, a new troupe is created.
+     * @param name The name of the new puppet.
+     * @param troupeName The name of the new troupe, if one needs to be created.
+     */
     actual fun createNewPuppet(name: String, troupeName: String?) {
         if (_troupe.value?.puppets?.any { it.name == name } == true) return
 
@@ -390,6 +472,15 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         saveTroupe(newTroupe)
     }
 
+    /**
+     * Creates a new state for the active puppet.
+     * @param stateName The name of the new state.
+     * @param imageBytes The image data for the state.
+     * @param localImageName The local name of the image.
+     * @param blinkImageBytes The image data for the blink state (optional).
+     * @param localBlinkImageName The local name of the blink image (optional).
+     * @param serverIp The IP address of the server, used for online mode.
+     */
     actual fun createNewState(
         stateName: String,
         imageBytes: ByteArray,
@@ -431,6 +522,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Updates a puppet with a given transformation function.
+     * @param puppetName The name of the puppet to update.
+     * @param update A function that takes the current puppet and returns the updated puppet.
+     */
     actual fun updatePuppet(puppetName: String, update: (PuppetCharacter) -> PuppetCharacter) {
         _troupe.value?.let { troupe ->
             val newPuppets = troupe.puppets.map { if (it.name == puppetName) update(it).copy(lastUpdated = System.currentTimeMillis()) else it }
@@ -439,6 +535,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
     
+    /**
+     * Saves an image to the uploads directory.
+     * If in online mode, it also uploads the image to the server.
+     * @param name The name of the image.
+     * @param data The image data.
+     */
     actual fun saveImage(name: String, data: ByteArray) {
         File(uploadsDir, name).writeBytes(data)
         if (operatingMode == OperatingMode.ONLINE) {
@@ -448,6 +550,11 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Publishes the current troupe to the server.
+     * This uploads all associated images and then sends the troupe data to the server.
+     * @param serverIp The IP address of the server.
+     */
     actual fun publishTroupe(serverIp: String) {
         scope.launch {
             _troupe.value?.let { troupe ->

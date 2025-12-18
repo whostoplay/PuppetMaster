@@ -23,6 +23,10 @@ import org.menagerie.puppet_master.rememberColorMapBitmap
 /**
  * A composable that allows the user to pick a color from a color map.
  *
+ * A button is displayed, and when clicked, a color map is shown.
+ * Tapping on the color map selects a color and invokes the [onColorSelected] callback.
+ *
+ * @param showColors Whether the color picker is initially visible.
  * @param onColorSelected A callback that is invoked when a color is selected.
  */
 @Composable

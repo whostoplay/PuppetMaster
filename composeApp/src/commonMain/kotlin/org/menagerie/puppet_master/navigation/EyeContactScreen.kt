@@ -65,7 +65,7 @@ import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.Eye
 import org.menagerie.puppet_master.EyePair
 import org.menagerie.puppet_master.EyeState
-import org.menagerie.puppet_master.ImageFilePicker
+import org.menagerie.puppet_master.ImagePickerDialog
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetStateInfo
@@ -132,7 +132,6 @@ class EyeContactScreen(
                         rightEye = eyeState.eyes.right
                         followCursor = eyeState.eyes.followCursor
                         focusOnGame = eyeState.eyes.focusOnGame
-                        checkOnAudience = eyeState.eyes.checkOnAudience
                         gameScreenLocation = eyeState.eyes.gameScreenLocation.toOffset()
                         audienceCheckRate = eyeState.eyes.audienceCheckRate.toFloat()
                         audienceCheckDuration = eyeState.eyes.audienceCheckDuration.toFloat()
@@ -651,23 +650,37 @@ private fun EyePartPicker(
     onImageSelected: (List<Pair<ByteArray, String>>) -> Unit,
     onFolderSelected: (String) -> Unit
 ) {
+    var showDialog by remember { mutableStateOf(false) }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         if (enabled) {
-            ImageFilePicker(
-                buttonText = partName, 
-                initialDirectory = initialDirectory,
-                onImagesSelected = onImageSelected, 
-                onFolderSelected = onFolderSelected
-            )
+            Button(onClick = { showDialog = true }) {
+                Text(partName)
+            }
         } else {
             Button(onClick = {}, enabled = false) {
                 Text(partName)
             }
         }
         Text(imageName ?: "")
+    }
+
+    if (showDialog) {
+        ImagePickerDialog(
+            show = true,
+            title = "Select $partName",
+            multiSelect = false,
+            initialDirectory = initialDirectory,
+            onCancel = { showDialog = false },
+            onResult = {
+                onImageSelected(it)
+                showDialog = false
+            },
+            onFolderSelected = onFolderSelected
+        )
     }
 }
 

@@ -26,6 +26,15 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
+/**
+ * Android-specific implementation of the [PuppetDataManager].
+ *
+ * This class manages puppet and troupe data on Android, handling file operations, network synchronization,
+ * and state management. It uses Android's [Context] for file system access and content resolution.
+ *
+ * @param scope The [CoroutineScope] for launching background tasks.
+ * @param context The Android application [Context].
+ */
 actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, private val context: Any) {
 
     actual val uploadsDir = getUploadsDir(context)
@@ -57,6 +66,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Reloads the last used troupe from storage.
+     *
+     * It first checks the saved settings for a file path. If not found, it searches the app's
+     * internal directory for the most recently modified `.troupe` file.
+     */
     actual fun reloadLastTroupe() {
         val settings = settingsRepository.loadSettings()
         val troupeFile = settings.lastTroupeFile?.let { File(it) }
@@ -78,6 +93,15 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    /**
+     * Retrieves image data for a given image name.
+     *
+     * This function can handle both `content://` URIs from the Android MediaStore and local
+     * filenames from the app's internal `uploads` directory.
+     *
+     * @param imageName The URI or filename of the image.
+     * @return A [ByteArray] of the image data, or null if not found.
+     */
     actual suspend fun getImageData(imageName: String): ByteArray? {
         val androidContext = context as Context
         return try {
@@ -98,6 +122,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         operatingMode = mode
     }
 
+    /**
+     * Saves the current troupe state and persists it.
+     * In online mode, this also triggers a publish to the server.
+     *
+     * @param troupe The [PuppetTroupe] to save.
+     */
     actual fun saveTroupe(troupe: PuppetTroupe) {
         val newPuppets = troupe.puppets.map { puppet ->
             val newStates = puppet.states.map { it.copy() }
@@ -296,7 +326,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         scope.launch {
             _connectionState.value = ConnectionState.CONNECTING
             try {
-                val response = client.get("http://$serverIp:$SERVER_PORT/troupe")
+                val response = client.get("http://$serverIp:${Constants.Server.PORT}/troupe")
 
                 when (response.status) {
                     HttpStatusCode.OK -> {
@@ -315,12 +345,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                         if (shouldSync) {
                             serverTroupe.puppets.forEach { puppet ->
                                 puppet.states.forEach { state ->
-                                    val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/${state.imageName}"
+                                    val imageUrl = "http://$serverIp:${Constants.Server.PORT}/uploads/${state.imageName}"
                                     val imageBytes: ByteArray = client.get(imageUrl).body()
                                     File(uploadsDir, state.imageName).writeBytes(imageBytes)
 
                                     state.blinkImageName?.let { blinkImageName ->
-                                        val blinkImageUrl = "http://$serverIp:$SERVER_PORT/uploads/$blinkImageName"
+                                        val blinkImageUrl = "http://$serverIp:${Constants.Server.PORT}/uploads/$blinkImageName"
                                         val blinkImageBytes: ByteArray = client.get(blinkImageUrl).body()
                                         File(uploadsDir, blinkImageName).writeBytes(blinkImageBytes)
                                     }
@@ -328,7 +358,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                                     state.eyeState?.let { eyeState ->
                                         suspend fun downloadEyeImage(imageName: String?) {
                                             imageName?.let {
-                                                val imageUrl = "http://$serverIp:$SERVER_PORT/uploads/$it"
+                                                val imageUrl = "http://$serverIp:${Constants.Server.PORT}/uploads/$it"
                                                 val imageBytes: ByteArray = client.get(imageUrl).body()
                                                 File(uploadsDir, it).writeBytes(imageBytes)
                                             }
@@ -460,7 +490,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                         }
                     }
                 }
-                client.post("http://$serverIp:$SERVER_PORT/troupe") { contentType(ContentType.Application.Json); setBody(troupe) }
+                client.post("http://$serverIp:${Constants.Server.PORT}/troupe") { contentType(ContentType.Application.Json); setBody(troupe) }
             }
         }
     }

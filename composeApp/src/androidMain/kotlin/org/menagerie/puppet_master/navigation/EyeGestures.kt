@@ -12,6 +12,19 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 
+/**
+ * A modifier that combines multiple gestures for manipulating an eye-like UI element.
+ *
+ * This modifier handles three types of interactions:
+ * - **Dragging:** A simple drag gesture to move the element.
+ * - **Scaling:** A double-tap followed by a drag gesture to scale the element.
+ * - **Radius Change:** A long-press followed by a drag gesture to change the radius of the element.
+ *
+ * @param onDrag A callback that is invoked when a drag gesture is detected. It provides the drag amount as an [Offset].
+ * @param onScale A callback that is invoked when a scale gesture is detected (double-tap and drag). It provides the drag amount as an [Offset] to be used for scaling.
+ * @param onRadiusChange A callback that is invoked when a radius change gesture is detected (long-press and drag). It provides the drag amount as an [Offset] to be used for changing the radius.
+ * @return A [Modifier] that listens for the combined eye gestures.
+ */
 actual fun Modifier.combinedEyeGestures(
     onDrag: (dragAmount: Offset) -> Unit,
     onScale: (scaleFactor: Offset) -> Unit,

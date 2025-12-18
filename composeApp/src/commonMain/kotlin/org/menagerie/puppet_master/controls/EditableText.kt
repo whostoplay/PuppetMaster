@@ -23,6 +23,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 
+/**
+ * A text composable that becomes an editable TextField on double-tap.
+ *
+ * @param text The text to display.
+ * @param onValueChange Callback for when the text value is changed.
+ * @param onFocusChange Callback for when the focus state of the text field changes.
+ * @param rootFocusRequester A [FocusRequester] to request focus back to the root composable.
+ */
 @Composable
 fun EditableText(
     text: String,
@@ -76,6 +84,16 @@ fun EditableText(
     }
 }
 
+/**
+ * A text composable for displaying and editing a float value.
+ * Becomes a TextField on double-tap.
+ *
+ * @param label The label to display for the value.
+ * @param value The float value to display and edit.
+ * @param onValueChange Callback for when the value is changed.
+ * @param onFocusChange Callback for when the focus state of the text field changes.
+ * @param rootFocusRequester A [FocusRequester] to request focus back to the root composable.
+ */
 @Composable
 fun EditableFloatText(
     label: String,

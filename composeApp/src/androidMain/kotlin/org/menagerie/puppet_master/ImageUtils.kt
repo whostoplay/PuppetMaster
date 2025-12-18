@@ -8,10 +8,23 @@ import androidx.compose.ui.graphics.asImageBitmap
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 
+/**
+ * Decodes a [ByteArray] into an [ImageBitmap].
+ * @param byteArray The byte array to decode.
+ * @return The decoded [ImageBitmap].
+ */
 actual fun decodeToImageBitmap(byteArray: ByteArray): ImageBitmap {
     return BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size).asImageBitmap()
 }
 
+/**
+ * Creates and remembers a color map [ImageBitmap].
+ * The bitmap displays hue on the x-axis and saturation on the y-axis.
+ *
+ * @param width The width of the bitmap.
+ * @param height The height of the bitmap.
+ * @return The remembered [ImageBitmap].
+ */
 @Composable
 actual fun rememberColorMapBitmap(width: Int, height: Int): ImageBitmap {
     val bitmap = remember(width, height) {

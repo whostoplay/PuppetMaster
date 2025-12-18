@@ -11,6 +11,17 @@ import kotlinx.coroutines.delay
 import java.awt.MouseInfo
 import java.awt.Window
 
+/**
+ * A Composable function that remembers the global pointer position on the screen.
+ *
+ * This function is the JVM-specific implementation of `rememberGlobalPointerPosition`.
+ * It uses AWT's `MouseInfo` to get the pointer's location and updates it periodically.
+ * The position is returned as an [Offset] relative to the given [window].
+ *
+ * @param window The window (expected to be a `java.awt.Window`) to which the pointer position should be relative.
+ * If the provided `window` is not a `java.awt.Window`, the function will not track the pointer.
+ * @return An [Offset] representing the pointer's position relative to the window, or `null` if the pointer's position cannot be determined.
+ */
 @Composable
 actual fun rememberGlobalPointerPosition(window: Any?): Offset? {
     var pointer by remember { mutableStateOf<Offset?>(null) }

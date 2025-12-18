@@ -12,12 +12,31 @@ import kotlinx.coroutines.withContext
 import kotlin.math.pow
 import kotlin.random.Random
 
+/**
+ * Manages the overall state of the active puppet, including its visual appearance, animations, and blinking.
+ *
+ * This class operates in two primary modes:
+ * 1.  **Headless Mode:** Automated control based on audio input levels. The puppet's state changes
+ *     dynamically in response to audio. Blinking is handled automatically. This mode is active
+ *     when `manualControlActive` is false and `obsConnectionCount` > 0.
+ * 2.  **Manual Control Mode:** A client application dictates the puppet's state. This class receives
+ *     state information from the client and applies it.
+ *
+ * It exposes a [stateToSend] flow that emits the final [ServerState] to be broadcast to clients.
+ *
+ * @param scope The CoroutineScope to launch long-running jobs like blinking and animations.
+ * @param troupeManager The manager for accessing puppet and troupe data.
+ */
 class PuppetStateManager(private val scope: CoroutineScope, private val troupeManager: TroupeManager) {
 
     private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
     private val activeState = _activeState.asStateFlow()
 
     private val _stateToSend = MutableStateFlow<ServerState?>(null)
+    /**
+     * A flow that emits the current [ServerState] to be sent to connected clients.
+     * This includes puppet appearance, animation, eye position, and calibration data.
+     */
     val stateToSend = _stateToSend.asStateFlow()
 
     private var blinkingJob: Job? = null
@@ -73,8 +92,13 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
 // In PuppetStateManager
 
 
-    // Call this method once when the PuppetStateManager is initialized.
-// For example, in its init block or a dedicated start() method.
+    /**
+     * Starts a persistent coroutine that handles automatic blinking for the puppet.
+     *
+     * In headless mode, if the current state is configured for blinking, this loop will
+     * periodically switch to the blink image for a short duration and then revert.
+     * It's designed to be called once upon initialization.
+     */
     fun startBlinkingLoop() {
         // Prevent launching multiple jobs if called more than once.
         if (blinkingJob?.isActive == true) return
@@ -117,7 +141,10 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
-    // You will also need a method to stop it when the manager is disposed.
+    /**
+     * Stops the automatic blinking loop coroutine.
+     * Should be called when the manager is being disposed to prevent leaks.
+     */
     fun stopBlinkingLoop() {
         blinkingJob?.cancel()
         blinkingJob = null
@@ -146,6 +173,15 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         )
     }
 
+    /**
+     * Updates the puppet's state based on the provided audio level.
+     *
+     * This is only active in headless mode. It compares the audio level against the
+     * active puppet's defined thresholds and sets the corresponding state. If the level
+     * drops below all thresholds, it schedules a return to the "idle" state.
+     *
+     * @param level The current audio input level, typically normalized.
+     */
     fun onAudioLevelChanged(level: Float) {
         if (manualControlActive) return // Ignore audio when client is in control
 
@@ -179,16 +215,29 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
+    /**
+     * Updates the cursor position for the puppet's eye tracking.
+     * @param mousePosition The new position of the cursor/mouse.
+     */
     fun onMousePositionChanged(mousePosition: SerializableOffset) {
         val currentState = _stateToSend.value
         updateStateToSend(currentState?.puppetStateInfo, currentState?.animationState, mousePosition)
     }
 
+    /**
+     * Updates the calibration data for the puppet.
+     * @param calibrationData The new calibration data.
+     */
     fun onCalibrationReceived(calibrationData: CalibrationData) {
         val currentState = _stateToSend.value
         _stateToSend.value = currentState?.copy(calibrationData = calibrationData)
     }
 
+    /**
+     * Processes a [ServerState] object received from a client in manual control mode.
+     * This updates the puppet's appearance, eye position, and special effects based on the client's input.
+     * @param receivedState The state received from the client.
+     */
     fun onClientSentState(receivedState: ServerState) {
         receivedState.puppetStateInfo?.eyeState?.cursorPosition?.let { onMousePositionChanged(it) }
         receivedState.calibrationData?.let { onCalibrationReceived(it) }
@@ -202,6 +251,13 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
+    /**
+     * Handles updates to the underlying troupe or puppet data.
+     *
+     * If in manual control, it attempts to find the equivalent of the current state in the new
+     * troupe data. If not found, it disconnects the client.
+     * If in headless mode, it resets the state to the new troupe's "idle" state.
+     */
     fun onTroupeUpdated() {
         // When troupe data changes, re-evaluate the current state.
         if (manualControlActive) {
@@ -220,6 +276,10 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         }
     }
 
+    /**
+     * Resets the manager to headless mode when a client disconnects.
+     * This deactivates manual control and sets the puppet state back to "idle".
+     */
     fun onClientDisconnected() {
         manualControlActive = false
         // Headless mode should take over, reset to idle.

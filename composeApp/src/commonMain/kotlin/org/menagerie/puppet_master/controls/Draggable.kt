@@ -15,6 +15,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 
+/**
+ * A composable that can be dragged horizontally to resize adjacent elements.
+ *
+ * @param onDelta Callback that reports the change in horizontal position.
+ * @param modifier Modifier for this composable.
+ */
 @Composable
 fun DraggableSplitter(
     onDelta: (Float) -> Unit,

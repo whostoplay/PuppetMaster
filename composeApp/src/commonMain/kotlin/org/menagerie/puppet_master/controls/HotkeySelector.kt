@@ -37,6 +37,18 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.filterIsInstance
 import org.menagerie.puppet_master.Hotkey
 
+/**
+ * A composable for selecting a hotkey combination.
+ *
+ * It displays the current hotkey and allows the user to change it by clicking the text field and pressing a new key combination.
+ * It also provides a switch to toggle between 'hold' and 'toggle' behavior for the hotkey.
+ *
+ * @param label The label to display for the hotkey selector.
+ * @param hotkey The current [Hotkey] to display and edit.
+ * @param modifier The modifier to be applied to the composable.
+ * @param horizontalArrangement The horizontal arrangement of the label and text field.
+ * @param onHotkeyChanged Callback that is invoked when the hotkey is changed.
+ */
 @OptIn(ExperimentalComposeUiApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HotkeySelector(

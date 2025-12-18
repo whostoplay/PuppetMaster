@@ -24,11 +24,18 @@ import java.io.File
 import java.time.Duration
 import java.util.zip.ZipInputStream
 
+/**
+ * Main entry point for the Puppet Master server application.
+ */
 fun main() {
     embeddedServer(Netty, port = Constants.Server.PORT, host = "0.0.0.0", module = Application::module)
         .start(wait = true)
 }
 
+/**
+ * Main module for the Ktor application.
+ * Configures plugins and defines routing.
+ */
 fun Application.module() {
     val troupeManager = TroupeManager()
     val stateManager = PuppetStateManager(this, troupeManager)
@@ -52,6 +59,12 @@ fun Application.module() {
 
     routing {
         val uploadsDir = File("uploads").apply { mkdirs() }
+
+        /**
+         * Serves uploaded files from the 'uploads' directory.
+         * Responds with a 404 Not Found if the file does not exist.
+         * It disables caching for the served files.
+         */
         get("/uploads/{fileName}") {
             val fileName = call.parameters["fileName"] ?: return@get call.respond(HttpStatusCode.BadRequest)
             val file = File(uploadsDir, fileName)
@@ -65,10 +78,18 @@ fun Application.module() {
             }
         }
 
+        /**
+         * Gets the current [PuppetTroupe].
+         * Responds with the troupe or 404 Not Found if no troupe is active.
+         */
         get("/troupe") {
             troupeManager.troupe?.let { call.respond(it) } ?: call.respond(HttpStatusCode.NotFound)
         }
 
+        /**
+         * Updates the current [PuppetTroupe].
+         * The new troupe is received from the request body.
+         */
         post("/troupe") {
             val newTroupe = call.receive<PuppetTroupe>()
             troupeManager.updateTroupe(newTroupe)
@@ -76,6 +97,12 @@ fun Application.module() {
             call.respond(HttpStatusCode.OK)
         }
 
+        /**
+         * Handles file uploads.
+         * If the uploaded file is a `.troupe` or `.puppet` zip archive, it extracts the contents.
+         * For `.troupe` files, it reads `troupe.json` and updates the current troupe.
+         * Other files are saved directly to the 'uploads' directory.
+         */
         post("/upload") {
             val multipart = call.receiveMultipart()
             var fileName = ""
@@ -124,6 +151,10 @@ fun Application.module() {
             call.respondText(fileName)
         }
 
+        /**
+         * WebSocket endpoint for receiving mouse tracking data.
+         * It handles 'pointer' messages with [MousePosition] and 'calibration' messages with [CalibrationData].
+         */
         webSocket("/mouse") {
             for (frame in incoming) {
                 if (frame is Frame.Text) {
@@ -144,6 +175,11 @@ fun Application.module() {
             }
         }
 
+        /**
+         * WebSocket endpoint for receiving audio input levels for an active puppet.
+         * The connection is closed if the server is not in headless mode or no puppet is active.
+         * Also closes if a client takes manual control.
+         */
         webSocket("/audio-input") {
             if (stateManager.obsConnectionCount > 0 && troupeManager.activePuppet != null) {
                 for (frame in incoming) {
@@ -162,6 +198,11 @@ fun Application.module() {
             }
         }
 
+        /**
+         * WebSocket endpoint for a client to take manual control of the puppet.
+         * The server will receive [ServerState] objects from the client and update accordingly.
+         * The connection is closed if no puppet is active.
+         */
         webSocket("/client-control") {
             if (troupeManager.activePuppet == null) {
                 close(CloseReason(CloseReason.Codes.NORMAL, "No active puppet configured on server"))
@@ -178,6 +219,10 @@ fun Application.module() {
             }
         }
 
+        /**
+         * WebSocket endpoint for OBS clients to receive [ServerState] updates.
+         * Manages the number of connected OBS clients.
+         */
         webSocket("/obs") {
             stateManager.obsConnectionCount++
             try {
