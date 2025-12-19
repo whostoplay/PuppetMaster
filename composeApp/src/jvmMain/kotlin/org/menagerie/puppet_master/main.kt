@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -30,12 +34,17 @@ fun main() = application {
     val windowState = rememberWindowStateFromProperties()
     var windowRef: AwtWindow? = null
 
+    val settingsRepository = SettingsRepository(Unit) // Pass Unit for context on desktop
+    SettingsProvider.initialize(settingsRepository)
+
+    var windowTitle by remember { mutableStateOf(Strings.getString(Strings.Keys.WINDOW_TITLE)) }
+
     Window(
         onCloseRequest = {
             windowRef?.let { windowState.saveToProperties(it) }
             exitApplication()
         },
-        title = Constants.Window.WINDOW_TITLE,
+        title = windowTitle,
         state = windowState
     ) {
         SideEffect { windowRef = window }

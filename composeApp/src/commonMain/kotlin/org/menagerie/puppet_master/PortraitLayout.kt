@@ -30,8 +30,13 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.menagerie.puppet_master.Constants.UI.LandscapeLayout
-import org.menagerie.puppet_master.Constants.UI.Placeholders
 import org.menagerie.puppet_master.Constants.UI.PortraitLayout
+import org.menagerie.puppet_master.Strings.Keys.CREATE_OR_SELECT_PUPPET
+import org.menagerie.puppet_master.Strings.Keys.EYE_CONTACT_BUTTON
+import org.menagerie.puppet_master.Strings.Keys.PUPPET_CONTROLS_BUTTON
+import org.menagerie.puppet_master.Strings.Keys.SETTINGS_BUTTON
+import org.menagerie.puppet_master.Strings.Keys.STATES_TITLE
+import org.menagerie.puppet_master.Strings.Keys.STATE_CONTROLS_BUTTON
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.ControlDrawer
 import org.menagerie.puppet_master.controls.ModeControls
@@ -148,7 +153,7 @@ fun PortraitLayout(
                     )
                 }
                 item { HorizontalDivider() }
-                item { Text(text = LandscapeLayout.STATES_TITLE) }
+                item { Text(text = Strings.getString(STATES_TITLE)) }
                 item { HorizontalDivider() }
                 items(currentPuppet.states) { state ->
                     Text(
@@ -191,7 +196,7 @@ fun PortraitLayout(
                         modifier = Modifier.fillParentMaxSize().padding(16.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(Placeholders.CREATE_OR_SELECT_PUPPET)
+                        Text(Strings.getString(CREATE_OR_SELECT_PUPPET))
                     }
                 }
             }
@@ -202,15 +207,15 @@ fun PortraitLayout(
         modifier = Modifier.fillMaxSize(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        Button(onClick = { showLeftDrawer = true }) { Text(PortraitLayout.PUPPET_CONTROLS_BUTTON) }
-        Button(onClick = { showRightDrawer = true }) { Text(PortraitLayout.STATE_CONTROLS_BUTTON) }
+        Button(onClick = { showLeftDrawer = true }) { Text(Strings.getString(PUPPET_CONTROLS_BUTTON)) }
+        Button(onClick = { showRightDrawer = true }) { Text(Strings.getString(STATE_CONTROLS_BUTTON)) }
     }
     Row(
         modifier = Modifier.fillMaxSize(),
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }) { Text(LandscapeLayout.EYE_CONTACT_BUTTON) }
-        Button(onClick = { navigator.push(SettingsScreen(viewModel)) }) { Text(LandscapeLayout.SETTINGS_BUTTON) }
+        Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }) { Text(Strings.getString(EYE_CONTACT_BUTTON)) }
+        Button(onClick = { navigator.push(SettingsScreen(viewModel)) }) { Text(Strings.getString(SETTINGS_BUTTON)) }
     }
 }

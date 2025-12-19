@@ -70,6 +70,7 @@ import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SerializableOffset
+import org.menagerie.puppet_master.Strings
 import org.menagerie.puppet_master.decodeToImageBitmap
 import org.menagerie.puppet_master.toOffset
 import org.menagerie.puppet_master.toSerializableOffset
@@ -201,15 +202,15 @@ class EyeContactScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Eye Contact Studio") },
+                    title = { Text(Strings.getString(Strings.Keys.EYE_CONTACT_STUDIO_TITLE)) },
                     navigationIcon = {
                         IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.Default.ArrowBack, contentDescription = Strings.getString(Strings.Keys.BACK_BUTTON_CONTENT_DESCRIPTION))
                         }
                     },
                     actions = {
                         IconButton(onClick = { showTroupeEyesPopup = true }) {
-                            Icon(Icons.Default.RemoveRedEye, contentDescription = "Select Eyes from Troupe")
+                            Icon(Icons.Default.RemoveRedEye, contentDescription = Strings.getString(Strings.Keys.SELECT_EYES_FROM_TROUPE_CONTENT_DESCRIPTION))
                         }
                         Button(onClick = {
                             val state = selectedState
@@ -235,7 +236,7 @@ class EyeContactScreen(
                                 navigator.pop()
                             }
                         }) {
-                            Text("Save")
+                            Text(Strings.getString(Strings.Keys.SAVE_BUTTON))
                         }
                     }
                 )
@@ -256,7 +257,7 @@ class EyeContactScreen(
                         onExpandedChange = { isStateSelectorExpanded = !isStateSelectorExpanded }
                     ) {
                         TextField(
-                            value = selectedState?.name ?: "Select a State",
+                            value = selectedState?.name ?: Strings.getString(Strings.Keys.SELECT_A_STATE),
                             onValueChange = {},
                             readOnly = true,
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isStateSelectorExpanded) },
@@ -307,7 +308,7 @@ class EyeContactScreen(
                                 }
                             }
                         )
-                        Text("Sync Eye Parts")
+                        Text(Strings.getString(Strings.Keys.SYNC_EYE_PARTS))
                     }
 
                     if (leftEye?.pupil != null) {
@@ -320,25 +321,31 @@ class EyeContactScreen(
                                 enabled = !focusOnGame,
                                 checked = followCursor,
                                 onCheckedChange = { followCursor = it })
-                            Text("Follow Cursor")
+                            Text(Strings.getString(Strings.Keys.FOLLOW_CURSOR))
                             Spacer(Modifier.width(8.dp))
                             Checkbox(
                                 enabled = !followCursor,
                                 checked = focusOnGame,
                                 onCheckedChange = { focusOnGame = it })
-                            Text("Focus on Game")
+                            Text(Strings.getString(Strings.Keys.FOCUS_ON_GAME))
                             Spacer(Modifier.width(8.dp))
                             Checkbox(
                                 checked = checkOnAudience,
                                 onCheckedChange = { checkOnAudience = it })
-                            Text("Check on Audience")
+                            Text(Strings.getString(Strings.Keys.CHECK_ON_AUDIENCE))
                         }
                     }
 
                     if (selectedState?.blinkImageName != null) {
                         var blinkRateRange by remember(minBlinkRate, maxBlinkRate) { mutableStateOf(minBlinkRate..maxBlinkRate) }
                         Column(modifier = Modifier.fillMaxWidth(0.8f)) {
-                            Text("Blink Rate Range: ${blinkRateRange.start.roundToInt()}ms - ${blinkRateRange.endInclusive.roundToInt()}ms")
+                            Text(
+                                String.format(
+                                    Strings.getString(Strings.Keys.BLINK_RATE_RANGE),
+                                    blinkRateRange.start.roundToInt(),
+                                    blinkRateRange.endInclusive.roundToInt()
+                                )
+                            )
                             RangeSlider(
                                 value = blinkRateRange,
                                 onValueChange = {
@@ -353,13 +360,13 @@ class EyeContactScreen(
 
                     if (checkOnAudience) {
                         LabeledSlider(
-                            label = "Audience Check Rate",
+                            label = Strings.getString(Strings.Keys.AUDIENCE_CHECK_RATE),
                             value = audienceCheckRate,
                             onValueChange = { audienceCheckRate = it },
                             range = 1000f..20000f
                         )
                         LabeledSlider(
-                            label = "Audience Check Duration",
+                            label = Strings.getString(Strings.Keys.AUDIENCE_CHECK_DURATION),
                             value = audienceCheckDuration,
                             onValueChange = { audienceCheckDuration = it },
                             range = 500f..5000f
@@ -372,8 +379,8 @@ class EyeContactScreen(
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Left Eye")
-                            EyePartPicker("Iris", leftEye?.openState, true, onImageSelected = { images ->
+                            Text(Strings.getString(Strings.Keys.LEFT_EYE))
+                            EyePartPicker(Strings.getString(Strings.Keys.IRIS), leftEye?.openState, true, onImageSelected = { images ->
                                 images.firstOrNull()?.let { (data, name) ->
                                     scope.launch {
                                         viewModel.uploadImageData(name, data)
@@ -386,7 +393,7 @@ class EyeContactScreen(
                                     }
                                 }
                             }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                            EyePartPicker("Pupil", leftEye?.pupil, true, onImageSelected = { images ->
+                            EyePartPicker(Strings.getString(Strings.Keys.PUPIL), leftEye?.pupil, true, onImageSelected = { images ->
                                 images.firstOrNull()?.let { (data, name) ->
                                     scope.launch {
                                         viewModel.uploadImageData(name, data)
@@ -399,7 +406,7 @@ class EyeContactScreen(
                                     }
                                 }
                             }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                            EyePartPicker("Blink", leftEye?.closedState, true, onImageSelected = { images ->
+                            EyePartPicker(Strings.getString(Strings.Keys.BLINK), leftEye?.closedState, true, onImageSelected = { images ->
                                 images.firstOrNull()?.let { (data, name) ->
                                     scope.launch {
                                         viewModel.uploadImageData(name, data)
@@ -414,8 +421,8 @@ class EyeContactScreen(
                             }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Right Eye")
-                            EyePartPicker("Iris", rightEye?.openState, !syncEyes, onImageSelected = { images ->
+                            Text(Strings.getString(Strings.Keys.RIGHT_EYE))
+                            EyePartPicker(Strings.getString(Strings.Keys.IRIS), rightEye?.openState, !syncEyes, onImageSelected = { images ->
                                 images.firstOrNull()?.let { (data, name) ->
                                     scope.launch {
                                         viewModel.uploadImageData(name, data)
@@ -424,7 +431,7 @@ class EyeContactScreen(
                                     }
                                 }
                             }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                            EyePartPicker("Pupil", rightEye?.pupil, !syncEyes, onImageSelected = { images ->
+                            EyePartPicker(Strings.getString(Strings.Keys.PUPIL), rightEye?.pupil, !syncEyes, onImageSelected = { images ->
                                 images.firstOrNull()?.let { (data, name) ->
                                     scope.launch {
                                         viewModel.uploadImageData(name, data)
@@ -433,7 +440,7 @@ class EyeContactScreen(
                                     }
                                 }
                             }, onFolderSelected = { viewModel.setLastImageFolder(it) }, initialDirectory = settings.lastImageFolder)
-                            EyePartPicker("Blink", rightEye?.closedState, !syncEyes, onImageSelected = { images ->
+                            EyePartPicker(Strings.getString(Strings.Keys.BLINK), rightEye?.closedState, !syncEyes, onImageSelected = { images ->
                                 images.firstOrNull()?.let { (data, name) ->
                                     scope.launch {
                                         viewModel.uploadImageData(name, data)
@@ -450,7 +457,7 @@ class EyeContactScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
                     ) {
-                        Text("Closed Eyes Preview")
+                        Text(Strings.getString(Strings.Keys.CLOSED_EYES_PREVIEW))
                         Spacer(modifier = Modifier.width(8.dp))
                         Switch(
                             checked = isClosedPreview,
@@ -495,7 +502,7 @@ class EyeContactScreen(
                             )
                         }
                     } else {
-                        Text("Select a state to begin.")
+                        Text(Strings.getString(Strings.Keys.SELECT_STATE_TO_BEGIN))
                     }
                 }
             }
@@ -557,7 +564,7 @@ private fun DraggablePreviewSurface(
             ) {
                 Image(
                     bitmap = imageBitmap,
-                    contentDescription = "State preview",
+                    contentDescription = Strings.getString(Strings.Keys.STATE_PREVIEW_CONTENT_DESCRIPTION),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit
                 )
@@ -631,7 +638,7 @@ private fun DraggablePreviewSurface(
                             drawLine(Color.Red, Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), strokeWidth)
                             drawLine(Color.Red, Offset(0f, size.height / 2), Offset(size.width, size.height / 2), strokeWidth)
                         }
-                        Text("Game Screen", color = Color.Red, modifier = Modifier.align(Alignment.BottomCenter).offset(y = markerSize))
+                        Text(Strings.getString(Strings.Keys.GAME_SCREEN), color = Color.Red, modifier = Modifier.align(Alignment.BottomCenter).offset(y = markerSize))
                     }
                 }
             }
@@ -671,7 +678,7 @@ private fun EyePartPicker(
     if (showDialog) {
         ImagePickerDialog(
             show = true,
-            title = "Select $partName",
+            title = String.format(Strings.getString(Strings.Keys.SELECT_PART_TITLE), partName),
             multiSelect = false,
             initialDirectory = initialDirectory,
             onCancel = { showDialog = false },
@@ -760,14 +767,14 @@ fun DraggableEye(
         Box(modifier = eyeSizeModifier) {
             if (showClosed) {
                 closedStateBitmap?.let {
-                    Image(bitmap = it, contentDescription = "Draggable closed eye")
+                    Image(bitmap = it, contentDescription = Strings.getString(Strings.Keys.DRAGGABLE_CLOSED_EYE_CONTENT_DESCRIPTION))
                 }
             } else {
                 openStateBitmap?.let {
-                    Image(bitmap = it, contentDescription = "Draggable open eye")
+                    Image(bitmap = it, contentDescription = Strings.getString(Strings.Keys.DRAGGABLE_OPEN_EYE_CONTENT_DESCRIPTION))
                 }
                 pupilBitmap?.let {
-                    Image(bitmap = it, contentDescription = "Draggable pupil")
+                    Image(bitmap = it, contentDescription = Strings.getString(Strings.Keys.DRAGGABLE_PUPIL_CONTENT_DESCRIPTION))
                 }
             }
 

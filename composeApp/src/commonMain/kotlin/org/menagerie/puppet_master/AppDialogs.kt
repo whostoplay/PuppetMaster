@@ -13,7 +13,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import org.menagerie.puppet_master.Constants.UI.Dialogs
+import org.menagerie.puppet_master.Strings.Keys.ASSIGN_STATE_TITLE
+import org.menagerie.puppet_master.Strings.Keys.CANCEL_BUTTON
+import org.menagerie.puppet_master.Strings.Keys.CONNECTION_FAILED_TEXT
+import org.menagerie.puppet_master.Strings.Keys.CONNECTION_FAILED_TITLE
+import org.menagerie.puppet_master.Strings.Keys.OVERWRITE_BUTTON
+import org.menagerie.puppet_master.Strings.Keys.OVERWRITE_STATE_TEXT
+import org.menagerie.puppet_master.Strings.Keys.OVERWRITE_STATE_TITLE
+import org.menagerie.puppet_master.Strings.Keys.TRY_AGAIN_BUTTON
+import org.menagerie.puppet_master.Strings.Keys.WORK_OFFLINE_BUTTON
 
 /**
  * A composable that manages the display of various dialogs throughout the application.
@@ -78,7 +86,7 @@ private fun StateAssignmentDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(Dialogs.ASSIGN_STATE_TITLE) },
+        title = { Text(Strings.getString(ASSIGN_STATE_TITLE)) },
         text = {
             LazyColumn {
                 items(states) { state ->
@@ -94,7 +102,7 @@ private fun StateAssignmentDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismissRequest) {
-                Text(Dialogs.CANCEL_BUTTON)
+                Text(Strings.getString(CANCEL_BUTTON))
             }
         }
     )
@@ -113,16 +121,16 @@ private fun OverwriteConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(Dialogs.OVERWRITE_STATE_TITLE) },
-        text = { Text(Dialogs.OVERWRITE_STATE_TEXT) },
+        title = { Text(Strings.getString(OVERWRITE_STATE_TITLE)) },
+        text = { Text(Strings.getString(OVERWRITE_STATE_TEXT)) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text(Dialogs.OVERWRITE_BUTTON)
+                Text(Strings.getString(OVERWRITE_BUTTON))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismissRequest) {
-                Text(Dialogs.CANCEL_BUTTON)
+                Text(Strings.getString(CANCEL_BUTTON))
             }
         }
     )
@@ -143,16 +151,16 @@ private fun ConnectionErrorDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismissRequest,
-        title = { Text(Dialogs.CONNECTION_FAILED_TITLE) },
-        text = { Text(Dialogs.CONNECTION_FAILED_TEXT) },
+        title = { Text(Strings.getString(CONNECTION_FAILED_TITLE)) },
+        text = { Text(Strings.getString(CONNECTION_FAILED_TEXT)) },
         confirmButton = {
             TextButton(onClick = onTryAgain) {
-                Text(Dialogs.TRY_AGAIN_BUTTON)
+                Text(Strings.getString(TRY_AGAIN_BUTTON))
             }
         },
         dismissButton = {
             TextButton(onClick = onWorkOffline) {
-                Text(Dialogs.WORK_OFFLINE_BUTTON)
+                Text(Strings.getString(WORK_OFFLINE_BUTTON))
             }
         }
     )

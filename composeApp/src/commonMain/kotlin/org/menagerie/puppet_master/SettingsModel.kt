@@ -17,5 +17,6 @@ data class SettingsModel(
     val startOffline: Boolean = true,
     val lastTroupeFile: String? = null,
     val lastPuppetExportFolder: String? = null,
-    val lastImageFolder: String? = null
+    val lastImageFolder: String? = null,
+    val language: Strings.Language = Strings.Language.ENGLISH
 )

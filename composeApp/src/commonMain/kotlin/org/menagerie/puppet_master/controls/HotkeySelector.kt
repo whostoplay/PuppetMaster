@@ -4,7 +4,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -36,6 +35,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.filterIsInstance
 import org.menagerie.puppet_master.Hotkey
+import org.menagerie.puppet_master.Strings
 
 /**
  * A composable for selecting a hotkey combination.
@@ -86,7 +86,7 @@ fun HotkeySelector(
         ) {
             Text(label)
             TextField(
-                value = if (isEditing) "Press any key..." else if(hotkey.key == 4294967296) "Not Assigned" else hotkey.toString(),
+                value = if (isEditing) Strings.getString(Strings.Keys.PRESS_ANY_KEY) else if (hotkey.key == 4294967296) Strings.getString(Strings.Keys.NOT_ASSIGNED) else hotkey.toString(),
                 onValueChange = {},
                 readOnly = true,
                 interactionSource = interactionSource,
@@ -140,11 +140,11 @@ fun HotkeySelector(
             modifier = Modifier.padding(top = 8.dp).weight(.5f),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("Toggle")
+            Text(Strings.getString(Strings.Keys.TOGGLE))
             Switch(
                 checked = hotkey.hold,
                 onCheckedChange = { onHotkeyChanged(hotkey.copy(hold = it)) })
-            Text("Hold")
+            Text(Strings.getString(Strings.Keys.HOLD))
         }
     }
 }

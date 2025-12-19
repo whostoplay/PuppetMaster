@@ -15,7 +15,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import org.menagerie.puppet_master.Strings
 
+/**
+ * A dialog that prompts the user to name a new troupe.
+ *
+ * This dialog is displayed when a new puppet is created and there is no existing troupe.
+ * It includes a text field for the troupe name and buttons to confirm or cancel.
+ *
+ * @param onConfirm Callback that is invoked with the new troupe name when the user confirms.
+ * @param onDismiss Callback that is invoked when the user dismisses the dialog.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NameTroupeDialog(
@@ -26,15 +36,15 @@ fun NameTroupeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Name Your Troupe") },
+        title = { Text(Strings.getString(Strings.Keys.NAME_YOUR_TROUPE_TITLE)) },
         text = {
             Column {
-                Text("This is the first puppet in your troupe. Please name your troupe to continue.")
+                Text(Strings.getString(Strings.Keys.NAME_YOUR_TROUPE_TEXT))
                 Spacer(modifier = Modifier.height(16.dp))
                 TextField(
                     value = troupeName,
                     onValueChange = { troupeName = it },
-                    label = { Text("Troupe Name") },
+                    label = { Text(Strings.getString(Strings.Keys.TROUPE_NAME_LABEL)) },
                     singleLine = true
                 )
             }
@@ -44,12 +54,12 @@ fun NameTroupeDialog(
                 onClick = { onConfirm(troupeName) },
                 enabled = troupeName.isNotBlank()
             ) {
-                Text("Save")
+                Text(Strings.getString(Strings.Keys.SAVE_BUTTON))
             }
         },
         dismissButton = {
             Button(onClick = onDismiss) {
-                Text("Cancel")
+                Text(Strings.getString(Strings.Keys.CANCEL_BUTTON))
             }
         }
     )

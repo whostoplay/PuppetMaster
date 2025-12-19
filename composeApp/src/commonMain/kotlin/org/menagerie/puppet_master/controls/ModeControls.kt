@@ -11,6 +11,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.OperatingMode
+import org.menagerie.puppet_master.Strings
 
 /**
  * A composable that provides a switch to toggle between online and offline operating modes.
@@ -30,12 +31,12 @@ fun ModeControls(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = "Offline")
+        Text(text = Strings.getString(Strings.Keys.OFFLINE))
         Switch(
             checked = operatingMode == OperatingMode.ONLINE,
             onCheckedChange = { isOnline -> onModeChanged(if (isOnline) OperatingMode.ONLINE else OperatingMode.OFFLINE) },
             modifier = Modifier.padding(horizontal = 8.dp)
         )
-        Text(text = "Online")
+        Text(text = Strings.getString(Strings.Keys.ONLINE))
     }
 }

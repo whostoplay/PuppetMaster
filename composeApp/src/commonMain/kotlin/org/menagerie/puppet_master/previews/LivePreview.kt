@@ -30,22 +30,38 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import kotlin.math.cos
-import kotlin.math.min
-import kotlin.math.roundToInt
-import kotlin.math.sin
-import kotlin.math.sqrt
-import kotlin.random.Random
-import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.AnimationState
 import org.menagerie.puppet_master.Constants
 import org.menagerie.puppet_master.Eye
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SerializableOffset
+import org.menagerie.puppet_master.Strings
 import org.menagerie.puppet_master.rememberGlobalPointerPosition
 import org.menagerie.puppet_master.rememberImageFromUrl
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.roundToInt
+import kotlin.math.sin
+import kotlin.math.sqrt
+import kotlin.random.Random
 
+/**
+ * A composable that displays a live preview of the puppet, including eye movements, blinking, and special effects.
+ *
+ * @param operatingMode The current operating mode of the application (online or offline).
+ * @param puppetState The current state of the puppet to be displayed.
+ * @param isBlinking Whether the puppet should be blinking.
+ * @param uploadsDir The directory where uploaded images are stored.
+ * @param backgroundColor The background color of the preview.
+ * @param serverIp The IP address of the server (if in online mode).
+ * @param animationState The current animation state for special effects.
+ * @param isAudienceCheckForced Whether to force an audience check.
+ * @param window The window object, used for tracking the global pointer position.
+ * @param displayedImageName The name of the image to be displayed.
+ * @param idleImage The image to display when no other image is available.
+ * @param onFocusPointUpdate A callback to be invoked when the focus point of the eyes is updated.
+ */
 @Composable
 fun LivePreview(
     operatingMode: OperatingMode,
@@ -99,17 +115,17 @@ fun LivePreview(
             val audienceCheckDuration = eyeState?.eyes?.audienceCheckDuration ?: 0
             if (audienceCheckRate > 0 && audienceCheckDuration > 0) {
                 while (true) {
-                    delay(audienceCheckRate)
+                    kotlinx.coroutines.delay(audienceCheckRate)
                     if (loadedBlinkBody != null) {
                         audienceCheckBlink = true
-                        delay(100)
+                        kotlinx.coroutines.delay(100)
                         audienceCheckBlink = false
                     }
                     isCheckingAudience = true
-                    delay(audienceCheckDuration)
+                    kotlinx.coroutines.delay(audienceCheckDuration)
                     if (loadedBlinkBody != null) {
                         audienceCheckBlink = true
-                        delay(100)
+                        kotlinx.coroutines.delay(100)
                         audienceCheckBlink = false
                     }
                     isCheckingAudience = false
@@ -129,7 +145,7 @@ fun LivePreview(
                     x = (cos(randomAngle) * randomRadius).toFloat(),
                     y = (sin(randomAngle) * randomRadius).toFloat()
                 )
-                delay(250)
+                kotlinx.coroutines.delay(250)
             }
         } else {
             jitter = Offset.Zero
@@ -199,7 +215,7 @@ fun LivePreview(
         ) {
             Image(
                 bitmap = image,
-                contentDescription = "Live Preview",
+                contentDescription = Strings.getString(Strings.Keys.LIVE_PREVIEW_CONTENT_DESCRIPTION),
                 colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.FillBounds
@@ -237,12 +253,12 @@ fun LivePreview(
 
                 val leftEyeToDisplay = if (isEffectivelyBlinking) loadedLeftClosedEye else loadedLeftOpenEye
                 leftEyeToDisplay?.let {
-                    Image(bitmap = it, contentDescription = "Left Eye", modifier = leftEyeModifier, colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null)
+                    Image(bitmap = it, contentDescription = Strings.getString(Strings.Keys.LEFT_EYE), modifier = leftEyeModifier, colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null)
                 }
 
                 val rightEyeToDisplay = if (isEffectivelyBlinking) loadedRightClosedEye else loadedRightOpenEye
                 rightEyeToDisplay?.let {
-                    Image(bitmap = it, contentDescription = "Right Eye", modifier = rightEyeModifier, colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null)
+                    Image(bitmap = it, contentDescription = Strings.getString(Strings.Keys.RIGHT_EYE), modifier = rightEyeModifier, colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null)
                 }
 
                 if (!isEffectivelyBlinking) {
@@ -300,7 +316,7 @@ fun LivePreview(
                         loadedLeftPupil?.let {
                             Image(
                                 bitmap = it,
-                                contentDescription = "Left Pupil",
+                                contentDescription = Strings.getString(Strings.Keys.LEFT_PUPIL_CONTENT_DESCRIPTION),
                                 modifier = Modifier.offset {
                                     IntOffset(
                                         ((position.x + jitter.x) * imageScaleFactor).roundToInt(),
@@ -324,7 +340,7 @@ fun LivePreview(
                         loadedRightPupil?.let {
                             Image(
                                 bitmap = it,
-                                contentDescription = "Right Pupil",
+                                contentDescription = Strings.getString(Strings.Keys.RIGHT_PUPIL_CONTENT_DESCRIPTION),
                                 modifier = Modifier.offset {
                                     IntOffset(
                                         ((position.x + jitter.x) * imageScaleFactor).roundToInt(),
@@ -346,7 +362,15 @@ fun LivePreview(
     }
 }
 
-
+/**
+ * Calculates the position of the pupil within the eye, based on the focus point.
+ *
+ * @param focusPoint The point in the image where the eye should be looking.
+ * @param eyeInfo The information about the eye, including its position, scale, and maximum pupil radius.
+ * @param pupilImage The image of the pupil.
+ * @param eyeImage The image of the eye.
+ * @return The offset of the pupil from the top-left corner of the eye.
+ */
 private fun getPupilPosition(
     focusPoint: SerializableOffset?,
     eyeInfo: Eye,
@@ -393,8 +417,11 @@ private fun getPupilPosition(
         }
     }
 
-    val pupilX = eyeCenterX + pupilOffsetX - (pupilImage.width * eyeInfo.scaleX / 2f)
-    val pupilY = eyeCenterY + pupilOffsetY - (pupilImage.height * eyeInfo.scaleY / 2f)
+    val pupilWidth = pupilImage.width * eyeInfo.scaleX
+    val pupilHeight = pupilImage.height * eyeInfo.scaleY
 
-    return Offset(pupilX, pupilY)
+    return Offset(
+        eyeInfo.position.x + (eyeImageWidth - pupilWidth) / 2f + pupilOffsetX,
+        eyeInfo.position.y + (eyeImageHeight - pupilHeight) / 2f + pupilOffsetY
+    )
 }

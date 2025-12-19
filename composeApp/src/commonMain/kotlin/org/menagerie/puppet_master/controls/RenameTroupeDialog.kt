@@ -10,7 +10,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import org.menagerie.puppet_master.Strings
 
+/**
+ * A dialog that prompts the user to rename a troupe.
+ *
+ * @param currentName The current name of the troupe.
+ * @param onConfirm Callback that is invoked with the new troupe name when the user confirms.
+ * @param onDismiss Callback that is invoked when the user dismisses the dialog.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RenameTroupeDialog(
@@ -22,12 +30,12 @@ fun RenameTroupeDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Rename Troupe") },
+        title = { Text(Strings.getString(Strings.Keys.RENAME_TROUPE_TITLE)) },
         text = {
             TextField(
                 value = newTroupeName,
                 onValueChange = { newTroupeName = it },
-                label = { Text("New Troupe Name") },
+                label = { Text(Strings.getString(Strings.Keys.NEW_TROUPE_NAME_LABEL)) },
                 singleLine = true
             )
         },
@@ -36,12 +44,12 @@ fun RenameTroupeDialog(
                 onClick = { onConfirm(newTroupeName) },
                 enabled = newTroupeName.isNotBlank() && newTroupeName != currentName
             ) {
-                Text("Rename")
+                Text(Strings.getString(Strings.Keys.RENAME_BUTTON))
             }
         },
         dismissButton = {
             Button(onClick = onDismiss) {
-                Text("Cancel")
+                Text(Strings.getString(Strings.Keys.CANCEL_BUTTON))
             }
         }
     )

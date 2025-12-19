@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import org.menagerie.puppet_master.Strings
 import org.menagerie.puppet_master.rememberColorMapBitmap
 
 /**
@@ -43,14 +44,14 @@ fun ColorPicker(
         Button(
             onClick = { showColors = !showColors },
         ) {
-            Text("BG Color")
+            Text(Strings.getString(Strings.Keys.BG_COLOR_TEXT))
         }
         if (showColors) {
             val colorMapBitmap = rememberColorMapBitmap(256, 256)
 
             Image(
                 bitmap = colorMapBitmap,
-                contentDescription = "Color Map",
+                contentDescription = Strings.getString(Strings.Keys.COLOR_MAP_CONTENT_DESCRIPTION),
                 modifier = Modifier
                     .size(200.dp)
                     .padding(top = 8.dp)

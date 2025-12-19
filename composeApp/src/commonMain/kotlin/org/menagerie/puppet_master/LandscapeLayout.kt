@@ -33,7 +33,10 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.menagerie.puppet_master.Constants.UI.LandscapeLayout
-import org.menagerie.puppet_master.Constants.UI.Placeholders
+import org.menagerie.puppet_master.Strings.Keys.CREATE_OR_SELECT_PUPPET
+import org.menagerie.puppet_master.Strings.Keys.EYE_CONTACT_BUTTON
+import org.menagerie.puppet_master.Strings.Keys.SETTINGS_BUTTON
+import org.menagerie.puppet_master.Strings.Keys.STATES_TITLE
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.DraggableSplitter
 import org.menagerie.puppet_master.controls.ModeControls
@@ -143,14 +146,14 @@ fun LandscapeLayout(
                     onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text(LandscapeLayout.EYE_CONTACT_BUTTON)
+                    Text(Strings.getString(EYE_CONTACT_BUTTON))
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Button(
                     onClick = { navigator.push(SettingsScreen(viewModel)) },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text(LandscapeLayout.SETTINGS_BUTTON)
+                    Text(Strings.getString(SETTINGS_BUTTON))
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -197,7 +200,7 @@ fun LandscapeLayout(
                         )
                     }
                     item { HorizontalDivider() }
-                    item { Text(text = LandscapeLayout.STATES_TITLE) }
+                    item { Text(text = Strings.getString(STATES_TITLE)) }
                     item { HorizontalDivider() }
                     items(currentPuppet.states) { state ->
                         Text(
@@ -243,7 +246,7 @@ fun LandscapeLayout(
                             modifier = Modifier.fillParentMaxSize().padding(16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(Placeholders.CREATE_OR_SELECT_PUPPET)
+                            Text(Strings.getString(CREATE_OR_SELECT_PUPPET))
                         }
                     }
                 }

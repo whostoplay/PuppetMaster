@@ -39,14 +39,18 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.ImagePickerDialog
 import org.menagerie.puppet_master.MainViewModel
+import org.menagerie.puppet_master.Strings
 import org.menagerie.puppet_master.toImageBitmap
 
 /**
- * A composable that provides a UI for creating new puppet states.
+ * A composable that provides a UI for creating and editing puppet states.
+ * It allows selecting main and blink images, naming the state, and saving it to the view model.
  *
  * @param modifier The modifier to be applied to the composable.
  * @param viewModel The view model that this composable will interact with.
  * @param onActiveChange A callback that is invoked when the component's interaction state changes.
+ * @param onFocusChange A callback that is invoked when the component's focus state changes.
+ * @param rootFocusRequester The focus requester for the root composable.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -67,7 +71,7 @@ fun StateCreation(
 
     ImagePickerDialog(
         show = showFilePicker,
-        title = "Select ${pickingFor ?: "Image(s)"}",
+        title = String.format(Strings.getString(Strings.Keys.SELECT_PART_TITLE), pickingFor ?: Strings.getString(Strings.Keys.SELECT_IMAGES)),
         multiSelect = pickingFor == null,
         initialDirectory = settings.lastImageFolder,
         onCancel = { showFilePicker = false },
@@ -115,7 +119,7 @@ fun StateCreation(
     )
 
     Column(modifier = modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Create New State", style = MaterialTheme.typography.titleMedium)
+        Text(Strings.getString(Strings.Keys.CREATE_NEW_STATE), style = MaterialTheme.typography.titleMedium)
         Row(
             modifier = Modifier.padding(vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -123,10 +127,10 @@ fun StateCreation(
         ) {
             uiState.selectedImage?.let {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Main Image")
+                    Text(Strings.getString(Strings.Keys.MAIN_IMAGE))
                     Image(
                         bitmap = it.toImageBitmap(),
-                        contentDescription = "Selected Image",
+                        contentDescription = Strings.getString(Strings.Keys.SELECTED_IMAGE),
                         modifier = Modifier
                             .size(100.dp)
                             .combinedClickable(
@@ -143,16 +147,16 @@ fun StateCreation(
                 Button(
                     onClick = { viewModel.onStateCreationChange(uiState.selectedBlinkImage, uiState.selectedBlinkImageName, uiState.selectedImage, uiState.selectedImageName, uiState.newStateName) }
                 ) {
-                    Text("<->")
+                    Text(Strings.getString(Strings.Keys.SWAP_IMAGES))
                 }
             }
 
             uiState.selectedBlinkImage?.let {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Blink Image")
+                    Text(Strings.getString(Strings.Keys.BLINK_IMAGE))
                     Image(
                         bitmap = it.toImageBitmap(),
-                        contentDescription = "Selected Blink Image",
+                        contentDescription = Strings.getString(Strings.Keys.SELECTED_BLINK_IMAGE),
                         modifier = Modifier
                             .size(100.dp)
                             .combinedClickable(
@@ -171,14 +175,14 @@ fun StateCreation(
                 pickingFor = null
                 showFilePicker = true
             }) {
-                Text("Select Image(s)")
+                Text(Strings.getString(Strings.Keys.SELECT_IMAGES))
             }
             if (uiState.selectedImage != null && uiState.selectedBlinkImage == null) {
                 Button(onClick = {
                     pickingFor = "blink"
                     showFilePicker = true
                 }) {
-                    Text("Add Blinking State")
+                    Text(Strings.getString(Strings.Keys.ADD_BLINKING_STATE))
                 }
             }
         }
@@ -236,7 +240,7 @@ fun StateCreation(
                         stateName = it
                     )
                 },
-                label = { Text("State Name") },
+                label = { Text(Strings.getString(Strings.Keys.STATE_NAME)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isDropdownExpanded) },
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
                 singleLine = true,
@@ -265,7 +269,7 @@ fun StateCreation(
                                     val blinkImage = selectedState.blinkImageName?.let { viewModel.getImageData(it) }
                                     viewModel.onStateCreationChange(
                                         image = mainImage,
-                                        imageName = selectedState.imageName ?: "",
+                                        imageName = selectedState.imageName,
                                         blinkImage = blinkImage,
                                         blinkImageName = selectedState.blinkImageName ?: "",
                                         stateName = selectionOption
@@ -302,13 +306,13 @@ fun StateCreation(
         if (!isSaveEnabled) {
             val missingParts = mutableListOf<String>()
             if (uiState.selectedImage == null) {
-                missingParts.add("an image")
+                missingParts.add(Strings.getString(Strings.Keys.MAIN_IMAGE).lowercase())
             }
             if (uiState.newStateName.isBlank()) {
-                missingParts.add("a state name")
+                missingParts.add(Strings.getString(Strings.Keys.STATE_NAME).lowercase())
             }
             Text(
-                "Please select ${missingParts.joinToString(" and ")} to create or update a state.",
+                String.format(Strings.getString(Strings.Keys.MISSING_ERROR_MESSAGE), missingParts.joinToString(" and ")),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(top = 8.dp)
@@ -321,6 +325,6 @@ fun StateCreation(
             },
             enabled = isSaveEnabled,
             modifier = Modifier.padding(top = 8.dp)
-        ) { Text("Save/Update State") }
+        ) { Text(Strings.getString(Strings.Keys.SAVE_UPDATE_STATE)) }
     }
 }

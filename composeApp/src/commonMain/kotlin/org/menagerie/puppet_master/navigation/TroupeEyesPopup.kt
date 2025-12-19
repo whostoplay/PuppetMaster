@@ -32,10 +32,27 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import org.menagerie.puppet_master.EyeState
 import org.menagerie.puppet_master.MainViewModel
+import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.Strings.Keys.LEFT_EYE
+import org.menagerie.puppet_master.Strings.Keys.LEFT_PUPIL_CONTENT_DESCRIPTION
 import org.menagerie.puppet_master.decodeToImageBitmap
 
+/**
+ * A data class to hold information about a specific eye state within a troupe.
+ *
+ * @param puppetName The name of the puppet the eye state belongs to.
+ * @param stateName The name of the state within the puppet.
+ * @param eyeState The actual eye state information.
+ */
 data class TroupeEyeInfo(val puppetName: String, val stateName: String, val eyeState: EyeState)
 
+/**
+ * A composable that displays a dialog to select an eye set from the current troupe.
+ *
+ * @param viewModel The MainViewModel to access troupe data.
+ * @param onDismissRequest A callback to be invoked when the dialog is dismissed.
+ * @param onApply A callback to be invoked when an eye set is selected and the apply button is clicked.
+ */
 @Composable
 fun TroupeEyesPopup(
     viewModel: MainViewModel,
@@ -61,7 +78,7 @@ fun TroupeEyesPopup(
     Dialog(onDismissRequest = onDismissRequest) {
         Card {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("Select an Eye Set")
+                Text(Strings.getString(Strings.Keys.SELECT_AN_EYE_SET))
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 100.dp),
                     modifier = Modifier.weight(1f)
@@ -84,7 +101,7 @@ fun TroupeEyesPopup(
                     horizontalArrangement = Arrangement.End
                 ) {
                     Button(onClick = onDismissRequest) {
-                        Text("Cancel")
+                        Text(Strings.getString(Strings.Keys.CANCEL_BUTTON))
                     }
                     Button(
                         onClick = {
@@ -92,7 +109,7 @@ fun TroupeEyesPopup(
                         },
                         enabled = selectedEye != null
                     ) {
-                        Text("Apply")
+                        Text(Strings.getString(Strings.Keys.APPLY))
                     }
                 }
             }
@@ -100,6 +117,12 @@ fun TroupeEyesPopup(
     }
 }
 
+/**
+ * A composable that displays a preview of an eye set.
+ *
+ * @param viewModel The MainViewModel to fetch image data.
+ * @param eyeState The EyeState to be previewed.
+ */
 @Composable
 fun EyePreview(viewModel: MainViewModel, eyeState: EyeState) {
     var leftEyeOpenData by remember { mutableStateOf<ByteArray?>(null) }
@@ -116,10 +139,10 @@ fun EyePreview(viewModel: MainViewModel, eyeState: EyeState) {
 
     Box(modifier = Modifier.size(50.dp)) {
         leftEyeOpenData?.let { decodeToImageBitmap(it) }?.let {
-            Image(bitmap = it, contentDescription = "Left Eye Open")
+            Image(bitmap = it, contentDescription = Strings.getString(LEFT_EYE))
         }
         leftEyePupilData?.let { decodeToImageBitmap(it) }?.let {
-            Image(bitmap = it, contentDescription = "Left Eye Pupil")
+            Image(bitmap = it, contentDescription = Strings.getString(LEFT_PUPIL_CONTENT_DESCRIPTION))
         }
     }
 }

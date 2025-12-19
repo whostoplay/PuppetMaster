@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.DropdownMenu
@@ -26,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SpecialEffectsManager
+import org.menagerie.puppet_master.Strings
 import org.menagerie.puppet_master.controls.HotkeySelector
 import kotlin.math.roundToLong
 
@@ -36,6 +36,7 @@ import kotlin.math.roundToLong
  * @param selectedState The currently selected puppet state.
  * @param specialEffectsManager The manager for special effects.
  * @param onStateUpdated A callback that is invoked when any property of the state is changed.
+ * @param onStateHotkeyChanged A callback that is invoked when the hotkey for the state is changed.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,10 +67,10 @@ fun StateEditor(
     var showEffectDropdown by remember { mutableStateOf(false) }
 
     Column(modifier = modifier.padding(8.dp)) {
-        Text(text = "Edit State: ${selectedState?.name ?: ""}")
+        Text(text = String.format(Strings.getString(Strings.Keys.EDIT_STATE), selectedState?.name ?: ""))
         selectedState?.let { state ->
             if (state.blinkImageName != null || state.eyeState?.eyes?.left?.closedState != null) {
-                Text(text = "Blink Rate Range: ${blinkRateRange.start.toLong()} - ${blinkRateRange.endInclusive.toLong()} ms")
+                Text(text = String.format(Strings.getString(Strings.Keys.BLINK_RATE_RANGE), blinkRateRange.start.toLong(), blinkRateRange.endInclusive.toLong()))
                 RangeSlider(
                     value = blinkRateRange,
                     onValueChange = { newRange -> blinkRateRange = newRange },
@@ -87,7 +88,7 @@ fun StateEditor(
 
             state.eyeState?.let { eyeState ->
                 if (eyeState.eyes.checkOnAudience) {
-                    Text(text = "Audience Check Rate: ${audienceCheckRate.roundToLong()} ms")
+                    Text(text = String.format(Strings.getString(Strings.Keys.AUDIENCE_CHECK_RATE), audienceCheckRate.roundToLong()))
                     Slider(
                         value = audienceCheckRate,
                         onValueChange = { audienceCheckRate = it },
@@ -103,7 +104,7 @@ fun StateEditor(
                         valueRange = audienceCheckRateRange
                     )
 
-                    Text(text = "Audience Check Duration: ${audienceCheckDuration.roundToLong()} ms")
+                    Text(text = String.format(Strings.getString(Strings.Keys.AUDIENCE_CHECK_DURATION), audienceCheckDuration.roundToLong()))
                     Slider(
                         value = audienceCheckDuration,
                         onValueChange = { audienceCheckDuration = it },
@@ -123,7 +124,7 @@ fun StateEditor(
 
             Box {
                 Text(
-                    text = "Applied Effect: ${state.appliedEffect?.name ?: "None"}",
+                    text = String.format(Strings.getString(Strings.Keys.APPLIED_EFFECT), state.appliedEffect?.name ?: Strings.getString(Strings.Keys.NONE)),
                     modifier = Modifier.fillMaxWidth().clickable { showEffectDropdown = true }
                 )
                 DropdownMenu(
@@ -131,7 +132,7 @@ fun StateEditor(
                     onDismissRequest = { showEffectDropdown = false }
                 ) {
                     DropdownMenuItem(
-                        text = { Text("None") },
+                        text = { Text(Strings.getString(Strings.Keys.NONE)) },
                         onClick = {
                             onStateUpdated(state.copy(appliedEffect = null))
                             showEffectDropdown = false
@@ -152,7 +153,7 @@ fun StateEditor(
                 HotkeySelector(
                     modifier = Modifier.weight(1f),
                     horizontalArrangement = Arrangement.Center,
-                    label = "State Hotkey",
+                    label = Strings.getString(Strings.Keys.STATE_HOTKEY),
                     hotkey = state.hotkey ?: Hotkey(Key.Unknown.keyCode),
                     onHotkeyChanged = { newHotkey ->
                         onStateHotkeyChanged(state.name, newHotkey)

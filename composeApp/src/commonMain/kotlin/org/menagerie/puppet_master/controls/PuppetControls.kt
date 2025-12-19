@@ -31,6 +31,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetTroupe
+import org.menagerie.puppet_master.Strings
 
 /**
  * A composable that provides UI controls for managing puppets and troupes.
@@ -65,7 +66,7 @@ fun PuppetControls(
     onNewTroupeCreated: () -> Unit,
     onActiveChange: (Boolean) -> Unit,
     onFocusChange: (Boolean) -> Unit,
-    rootFocusRequester: androidx.compose.ui.focus.FocusRequester
+    rootFocusRequester: FocusRequester
 ) {
     var newPuppetName by remember { mutableStateOf("") }
     var puppetExpanded by remember { mutableStateOf(false) }
@@ -123,7 +124,7 @@ fun PuppetControls(
                     .menuAnchor()
                     .hoverable(textFieldInteractionSource),
                 value = activePuppet?.name ?: "", onValueChange = {},
-                label = { Text("Active Puppet") },
+                label = { Text(Strings.getString(Strings.Keys.ACTIVE_PUPPET_LABEL)) },
                 readOnly = true,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = puppetExpanded) },
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
@@ -145,7 +146,7 @@ fun PuppetControls(
         TextField(
             value = newPuppetName,
             onValueChange = {newPuppetName = it},
-            placeholder = {Text("New Puppet Name")},
+            placeholder = {Text(Strings.getString(Strings.Keys.NEW_PUPPET_NAME_PLACEHOLDER))},
             modifier = Modifier
                 .fillMaxWidth()
                 .onFocusChanged { focusState ->
@@ -182,28 +183,28 @@ fun PuppetControls(
                 }
              },
         ){
-            Text("Create")
+            Text(Strings.getString(Strings.Keys.CREATE_BUTTON))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onLoadTroupe) {
-                Text("Load Troupe")
+                Text(Strings.getString(Strings.Keys.LOAD_TROUPE_BUTTON))
             }
             Button(onClick = { showRenameTroupeDialog = true }, enabled = troupe != null) {
-                Text("Rename Troupe")
+                Text(Strings.getString(Strings.Keys.RENAME_TROUPE_BUTTON))
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onImportPuppet) {
-                Text("Import Puppet")
+                Text(Strings.getString(Strings.Keys.IMPORT_PUPPET_BUTTON))
             }
             Button(onClick = { activePuppet?.let { onExportPuppet(it.name) } }, enabled = activePuppet != null) {
-                Text("Export Active Puppet")
+                Text(Strings.getString(Strings.Keys.EXPORT_ACTIVE_PUPPET_BUTTON))
             }
 
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onNewTroupeCreated) {
-                Text("Create New Troupe")
+                Text(Strings.getString(Strings.Keys.CREATE_NEW_TROUPE_BUTTON))
             }
         }
     }

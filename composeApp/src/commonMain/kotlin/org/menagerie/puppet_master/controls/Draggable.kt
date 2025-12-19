@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import org.menagerie.puppet_master.Strings
 
 /**
  * A composable that can be dragged horizontally to resize adjacent elements.
@@ -41,7 +42,7 @@ fun DraggableSplitter(
     ) {
         Icon(
             imageVector = Icons.Default.DragIndicator,
-            contentDescription = "Drag to resize",
+            contentDescription = Strings.getString(Strings.Keys.DRAG_TO_RESIZE_CONTENT_DESCRIPTION),
             tint = MaterialTheme.colorScheme.onSurface
         )
     }

@@ -32,7 +32,9 @@ import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.Constants.UI.CONTROLS_VISIBILITY_DELAY_MS
 import org.menagerie.puppet_master.Constants.UI.DEFAULT_PANEL_WIDTH_FRACTION
 import org.menagerie.puppet_master.Constants.UI.FileDialogs
-import org.menagerie.puppet_master.Constants.UI.Placeholders
+import org.menagerie.puppet_master.Strings.Keys
+import org.menagerie.puppet_master.Strings.Keys.GETTING_STARTED
+import org.menagerie.puppet_master.Strings.Keys.LOAD_STATE_IMAGE
 import org.menagerie.puppet_master.controls.FilePicker
 import org.menagerie.puppet_master.controls.FileSaver
 import org.menagerie.puppet_master.navigation.AppNavigator
@@ -197,7 +199,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             }
         } else {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(if (troupe == null) Placeholders.GETTING_STARTED else Placeholders.LOAD_STATE_IMAGE)
+                Text(if (troupe == null) Strings.getString(GETTING_STARTED) else Strings.getString(LOAD_STATE_IMAGE))
             }
         }
 

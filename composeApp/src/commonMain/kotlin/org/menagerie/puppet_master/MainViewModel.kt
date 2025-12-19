@@ -80,6 +80,9 @@ class MainViewModel(context: Any) : ScreenModel {
     private val _settings = MutableStateFlow(SettingsModel())
     val settings: StateFlow<SettingsModel> = _settings.asStateFlow()
 
+    val language: StateFlow<Strings.Language> = settings.map { it.language }
+        .stateIn(screenModelScope, SharingStarted.Eagerly, settings.value.language)
+
     private val dataManager = PuppetDataManager(screenModelScope, context)
     val uploadsDir = dataManager.uploadsDir
 
