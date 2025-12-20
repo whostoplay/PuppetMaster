@@ -318,6 +318,7 @@ class MainViewModel(context: Any) : ScreenModel {
             serverStateJob?.cancel()
             clientControlSocketJob?.cancel()
             stateController.onOffline()
+            updateSpecialEffect(null)
         } else { // ONLINE
             if (_isPublishing.value) {
                 setPublishing(false)

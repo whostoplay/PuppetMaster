@@ -84,13 +84,11 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
                 }
             }
         } else {
-            // No effect, ensure animation is cleared
-            updateStateToSend(_stateToSend.value?.puppetStateInfo, null, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
+            // No effect, ensure animation is cleared by calculating the default state.
+            val animationState = calculateAnimationState()
+            updateStateToSend(_stateToSend.value?.puppetStateInfo, animationState, _stateToSend.value?.puppetStateInfo?.eyeState?.cursorPosition)
         }
     }
-
-// In PuppetStateManager
-
 
     /**
      * Starts a persistent coroutine that handles automatic blinking for the puppet.
@@ -159,8 +157,8 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
 
 
 
-    private fun calculateAnimationState(): AnimationState? {
-        val effect = activeSpecialEffect ?: return null
+    private fun calculateAnimationState(): AnimationState {
+        val effect = activeSpecialEffect ?: return AnimationState()
         val offset = effect.getVibrationOffset(1920f / 20f)
         return AnimationState(
             rotation = effect.getRotation(),
@@ -282,6 +280,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
      */
     fun onClientDisconnected() {
         manualControlActive = false
+        updateSpecialEffect(null)
         // Headless mode should take over, reset to idle.
         _activeState.value = troupeManager.activePuppet?.states?.find { it.name == "idle" }
     }
@@ -301,7 +300,7 @@ class PuppetStateManager(private val scope: CoroutineScope, private val troupeMa
         val currentInfo = currentState?.puppetStateInfo
 
         val newPuppetInfo = state ?: currentInfo
-        val newAnimationState = animationState ?: currentState?.animationState
+        val newAnimationState = animationState
 
         val finalState = newPuppetInfo?.let {
             it.copy(
