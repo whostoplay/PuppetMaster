@@ -15,6 +15,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
@@ -117,7 +118,11 @@ fun PuppetControls(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ExposedDropdownMenuBox(expanded = puppetExpanded, onExpandedChange = { puppetExpanded = !puppetExpanded }, modifier = Modifier.fillMaxWidth()) {
+        ExposedDropdownMenuBox(
+            expanded = puppetExpanded,
+            onExpandedChange = { puppetExpanded = !puppetExpanded },
+            modifier = Modifier.fillMaxWidth()
+        ) {
             TextField(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -143,10 +148,31 @@ fun PuppetControls(
                 }
             }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onLoadTroupe) {
+                Text(Strings.getString(Strings.Keys.LOAD_TROUPE_BUTTON))
+            }
+            Button(onClick = { showRenameTroupeDialog = true }, enabled = troupe != null) {
+                Text(Strings.getString(Strings.Keys.RENAME_TROUPE_BUTTON))
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onImportPuppet) {
+                Text(Strings.getString(Strings.Keys.IMPORT_PUPPET_BUTTON))
+            }
+            Button(
+                onClick = { activePuppet?.let { onExportPuppet(it.name) } },
+                enabled = activePuppet != null
+            ) {
+                Text(Strings.getString(Strings.Keys.EXPORT_ACTIVE_PUPPET_BUTTON))
+            }
+
+        }
+        HorizontalDivider()
         TextField(
             value = newPuppetName,
-            onValueChange = {newPuppetName = it},
-            placeholder = {Text(Strings.getString(Strings.Keys.NEW_PUPPET_NAME_PLACEHOLDER))},
+            onValueChange = { newPuppetName = it },
+            placeholder = { Text(Strings.getString(Strings.Keys.NEW_PUPPET_NAME_PLACEHOLDER)) },
             modifier = Modifier
                 .fillMaxWidth()
                 .onFocusChanged { focusState ->
@@ -171,38 +197,21 @@ fun PuppetControls(
                 }
             )
         )
-        Button(
-            onClick = {
-                if (newPuppetName.isNotBlank()) {
-                    if (troupe?.puppets?.isEmpty() != false) {
-                        showNameTroupeDialog = true
-                    } else {
-                        onPuppetCreated(newPuppetName, null)
-                        newPuppetName = ""
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    if (newPuppetName.isNotBlank()) {
+                        if (troupe?.puppets?.isEmpty() != false) {
+                            showNameTroupeDialog = true
+                        } else {
+                            onPuppetCreated(newPuppetName, null)
+                            newPuppetName = ""
+                        }
                     }
-                }
-             },
-        ){
-            Text(Strings.getString(Strings.Keys.CREATE_BUTTON))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onLoadTroupe) {
-                Text(Strings.getString(Strings.Keys.LOAD_TROUPE_BUTTON))
+                },
+            ) {
+                Text(Strings.getString(Strings.Keys.CREATE_BUTTON))
             }
-            Button(onClick = { showRenameTroupeDialog = true }, enabled = troupe != null) {
-                Text(Strings.getString(Strings.Keys.RENAME_TROUPE_BUTTON))
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onImportPuppet) {
-                Text(Strings.getString(Strings.Keys.IMPORT_PUPPET_BUTTON))
-            }
-            Button(onClick = { activePuppet?.let { onExportPuppet(it.name) } }, enabled = activePuppet != null) {
-                Text(Strings.getString(Strings.Keys.EXPORT_ACTIVE_PUPPET_BUTTON))
-            }
-
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onNewTroupeCreated) {
                 Text(Strings.getString(Strings.Keys.CREATE_NEW_TROUPE_BUTTON))
             }
