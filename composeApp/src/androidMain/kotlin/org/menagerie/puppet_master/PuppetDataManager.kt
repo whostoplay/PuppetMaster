@@ -70,7 +70,8 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
      * Reloads the last used troupe from storage.
      *
      * It first checks the saved settings for a file path. If not found, it searches the app's
-     * internal directory for the most recently modified `.troupe` file.
+     * internal directory for the most recently modified `.troupe` file. If no troupe is found,
+     * a default one is created.
      */
     actual fun reloadLastTroupe() {
         val settings = settingsRepository.loadSettings()
@@ -83,13 +84,126 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             if (mostRecentTroupe != null) {
                 loadTroupeFromFile(mostRecentTroupe.absolutePath)
             } else {
-                null
+                createDefaultTroupe()
             }
         }
 
         if (localTroupe != null) {
             _troupe.value = localTroupe
             _activePuppet.value = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
+            saveTroupe(localTroupe)
+        }
+    }
+
+    private fun createDefaultTroupe(): PuppetTroupe {
+        extractDefaultImages()
+
+        val leftEye = Eye(
+            openState = "iris.png",
+            closedState = "blink.png",
+            pupil = "pupil.png",
+            position = SerializableOffset(x = 200.99791f, y = 314.03503f),
+            scaleX = 0.31122905f,
+            scaleY = 0.22924685f,
+            maxPupilRadiusX = 49.283577f,
+            maxPupilRadiusY = 60.261063f
+        )
+
+        val rightEye = Eye(
+            openState = "iris.png",
+            closedState = "blink.png",
+            pupil = "pupil.png",
+            position = SerializableOffset(x = 279.34973f, y = 313.36972f),
+            scaleX = 0.28802267f,
+            scaleY = 0.19401929f,
+            maxPupilRadiusX = 46.954967f,
+            maxPupilRadiusY = 55.603954f
+        )
+
+        val eyeState = EyeState(
+            stateName = "idle",
+            eyes = EyePair(
+                left = leftEye,
+                right = rightEye,
+                followCursor = true,
+                focusOnGame = false,
+                gameScreenLocation = SerializableOffset(0.5f, 0.5f),
+                checkOnAudience = true,
+                audienceCheckRate = 8000L,
+                audienceCheckDuration = 1500L
+            )
+        )
+
+        val screamEffect = SpecialEffect(
+            name = "Scream",
+            vibrationSpeed = 1f,
+            vibrationDistance = 1f,
+        )
+
+        val idleState = PuppetStateInfo(
+            name = "idle",
+            imageName = "icon_rough_closed.png",
+            eyeState = eyeState
+        )
+
+        val talkState = PuppetStateInfo(
+            name = "talking",
+            imageName = "icon_rough.png",
+            eyeState = eyeState
+        )
+
+        val yellState = PuppetStateInfo(
+            name = "Yell",
+            imageName = "icon_rough.png",
+            eyeState = eyeState,
+            appliedEffect = screamEffect
+        )
+
+        val defaultPuppet = PuppetCharacter(
+            name = "Skulli",
+            lastUpdated = System.currentTimeMillis(),
+            states = listOf(idleState, talkState, yellState),
+            thresholds = mapOf(0.1f to talkState, 0.175f to yellState)
+        )
+
+        return PuppetTroupe(
+            name = "Menagerie",
+            activePuppetName = "Skulli",
+            puppets = listOf(defaultPuppet),
+            specialEffectsManager = SpecialEffectsManager(
+                effects = listOf(screamEffect),
+                activeEffectIndex = 0
+            )
+        )
+    }
+
+    private fun extractDefaultImages() {
+        val defaultImages = listOf(
+            "icon_rough.png",
+            "icon_rough_closed.png",
+            "blink.png",
+            "iris.png",
+            "pupil.png"
+        )
+        val androidContext = context as Context
+
+        defaultImages.forEach { imageName ->
+            val imageFile = File(uploadsDir, imageName)
+            if (!imageFile.exists()) {
+                try {
+                    val resourceName = imageName.substringBeforeLast('.')
+                    val resourceId = androidContext.resources.getIdentifier(resourceName, "drawable", androidContext.packageName)
+                    if (resourceId != 0) {
+                        androidContext.resources.openRawResource(resourceId).use { inputStream ->
+                            FileOutputStream(imageFile).use { outputStream ->
+                                inputStream.copyTo(outputStream)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    println("Error extracting default image $imageName: ${e.message}")
+                }
+            }
         }
     }
 

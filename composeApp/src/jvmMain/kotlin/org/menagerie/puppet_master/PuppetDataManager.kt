@@ -136,6 +136,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             )
         )
 
+        val screamEffect = SpecialEffect(
+            name = "Scream",
+            vibrationSpeed = 1f,
+            vibrationDistance = 1f,
+        )
+
         val idleState = PuppetStateInfo(
             name = "idle",
             imageName = "icon_rough_closed.png",
@@ -152,11 +158,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             name = "Yell",
             imageName = "icon_rough.png",
             eyeState = eyeState,
-            appliedEffect = SpecialEffect(
-                name = "Scream",
-                vibrationSpeed = 1f,
-                vibrationDistance = 1f,
-            )
+            appliedEffect = screamEffect
         )
 
         val defaultPuppet = PuppetCharacter(
@@ -170,7 +172,10 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             name = "Menagerie",
             activePuppetName = "Skulli",
             puppets = listOf(defaultPuppet),
-            specialEffectsManager = SpecialEffectsManager()
+            specialEffectsManager = SpecialEffectsManager(
+                effects = listOf(screamEffect),
+                activeEffectIndex = 0
+            )
         )
     }
 
@@ -366,8 +371,8 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
                                     val imageFile = File(uploadsDir, imageName)
                                     FileOutputStream(imageFile).use {
                                         zis.copyTo(it)
-                                    }
-                                 }
+                                     }
+                                }
                             }
                         }
                     }
