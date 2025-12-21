@@ -14,6 +14,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.jetbrains.compose.resources.ExperimentalResourceApi
+import puppetmaster.composeapp.generated.resources.Res
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -65,32 +67,134 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     private var operatingMode: OperatingMode = OperatingMode.OFFLINE
 
     init {
-        scope.launch {
-            reloadLastTroupe()
-        }
+        reloadLastTroupe()
     }
 
     /**
      * Reloads the last used troupe from settings.
      */
     actual fun reloadLastTroupe() {
-        val settings = settingsRepository.loadSettings()
-        val troupeFile = settings.lastTroupeFile?.let { File(it) }
+        scope.launch {
+            val settings = settingsRepository.loadSettings()
+            val troupeFile = settings.lastTroupeFile?.let { File(it) }
 
-        val localTroupe = if (troupeFile?.exists() == true) {
-            loadTroupeFromFile(troupeFile.absolutePath)
-        } else {
-            val mostRecentTroupe = File(System.getProperty("user.dir")).listFiles { _, name -> name.endsWith(".troupe") }?.maxByOrNull { it.lastModified() }
-            if (mostRecentTroupe != null) {
-                loadTroupeFromFile(mostRecentTroupe.absolutePath)
+            val localTroupe = if (troupeFile?.exists() == true) {
+                loadTroupeFromFile(troupeFile.absolutePath)
             } else {
-                null
+                val mostRecentTroupe = File(System.getProperty("user.dir")).listFiles { _, name -> name.endsWith(".troupe") }?.maxByOrNull { it.lastModified() }
+                if (mostRecentTroupe != null) {
+                    loadTroupeFromFile(mostRecentTroupe.absolutePath)
+                } else {
+                    createDefaultTroupe()
+                }
+            }
+
+            if (localTroupe != null) {
+                _troupe.value = localTroupe
+                _activePuppet.value = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
+                saveTroupe(localTroupe)
             }
         }
+    }
 
-        if (localTroupe != null) {
-            _troupe.value = localTroupe
-            _activePuppet.value = localTroupe.puppets.find { it.name == localTroupe.activePuppetName }
+    private suspend fun createDefaultTroupe(): PuppetTroupe {
+        extractDefaultImages()
+
+        val leftEye = Eye(
+            openState = "iris.png",
+            closedState = "blink.png",
+            pupil = "pupil.png",
+            position = SerializableOffset(x = 200.99791f, y = 314.03503f),
+            scaleX = 0.31122905f,
+            scaleY = 0.22924685f,
+            maxPupilRadiusX = 49.283577f,
+            maxPupilRadiusY = 60.261063f
+        )
+
+        val rightEye = Eye(
+            openState = "iris.png",
+            closedState = "blink.png",
+            pupil = "pupil.png",
+            position = SerializableOffset(x = 279.34973f, y = 313.36972f),
+            scaleX = 0.28802267f,
+            scaleY = 0.19401929f,
+            maxPupilRadiusX = 46.954967f,
+            maxPupilRadiusY = 55.603954f
+        )
+
+        val eyeState = EyeState(
+            stateName = "idle",
+            eyes = EyePair(
+                left = leftEye,
+                right = rightEye,
+                followCursor = true,
+                focusOnGame = false,
+                gameScreenLocation = SerializableOffset(0.5f, 0.5f),
+                checkOnAudience = true,
+                audienceCheckRate = 8000L,
+                audienceCheckDuration = 1500L
+            )
+        )
+
+        val idleState = PuppetStateInfo(
+            name = "idle",
+            imageName = "icon_rough_closed.png",
+            eyeState = eyeState
+        )
+
+        val talkState = PuppetStateInfo(
+            name = "talking",
+            imageName = "icon_rough.png",
+            eyeState = eyeState
+        )
+
+        val yellState = PuppetStateInfo(
+            name = "Yell",
+            imageName = "icon_rough.png",
+            eyeState = eyeState,
+            appliedEffect = SpecialEffect(
+                name = "Scream",
+                vibrationSpeed = 1f,
+                vibrationDistance = 1f,
+            )
+        )
+
+        val defaultPuppet = PuppetCharacter(
+            name = "Skulli",
+            lastUpdated = System.currentTimeMillis(),
+            states = listOf(idleState, talkState, yellState),
+            thresholds = mapOf(0.1f to talkState, 0.175f to yellState)
+        )
+
+        return PuppetTroupe(
+            name = "Menagerie",
+            activePuppetName = "Skulli",
+            puppets = listOf(defaultPuppet),
+            specialEffectsManager = SpecialEffectsManager()
+        )
+    }
+
+    @OptIn(ExperimentalResourceApi::class)
+    private suspend fun extractDefaultImages() {
+        val defaultImages = listOf(
+            "icon_rough.png",
+            "icon_rough_closed.png",
+            "blink.png",
+            "iris.png",
+            "pupil.png"
+        )
+
+        defaultImages.forEach { imageName ->
+            val imageFile = File(uploadsDir, imageName)
+            if (!imageFile.exists()) {
+                try {
+                    val resourcePath = "drawable/$imageName"
+                    val bytes = Res.readBytes(resourcePath)
+                    imageFile.writeBytes(bytes)
+                } catch (e: Exception) {
+                    println("Error extracting default image $imageName: ${e.message}")
+                }
+            }
         }
     }
 
@@ -534,7 +638,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             saveTroupe(newTroupe)
         }
     }
-    
+
     /**
      * Saves an image to the uploads directory.
      * If in online mode, it also uploads the image to the server.
