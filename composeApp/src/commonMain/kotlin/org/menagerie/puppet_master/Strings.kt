@@ -177,6 +177,9 @@ object Strings {
         const val APPLIED_EFFECT = "APPLIED_EFFECT"
         const val STATE_HOTKEY = "STATE_HOTKEY"
         //endregion
+
+        //region State Graph
+        const val STATE_GRAPH_BUTTON = "STATE_GRAPH"
     }
 
     enum class Language {
@@ -340,6 +343,7 @@ object Strings {
             Keys.APPLIED_EFFECT to "Applied Effect: %1\$s",
             Keys.STATE_HOTKEY to "State Hotkey",
             Keys.LANGUAGE to "Language",
+            Keys.STATE_GRAPH_BUTTON to "Puppeteering"
         )
     }
 
@@ -471,6 +475,7 @@ object Strings {
             Keys.APPLIED_EFFECT to "Effet appliqué: %1\$s",
             Keys.STATE_HOTKEY to "Raccourci d'état",
             Keys.LANGUAGE to "Langue",
+            Keys.STATE_GRAPH_BUTTON to "TRANSLATION DATA ERROR"
         )
     }
 
@@ -602,6 +607,7 @@ object Strings {
             Keys.APPLIED_EFFECT to "Applied Effect: %1\$s",
             Keys.STATE_HOTKEY to "State Hotkey",
             Keys.LANGUAGE to "Tongue",
+            Keys.STATE_GRAPH_BUTTON to "Make 'em Dance"
         )
     }
 }

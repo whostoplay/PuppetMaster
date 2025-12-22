@@ -24,7 +24,6 @@ import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
@@ -32,7 +31,6 @@ import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.Constants.UI.CONTROLS_VISIBILITY_DELAY_MS
 import org.menagerie.puppet_master.Constants.UI.DEFAULT_PANEL_WIDTH_FRACTION
 import org.menagerie.puppet_master.Constants.UI.FileDialogs
-import org.menagerie.puppet_master.Strings.Keys
 import org.menagerie.puppet_master.Strings.Keys.GETTING_STARTED
 import org.menagerie.puppet_master.Strings.Keys.LOAD_STATE_IMAGE
 import org.menagerie.puppet_master.controls.FilePicker
@@ -68,6 +66,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val activeState by viewModel.activeState.collectAsState()
     val isBlinking by viewModel.isBlinking.collectAsState()
     val animationState by viewModel.animationState.collectAsState()
+    val idleImage by viewModel.idleImage.collectAsState()
     val focusRequester = remember { FocusRequester() }
 
     var showPermissionRequest by remember { mutableStateOf(false) }
@@ -88,8 +87,6 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val isHoveringOnControls = isHoveringOn.values.any { it }
     val controlsVisible = (showControls || controlsLocked) && !controlsHiddenByKey
     val controlsAlpha by animateFloatAsState(if (controlsVisible) 1f else 0f)
-
-    var idleImageData by remember { mutableStateOf<ByteArray?>(null) }
 
     var showPuppetImportPicker by remember { mutableStateOf(false) }
     var showTroupeLoadPicker by remember { mutableStateOf(false) }
@@ -121,17 +118,6 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
         }
         showPuppetExportSaver = false
     }
-
-    LaunchedEffect(activePuppet) {
-        val idleState =
-            activePuppet?.states?.find { it.name == Constants.Puppet.IDLE_STATE_NAME } ?: activePuppet?.states?.firstOrNull()
-        if (idleState != null) {
-            idleImageData = viewModel.getImageData(idleState.imageName)
-        } else {
-            idleImageData = null
-        }
-    }
-    val idleImage = idleImageData?.toImageBitmap()
 
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
@@ -191,7 +177,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                     window = window,
                     isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
                     displayedImageName = displayedImageName,
-                    idleImage = idleImage,
+                    idleImage = idleImage!!,
                     onFocusPointUpdate = { offset ->
                         viewModel.onNormalizedMousePositionChanged(offset)
                     }
@@ -232,6 +218,3 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
         }
     }
 }
-
-@Composable
-expect fun ByteArray.toImageBitmap(): ImageBitmap

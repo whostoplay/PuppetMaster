@@ -33,6 +33,64 @@ import org.menagerie.puppet_master.PuppetStateInfo
 import kotlin.math.pow
 
 /**
+ * A composable that displays a horizontal volume level indicator, with a single draggable threshold.
+ *
+ * @param level The current volume level (a value between 0.0 and 1.0).
+ * @param threshold The current threshold value (a value between 0.0 and 1.0).
+ * @param onThresholdChange A callback that is invoked when the threshold is moved.
+ * @param modifier The modifier to be applied to the indicator.
+ * @param color The color of the indicator.
+ * @param sensitivity The sensitivity of the indicator. Higher values will make the indicator more responsive to lower volume levels.
+ */
+@Composable
+fun VolumeIndicator(
+    level: Float,
+    threshold: Float,
+    onThresholdChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = Color.Green,
+    sensitivity: Float = 1.0f
+) {
+    val boostedLevel = (level.pow(0.5f) * sensitivity).coerceIn(0f, 1f)
+
+    BoxWithConstraints(
+        modifier = modifier.border(width = 1.dp, color = Color.Gray)
+    ) {
+        Box(
+            modifier = Modifier.graphicsLayer { clip = true }
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .fillMaxHeight()
+                    .fillMaxWidth(boostedLevel)
+                    .background(color)
+            )
+        }
+
+        var dragPosition by remember(threshold) { mutableStateOf(threshold) }
+
+        val xOffsetDp = dragPosition * maxWidth
+        Box(
+            modifier = Modifier
+                .width(20.dp)
+                .fillMaxHeight()
+                .align(Alignment.TopStart)
+                .offset(x = xOffsetDp - 10.dp)
+                .draggable(
+                    orientation = androidx.compose.foundation.gestures.Orientation.Horizontal,
+                    state = rememberDraggableState { delta ->
+                        dragPosition = (dragPosition + delta / this@BoxWithConstraints.constraints.maxWidth).coerceIn(0f, 1f)
+                    },
+                    onDragStopped = { onThresholdChange(dragPosition) }
+                )
+        ) {
+            Box(modifier = Modifier.align(Alignment.Center).width(1.dp).fillMaxHeight().background(Color.Red))
+        }
+    }
+}
+
+/**
  * A composable that displays a horizontal volume level indicator, with draggable thresholds.
  *
  * @param level The current volume level (a value between 0.0 and 1.0).

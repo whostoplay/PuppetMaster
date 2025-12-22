@@ -36,6 +36,7 @@ import org.menagerie.puppet_master.Constants.UI.LandscapeLayout
 import org.menagerie.puppet_master.Strings.Keys.CREATE_OR_SELECT_PUPPET
 import org.menagerie.puppet_master.Strings.Keys.EYE_CONTACT_BUTTON
 import org.menagerie.puppet_master.Strings.Keys.SETTINGS_BUTTON
+import org.menagerie.puppet_master.Strings.Keys.STATE_GRAPH_BUTTON
 import org.menagerie.puppet_master.Strings.Keys.STATES_TITLE
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.DraggableSplitter
@@ -45,6 +46,7 @@ import org.menagerie.puppet_master.controls.ServerControls
 import org.menagerie.puppet_master.controls.SpecialEffectsUI
 import org.menagerie.puppet_master.controls.VolumeIndicator
 import org.menagerie.puppet_master.navigation.EyeContactScreen
+import org.menagerie.puppet_master.navigation.NodeEditorScreen
 import org.menagerie.puppet_master.navigation.SettingsScreen
 import org.menagerie.puppet_master.states.StateCreation
 import org.menagerie.puppet_master.states.StateEditor
@@ -147,6 +149,13 @@ fun LandscapeLayout(
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
                     Text(Strings.getString(EYE_CONTACT_BUTTON))
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Button(
+                    onClick = { navigator.push(NodeEditorScreen(viewModel)) },
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                ) {
+                    Text(Strings.getString(STATE_GRAPH_BUTTON))
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Button(

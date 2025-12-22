@@ -34,13 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.decodeToImageBitmap
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.ImagePickerDialog
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.Strings
-import org.menagerie.puppet_master.toImageBitmap
 
 /**
  * A composable that provides a UI for creating and editing puppet states.
@@ -129,7 +129,7 @@ fun StateCreation(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(Strings.getString(Strings.Keys.MAIN_IMAGE))
                     Image(
-                        bitmap = it.toImageBitmap(),
+                        bitmap = it.decodeToImageBitmap(),
                         contentDescription = Strings.getString(Strings.Keys.SELECTED_IMAGE),
                         modifier = Modifier
                             .size(100.dp)
@@ -155,7 +155,7 @@ fun StateCreation(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(Strings.getString(Strings.Keys.BLINK_IMAGE))
                     Image(
-                        bitmap = it.toImageBitmap(),
+                        bitmap = it.decodeToImageBitmap(),
                         contentDescription = Strings.getString(Strings.Keys.SELECTED_BLINK_IMAGE),
                         modifier = Modifier
                             .size(100.dp)

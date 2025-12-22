@@ -1,21 +1,30 @@
 package org.menagerie.puppet_master
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.key.KeyEvent
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
-import io.ktor.client.*
+import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
-import io.ktor.client.plugins.contentnegotiation.*
-import io.ktor.client.plugins.websocket.*
-import io.ktor.http.*
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.sendSerialized
+import io.ktor.client.plugins.websocket.webSocketSession
+import io.ktor.http.HttpMethod
 import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.websocket.*
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 enum class OperatingMode {
@@ -98,6 +107,13 @@ class MainViewModel(context: Any) : ScreenModel {
 
     val troupe: StateFlow<PuppetTroupe?> = dataManager.troupe
     val activePuppet: StateFlow<PuppetCharacter?> = dataManager.activePuppet
+    val puppetStates: StateFlow<List<PuppetStateInfo>> = dataManager.activePuppet
+        .map { it?.states ?: emptyList() }
+        .stateIn(screenModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _idleImage = MutableStateFlow<ImageBitmap?>(null)
+    val idleImage: StateFlow<ImageBitmap?> = _idleImage.asStateFlow()
+
     val isListening: StateFlow<Boolean> = stateController.isListening
     val audioLevel: StateFlow<Float> = stateController.audioLevel
     val isBlinking: StateFlow<Boolean> = stateController.isBlinking
@@ -155,6 +171,18 @@ class MainViewModel(context: Any) : ScreenModel {
                 _thresholds.value = puppet?.thresholds ?: emptyMap()
                 _selectedState.value?.let { selected ->
                     _selectedState.value = puppet?.states?.find { it.name == selected.name }
+                }
+                val idleState =
+                    puppet?.states?.find { it.name == Constants.Puppet.IDLE_STATE_NAME } ?: puppet?.states?.firstOrNull()
+                if (idleState != null) {
+                    val imageData = getImageData(idleState.imageName)
+                    if (imageData != null) {
+                        _idleImage.value = decodeToImageBitmap(imageData)
+                    } else {
+                        _idleImage.value = null
+                    }
+                } else {
+                    _idleImage.value = null
                 }
             }
         }
