@@ -1,13 +1,18 @@
 package org.menagerie.puppet_master.state_machine
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 
 // A unique identifier for a node
 typealias NodeId = String
 
+sealed interface Handle {
+    val id: String
+}
+
 // Represents a connection point on a node
-data class InputHandle(val id: String)
-data class OutputHandle(val id: String)
+data class InputHandle(override val id: String) : Handle
+data class OutputHandle(override val id: String) : Handle
 
 /**
  * The result of a node's execution.
@@ -25,6 +30,7 @@ sealed interface Node {
     val position: Offset // For the UI
     val inputs: List<InputHandle>
     val outputs: List<OutputHandle>
+    val size: Size
 
     /**
      * Creates a copy of this node with a new ID and position.

@@ -1,7 +1,6 @@
 package org.menagerie.puppet_master.navigation
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -24,9 +23,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
@@ -37,7 +37,6 @@ import org.menagerie.puppet_master.Strings
 import org.menagerie.puppet_master.state_machine.editor.NodeCanvas
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 import org.menagerie.puppet_master.state_machine.editor.NodePalette
-import kotlin.math.round
 
 data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
 
@@ -46,9 +45,8 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val editorViewModel: NodeEditorViewModel = rememberScreenModel { NodeEditorViewModel(mainViewModel) }
-        val draggedNode by editorViewModel.draggedNode.collectAsState()
         val wireDragInfo by editorViewModel.wireDragInfo.collectAsState()
-        val graph by editorViewModel.nodeGraph.collectAsState()
+        val handlePositions by editorViewModel.handlePositions.collectAsState()
 
         Scaffold(
             topBar = {
@@ -69,37 +67,29 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                 )
 
                 var pointerPosition by remember { mutableStateOf(Offset.Zero) }
+                var boxCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 val gridSize = 40f
 
                 Box(
-                    modifier = Modifier.weight(1f).pointerInput(Unit) {
-                        detectTapGestures(
-                            onPress = { offset ->
-                                pointerPosition = offset
-                                val released = try {
-                                    tryAwaitRelease()
-                                } catch (e: Exception) {
-                                    false
-                                }
+                    modifier = Modifier
+                        .weight(1f)
+                        .onGloballyPositioned { boxCoordinates = it }
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.first()
+                                    pointerPosition = change.position
 
-                                if (released) {
-                                    draggedNode?.let {
-                                        val snappedX = (round(pointerPosition.x / gridSize) * gridSize)
-                                        val snappedY = (round(pointerPosition.y / gridSize) * gridSize)
-                                        editorViewModel.addNode(it, Offset(snappedX, snappedY))
-                                        editorViewModel.onNodeDragEnd()
+                                    val wasDraggingWire = wireDragInfo != null
+                                    val isPointerUp = event.changes.any { !it.pressed }
+
+                                    if (wasDraggingWire && isPointerUp) {
+                                        editorViewModel.onWireDragEnd()
                                     }
                                 }
                             }
-                        )
-                    }.pointerInput(Unit) {
-                        awaitPointerEventScope {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                pointerPosition = event.changes.first().position
-                            }
                         }
-                    }
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         // Draw Grid
@@ -120,30 +110,19 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                             )
                         }
 
-                        // Draw Ghost Node for node creation
-                        draggedNode?.let {
-                            val snappedX = (round(pointerPosition.x / gridSize) * gridSize)
-                            val snappedY = (round(pointerPosition.y / gridSize) * gridSize)
-                            drawRect(
-                                color = Color.White.copy(alpha = 0.5f),
-                                topLeft = Offset(snappedX, snappedY),
-                                size = Size(150f, 100f) // A default size for the ghost
-                            )
-                        }
-
                         // Draw Ghost Wire for wire creation
                         wireDragInfo?.let { dragInfo ->
-                            val fromNode = graph.nodes[dragInfo.fromNodeId]
-                            if (fromNode != null) {
-                                // This is a simplification. A real implementation would need to calculate
-                                // the exact handle position. For now, let's draw from the node's center.
-                                val nodeCenter = fromNode.position + Offset(75f, 50f)
-                                drawLine(
-                                    color = Color.Yellow,
-                                    start = nodeCenter,
-                                    end = pointerPosition,
-                                    strokeWidth = 3f
-                                )
+                            val startPosAbsolute = handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
+                            if (startPosAbsolute != null) {
+                                boxCoordinates?.let {
+                                    val startPosLocal = startPosAbsolute - it.localToRoot(Offset.Zero)
+                                    drawLine(
+                                        color = Color.Yellow,
+                                        start = startPosLocal,
+                                        end = pointerPosition,
+                                        strokeWidth = 3f
+                                    )
+                                }
                             }
                         }
                     }

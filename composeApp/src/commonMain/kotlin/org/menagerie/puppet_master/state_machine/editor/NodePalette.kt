@@ -1,7 +1,8 @@
 package org.menagerie.puppet_master.state_machine.editor
 
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -49,6 +50,7 @@ fun NodePalette(modifier: Modifier = Modifier, editorViewModel: NodeEditorViewMo
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun PaletteItem(node: Node, editorViewModel: NodeEditorViewModel) {
     Box(
@@ -56,10 +58,10 @@ private fun PaletteItem(node: Node, editorViewModel: NodeEditorViewModel) {
             .fillMaxWidth()
             .padding(4.dp)
             .pointerInput(node) { // Use node as the key to ensure the correct one is dragged
-                detectDragGestures(
-                    onDragStart = { editorViewModel.onNodeDragStart(node) },
-                    onDragEnd = { editorViewModel.onNodeDragEnd() },
-                    onDrag = { _, _ ->  /* Consume drag events */ }
+                detectTapGestures(
+                    onDoubleTap = {
+                        editorViewModel.addNode(node)
+                    }
                 )
             }
     ) {

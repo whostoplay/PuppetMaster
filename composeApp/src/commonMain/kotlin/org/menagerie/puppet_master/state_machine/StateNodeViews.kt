@@ -19,6 +19,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.AnimationState
@@ -36,49 +39,65 @@ fun SetStateNodeView(
     editorViewModel: NodeEditorViewModel,
     uploadsDir: String
 ) {
-    Box {
-        Card(modifier = Modifier.padding(8.dp)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                if (isStartNode) {
-                    Text("Start: ${node.stateName}", fontWeight = FontWeight.Bold)
-                } else {
-                    Text("Set State: ${node.stateName}", fontWeight = FontWeight.Bold)
-                }
-                Box(modifier = Modifier.width(150.dp).height(150.dp)) {
-                    LivePreview(
-                        operatingMode = OperatingMode.OFFLINE,
-                        puppetState = puppetState,
-                        isBlinking = false,
-                        uploadsDir = uploadsDir,
-                        backgroundColor = Color.Transparent,
-                        serverIp = "",
-                        animationState = AnimationState(),
-                        isAudienceCheckForced = false,
-                        window = null,
-                        displayedImageName = puppetState?.imageName,
-                        idleImage = idleImage,
-                        onFocusPointUpdate = {}
-                    )
-                }
-            }
-        }
+    val density = LocalDensity.current
+    val widthInDp = with(density) { node.size.width.toDp() }
+    val heightInDp = with(density) { node.size.height.toDp() }
 
-        // Input Handles
-        if (!isStartNode) {
-            Row(modifier = Modifier.align(Alignment.CenterStart).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                    node.inputs.forEach { handle ->
-                        HandleView(node.id, handle.id, editorViewModel)
+    Box(modifier = Modifier.width(widthInDp).height(heightInDp)) {
+        Card(modifier = Modifier.padding(8.dp)) {
+            Row {
+                // Input Handles
+                if (!isStartNode) {
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier,
+                            verticalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            node.inputs.forEach { handle ->
+                                HandleView(node.id, handle.id, editorViewModel)
+                            }
+                        }
                     }
                 }
-            }
-        }
-
-        // Output Handles
-        Row(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                node.outputs.forEach { handle ->
-                    HandleView(node.id, handle.id, editorViewModel)
+                Column(modifier = Modifier.padding(16.dp)) {
+                    if (isStartNode) {
+                        Text("Start: ${node.stateName}", fontWeight = FontWeight.Bold)
+                    } else {
+                        Text("Set State: ${node.stateName}", fontWeight = FontWeight.Bold)
+                    }
+                    Box(modifier = Modifier.width(150.dp).height(150.dp)) {
+                        LivePreview(
+                            operatingMode = OperatingMode.OFFLINE,
+                            puppetState = puppetState,
+                            isBlinking = false,
+                            uploadsDir = uploadsDir,
+                            backgroundColor = Color.Transparent,
+                            serverIp = "",
+                            animationState = AnimationState(),
+                            isAudienceCheckForced = false,
+                            window = null,
+                            displayedImageName = puppetState?.imageName,
+                            idleImage = idleImage,
+                            onFocusPointUpdate = {}
+                        )
+                    }
+                }
+                // Output Handles
+                Row(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(
+                        modifier = Modifier,
+                        verticalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        node.outputs.forEach { handle ->
+                            HandleView(node.id, handle.id, editorViewModel)
+                        }
+                    }
                 }
             }
         }
@@ -87,13 +106,21 @@ fun SetStateNodeView(
 
 @Composable
 private fun HandleView(nodeId: String, handleId: String, editorViewModel: NodeEditorViewModel) {
-    Canvas(modifier = Modifier.size(20.dp).pointerInput(Unit) {
-        detectDragGestures(
-            onDragStart = { editorViewModel.onWireDragStart(nodeId, handleId) },
-            onDragEnd = { editorViewModel.onWireDragEnd() },
-            onDrag = { change, _ -> change.consume() }
-        )
-    }) { // Increased size for easier tapping
+    Canvas(modifier = Modifier
+        .size(20.dp)
+        .onGloballyPositioned { coordinates ->
+            editorViewModel.updateHandlePosition(nodeId, handleId, coordinates.boundsInRoot().center)
+        }
+        .pointerInput(nodeId, handleId) {
+            detectDragGestures(
+                onDragStart = { offset -> editorViewModel.onWireDragStart(nodeId, handleId) },
+                onDragEnd = { editorViewModel.onWireDragEnd() },
+                onDrag = { change, dragAmount ->
+                    change.consume()
+                    editorViewModel.onWireDrag(dragAmount)
+                }
+            )
+        }) { // Increased size for easier tapping
         drawCircle(
             color = Color.White,
             radius = size.minDimension / 2 - 2, // 2px padding

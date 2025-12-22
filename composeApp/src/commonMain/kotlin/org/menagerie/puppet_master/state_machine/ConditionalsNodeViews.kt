@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,6 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.controls.VolumeIndicator
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
@@ -33,9 +37,12 @@ fun VolumeThresholdNodeView(
     editorViewModel: NodeEditorViewModel
 ) {
     var currentLevel by remember { mutableStateOf(0f) } // This would be fed by a real audio stream
+    val density = LocalDensity.current
+    val widthInDp = with(density) { node.size.width.toDp() }
+    val heightInDp = with(density) { node.size.height.toDp() }
 
-    Box {
-        Card(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
+    Box(modifier = Modifier.width(widthInDp).height(heightInDp)) {
+        Card(modifier = Modifier.padding(8.dp)) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("Volume Threshold")
                 VolumeIndicator(
@@ -69,13 +76,17 @@ fun VolumeThresholdNodeView(
 
 @Composable
 private fun HandleView(nodeId: String, handleId: String, editorViewModel: NodeEditorViewModel) {
-    Canvas(modifier = Modifier.size(20.dp).pointerInput(Unit) {
-        detectDragGestures(
-            onDragStart = { editorViewModel.onWireDragStart(nodeId, handleId) },
-            onDragEnd = { editorViewModel.onWireDragEnd() },
-            onDrag = { change, _ -> change.consume() }
-        )
-    }) { // Increased size for easier tapping
+    Canvas(modifier = Modifier
+        .size(20.dp)
+        .onGloballyPositioned { coordinates ->
+            editorViewModel.updateHandlePosition(nodeId, handleId, coordinates.boundsInRoot().center)
+        }
+        .pointerInput(Unit) {
+            detectDragGestures(
+                onDragStart = { editorViewModel.onWireDragStart(nodeId, handleId) },
+                onDrag = { change, _ -> change.consume() }
+            )
+        }) { // Increased size for easier tapping
         drawCircle(
             color = Color.White,
             radius = size.minDimension / 2 - 2, // 2px padding

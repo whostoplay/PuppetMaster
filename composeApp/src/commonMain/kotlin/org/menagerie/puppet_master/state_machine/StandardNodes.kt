@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.state_machine
 
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 
 /**
  * A node that sets the puppet's state.
@@ -8,7 +9,8 @@ import androidx.compose.ui.geometry.Offset
 data class SetStateNode(
     override val id: NodeId,
     override val position: Offset,
-    val stateName: String // e.g., "IDLE", "TALK"
+    val stateName: String, // e.g., "IDLE", "TALK"
+    override val size: Size = Size(200f, 220f)
 ) : StateNode {
     override fun copyNode(id: NodeId, position: Offset): Node = this.copy(id = id, position = position)
 
