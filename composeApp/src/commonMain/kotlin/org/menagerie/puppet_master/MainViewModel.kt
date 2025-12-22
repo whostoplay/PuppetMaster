@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import org.menagerie.puppet_master.state_machine.NodeGraph
 
 enum class OperatingMode {
     ONLINE, OFFLINE
@@ -667,5 +668,9 @@ class MainViewModel(context: Any) : ScreenModel {
 
     fun onNormalizedMousePositionChanged(position: SerializableOffset?) {
         _normalizedMousePosition.value = position
+    }
+
+    fun updateNodeGraph(nodeGraph: NodeGraph) {
+        dataManager.updateNodeGraph(nodeGraph)
     }
 }

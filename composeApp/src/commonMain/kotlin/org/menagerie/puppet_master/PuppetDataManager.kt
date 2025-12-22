@@ -2,6 +2,7 @@ package org.menagerie.puppet_master
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.StateFlow
+import org.menagerie.puppet_master.state_machine.NodeGraph
 
 /**
  * Defines a common API for managing all puppet and troupe-related data in a multiplatform context.
@@ -168,4 +169,11 @@ expect class PuppetDataManager(scope: CoroutineScope, context: Any) {
      * Reloads the last used troupe from persistent storage, typically on application startup.
      */
     fun reloadLastTroupe()
+
+    /**
+     * Updates the node graph for the current troupe.
+     *
+     * @param nodeGraph The new node graph.
+     */
+    fun updateNodeGraph(nodeGraph: NodeGraph)
 }

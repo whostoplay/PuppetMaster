@@ -7,11 +7,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.menagerie.puppet_master.MainViewModel
+import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.state_machine.Handle
 import org.menagerie.puppet_master.state_machine.Node
 import org.menagerie.puppet_master.state_machine.NodeGraph
-import org.menagerie.puppet_master.state_machine.SetStateNode
 import org.menagerie.puppet_master.state_machine.Wire
+import org.menagerie.puppet_master.toOffset
+import org.menagerie.puppet_master.toSerializableOffset
+import org.menagerie.puppet_master.toSize
 import java.util.UUID
 
 data class WireDragInfo(val fromNodeId: String, val fromHandleId: String)
@@ -21,21 +24,8 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
     private var lastInteractedNodeId: String? = null
 
-    private fun createInitialGraph(): NodeGraph {
-        val startNode = SetStateNode(
-            id = "start",
-            position = Offset(50f, 50f),
-            stateName = "idle" // Default to idle, can be changed by the user
-        )
-        lastInteractedNodeId = startNode.id
-        return NodeGraph(
-            nodes = mapOf(startNode.id to startNode),
-            startNodeId = startNode.id
-        )
-    }
-
     // Graph State
-    private val _nodeGraph = MutableStateFlow(createInitialGraph())
+    private val _nodeGraph = MutableStateFlow(mainViewModel.troupe.value?.nodeGraph ?: NodeGraph.createInitialGraph())
     val nodeGraph: StateFlow<NodeGraph> = _nodeGraph.asStateFlow()
 
     // Wire Drag and Drop State
@@ -78,6 +68,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
                 addWire(currentDragInfo.fromNodeId, currentDragInfo.fromHandleId, targetNode.id, handle.id)
             }
         }
+        mainViewModel.updateNodeGraph(nodeGraph.value)
     }
 
     private fun findHandleAt(position: Offset): Pair<Node, Handle>? {
@@ -101,14 +92,14 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         lastInteractedNodeId = nodeId
     }
 
-    fun onNodeDrag(dragAmount: Offset) {
+    fun onNodeDrag(dragAmount: SerializableOffset) {
         _draggedNodeInfo.value?.let { dragInfo ->
             val nodes = _nodeGraph.value.nodes
             val draggedNode = nodes[dragInfo.nodeId]
             if (draggedNode != null) {
-                val newPosition = draggedNode.position + dragAmount
+                val newPosition = draggedNode.position.toOffset() + dragAmount.toOffset()
                 val newNodes = nodes.toMutableMap()
-                newNodes[dragInfo.nodeId] = draggedNode.copyNode(draggedNode.id, newPosition)
+                newNodes[dragInfo.nodeId] = draggedNode.copyNode(draggedNode.id, newPosition.toSerializableOffset())
                 _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes)
             }
         }
@@ -116,19 +107,20 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
     fun onNodeDragEnd() {
         _draggedNodeInfo.value = null
+        mainViewModel.updateNodeGraph(nodeGraph.value)
     }
 
     fun addNode(templateNode: Node) {
-        val spawnOffset = templateNode.size.width + 50f
-        val basePosition = _nodeGraph.value.nodes[lastInteractedNodeId]?.position ?: Offset(50f, 50f)
+        val spawnOffset = templateNode.size.toSize().width + 50f
+        val basePosition = _nodeGraph.value.nodes[lastInteractedNodeId]?.position?.toOffset() ?: Offset(50f, 50f)
         var targetPosition = basePosition.copy(x = basePosition.x + spawnOffset)
         var verticalOffset = 0f
         var offsetMultiplier = 1
 
-        while (isOccupied(Rect(targetPosition, templateNode.size))) {
-            verticalOffset = (templateNode.size.height + 20f) * offsetMultiplier
+        while (isOccupied(Rect(targetPosition, templateNode.size.toSize()))) {
+            verticalOffset = (templateNode.size.toSize().height + 20f) * offsetMultiplier
             targetPosition = targetPosition.copy(y = basePosition.y + verticalOffset)
-            if (isOccupied(Rect(targetPosition, templateNode.size))) {
+            if (isOccupied(Rect(targetPosition, templateNode.size.toSize()))) {
                 targetPosition = targetPosition.copy(y = basePosition.y - verticalOffset)
             }
             offsetMultiplier++
@@ -136,7 +128,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
         val newNode = templateNode.copyNode(
             id = UUID.randomUUID().toString(),
-            position = targetPosition
+            position = targetPosition.toSerializableOffset()
         )
 
         val newNodes = _nodeGraph.value.nodes.toMutableMap()
@@ -147,7 +139,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
     private fun isOccupied(newRect: Rect): Boolean {
         return _nodeGraph.value.nodes.values.any { node ->
-            val otherRect = Rect(node.position, node.size)
+            val otherRect = Rect(node.position.toOffset(), node.size.toSize())
             newRect.overlaps(otherRect)
         }
     }
@@ -192,6 +184,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
     fun deleteWire(wire: Wire) {
         _nodeGraph.value = _nodeGraph.value.copy(wires = _nodeGraph.value.wires - wire)
+        mainViewModel.updateNodeGraph(nodeGraph.value)
     }
 
     fun deleteNode(nodeId: String) {
@@ -204,6 +197,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         val newWires = _nodeGraph.value.wires.filterNot { it.fromNodeId == nodeId || it.toNodeId == nodeId }
 
         _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes, wires = newWires)
+        mainViewModel.updateNodeGraph(nodeGraph.value)
     }
 
     fun updateNode(node: Node) {
@@ -212,6 +206,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             newNodes[node.id] = node
             _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes)
             lastInteractedNodeId = node.id
+            mainViewModel.updateNodeGraph(nodeGraph.value)
         }
     }
 

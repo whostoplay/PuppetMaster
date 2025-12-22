@@ -1,17 +1,32 @@
 package org.menagerie.puppet_master.state_machine
 
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.polymorphic
+import kotlinx.serialization.modules.subclass
+import org.menagerie.puppet_master.SerializableOffset
+import org.menagerie.puppet_master.SerializableSize
 
 // A unique identifier for a node
 typealias NodeId = String
 
+val nodeSerializersModule = SerializersModule {
+    polymorphic(Node::class) {
+        subclass(SetStateNode::class)
+        subclass(VolumeThresholdNode::class)
+        subclass(HotKeyNode::class)
+    }
+}
+
+@Serializable
 sealed interface Handle {
     val id: String
 }
 
 // Represents a connection point on a node
+@Serializable
 data class InputHandle(override val id: String) : Handle
+@Serializable
 data class OutputHandle(override val id: String) : Handle
 
 /**
@@ -25,18 +40,19 @@ data class ExecuteResult(val nextNodeId: NodeId?, val action: GraphAction? = nul
  * The base for all nodes in the graph. Using a sealed interface ensures
  * all nodes must belong to one of the defined sub-types.
  */
+@Serializable
 sealed interface Node {
     val id: NodeId
-    val position: Offset // For the UI
+    val position: SerializableOffset // For the UI
     val inputs: List<InputHandle>
     val outputs: List<OutputHandle>
-    val size: Size
+    val size: SerializableSize
 
     /**
      * Creates a copy of this node with a new ID and position.
      * This allows for a generic way to instantiate nodes from a template.
      */
-    fun copyNode(id: NodeId, position: Offset): Node
+    fun copyNode(id: NodeId, position: SerializableOffset): Node
 
     /**
      * Executes the node's specific logic.
@@ -56,6 +72,7 @@ sealed interface Node {
  * CONDITIONAL Nodes: Check against a condition and branch the flow.
  * They typically have one input and multiple output paths (e.g., true/false).
  */
+@Serializable
 sealed interface ConditionalNode : Node {
     override val inputs: List<InputHandle> get() = listOf(InputHandle("in"))
     override val outputs: List<OutputHandle> get() = listOf(OutputHandle("true"), OutputHandle("false"))
@@ -65,6 +82,7 @@ sealed interface ConditionalNode : Node {
  * BEHAVIOURAL Nodes: Trigger a one-off action in a puppet.
  * These are usually a single step in a flow.
  */
+@Serializable
 sealed interface BehaviouralNode : Node {
     override val inputs: List<InputHandle> get() = listOf(InputHandle("in"))
     override val outputs: List<OutputHandle> get() = listOf(OutputHandle("out"))
@@ -73,6 +91,7 @@ sealed interface BehaviouralNode : Node {
 /**
  * STATE Nodes: Represent a puppet being in a specific state or switching to one.
  */
+@Serializable
 sealed interface StateNode : Node {
     override val inputs: List<InputHandle> get() = listOf(InputHandle("in"))
     override val outputs: List<OutputHandle> get() = listOf(OutputHandle("out"))
@@ -81,6 +100,7 @@ sealed interface StateNode : Node {
 /**
  * EFFECT Nodes: Apply a temporary or permanent visual/audio effect.
  */
+@Serializable
 sealed interface EffectNode : Node {
     override val inputs: List<InputHandle> get() = listOf(InputHandle("in"))
     override val outputs: List<OutputHandle> get() = listOf(OutputHandle("out"))
@@ -89,6 +109,7 @@ sealed interface EffectNode : Node {
 /**
  * UTILITY Nodes: For miscellaneous, powerful actions like switching puppets.
  */
+@Serializable
 sealed interface UtilityNode : Node {
     override val inputs: List<InputHandle> get() = listOf(InputHandle("in"))
     override val outputs: List<OutputHandle> get() = listOf(OutputHandle("out"))

@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master
 
 import kotlinx.serialization.Serializable
+import org.menagerie.puppet_master.state_machine.NodeGraph
 
 /**
  * Represents a single puppet character, with its own set of states and audio thresholds.
@@ -33,5 +34,6 @@ data class PuppetTroupe(
     val name: String,
     val activePuppetName: String, 
     val puppets: List<PuppetCharacter>,
-    val specialEffectsManager: SpecialEffectsManager
+    val specialEffectsManager: SpecialEffectsManager,
+    val nodeGraph: NodeGraph = NodeGraph.createInitialGraph()
 )

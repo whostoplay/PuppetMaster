@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.menagerie.puppet_master.state_machine.NodeGraph
+import org.menagerie.puppet_master.state_machine.nodeSerializersModule
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -39,14 +41,14 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
 
     actual val uploadsDir = getUploadsDir(context)
     private val client = HttpClient {
-        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true; isLenient = true; allowStructuredMapKeys = true }) }
+        install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; encodeDefaults = true; isLenient = true; allowStructuredMapKeys = true; serializersModule = nodeSerializersModule }) }
         install(HttpTimeout) {
             connectTimeoutMillis = 15000
             socketTimeoutMillis = 15000
         }
     }
     private val uploader = Uploader(client)
-    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true; allowStructuredMapKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true; encodeDefaults = true; allowStructuredMapKeys = true; serializersModule = nodeSerializersModule }
     private val settingsRepository = SettingsRepository(context)
 
     private val _troupe = MutableStateFlow<PuppetTroupe?>(null)
@@ -616,6 +618,12 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             scope.launch {
                 uploader.upload(data, name, SettingsRepository(context as Context).loadSettings().serverIpAddress)
             }
+        }
+    }
+
+    actual fun updateNodeGraph(nodeGraph: NodeGraph) {
+        _troupe.value?.let {
+            saveTroupe(it.copy(nodeGraph = nodeGraph))
         }
     }
 }

@@ -1,20 +1,22 @@
 package org.menagerie.puppet_master.state_machine
 
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import kotlinx.serialization.Serializable
+import org.menagerie.puppet_master.SerializableOffset
+import org.menagerie.puppet_master.SerializableSize
 
 const val ANY_STATE = "ANY STATE"
 
 /**
  * A node that sets the puppet's state.
  */
+@Serializable
 data class SetStateNode(
     override val id: NodeId,
-    override val position: Offset,
+    override val position: SerializableOffset,
     val stateName: String, // e.g., "IDLE", "TALK"
-    override val size: Size = Size(200f, 220f)
+    override val size: SerializableSize = SerializableSize(300f, 250f)
 ) : StateNode {
-    override fun copyNode(id: NodeId, position: Offset): Node = this.copy(id = id, position = position)
+    override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
         val nextNodeId = findNextNodeId(graph, "out")
@@ -30,6 +32,6 @@ data class SetStateNode(
  */
 fun getAvailableStateNodes(): List<Node> {
     return listOf(
-        SetStateNode(id = "", position = Offset.Zero, stateName = "")
+        SetStateNode(id = "", position = SerializableOffset(0f, 0f), stateName = "")
     )
 }

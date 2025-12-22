@@ -32,6 +32,8 @@ import org.menagerie.puppet_master.state_machine.SetStateNodeView
 import org.menagerie.puppet_master.state_machine.StateNode
 import org.menagerie.puppet_master.state_machine.VolumeThresholdNode
 import org.menagerie.puppet_master.state_machine.VolumeThresholdNodeView
+import org.menagerie.puppet_master.toOffset
+import org.menagerie.puppet_master.toSerializableOffset
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -111,7 +113,8 @@ fun NodeCanvas(
                 Box(
                     modifier = Modifier
                         .offset {
-                            IntOffset(node.position.x.roundToInt(), node.position.y.roundToInt())
+                            val offset = node.position.toOffset()
+                            IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
                         }
                         .pointerInput(node.id) {
                             detectDragGestures(
@@ -119,7 +122,7 @@ fun NodeCanvas(
                                 onDragEnd = { editorViewModel.onNodeDragEnd() },
                                 onDrag = { change, dragAmount ->
                                     change.consume()
-                                    editorViewModel.onNodeDrag(dragAmount)
+                                    editorViewModel.onNodeDrag(dragAmount.toSerializableOffset())
                                 }
                             )
                         }

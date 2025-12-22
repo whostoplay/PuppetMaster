@@ -1,10 +1,12 @@
 package org.menagerie.puppet_master.state_machine
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,13 +29,15 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.controls.VolumeIndicator
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
+import org.menagerie.puppet_master.toSerializableOffset
 
 @Composable
 fun VolumeThresholdNodeView(
-    node: VolumeThresholdNode, 
+    node: VolumeThresholdNode,
     onThresholdChanged: (Float) -> Unit,
     editorViewModel: NodeEditorViewModel
 ) {
@@ -44,31 +48,65 @@ fun VolumeThresholdNodeView(
 
     Box(modifier = Modifier.width(widthInDp).height(heightInDp)) {
         Card(modifier = Modifier.padding(8.dp)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Volume Threshold")
-                VolumeIndicator(
-                    level = currentLevel,
-                    threshold = node.threshold,
-                    onThresholdChange = onThresholdChanged,
-                    modifier = Modifier.height(30.dp).fillMaxWidth()
-                )
-            }
-        }
-
-        // Input Handles
-        Row(modifier = Modifier.align(Alignment.CenterStart).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                node.inputs.forEach { handle ->
-                    HandleView(node.id, handle, editorViewModel)
+            Column {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.DarkGray)
+                        .pointerInput(node.id) {
+                            detectDragGestures(
+                                onDragStart = { editorViewModel.onNodeDragStart(node.id) },
+                                onDragEnd = { editorViewModel.onNodeDragEnd() },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    editorViewModel.onNodeDrag(dragAmount.toSerializableOffset())
+                                }
+                            )
+                        }
+                        .padding(4.dp)
+                ) {
+                    Text("Volume Threshold", fontWeight = FontWeight.Bold)
                 }
-            }
-        }
+                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                    // Input Handles
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxHeight(),
+                            verticalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            node.inputs.forEach { handle ->
+                                HandleView(node.id, handle, editorViewModel)
+                            }
+                        }
+                    }
 
-        // Output Handles
-        Row(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                node.outputs.forEach { handle ->
-                    HandleView(node.id, handle, editorViewModel)
+                    Column(modifier = Modifier.padding(16.dp).weight(1f)) {
+                        VolumeIndicator(
+                            level = currentLevel,
+                            threshold = node.threshold,
+                            onThresholdChange = onThresholdChanged,
+                            modifier = Modifier.height(30.dp).fillMaxWidth()
+                        )
+                    }
+
+                    // Output Handles
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxHeight(),
+                            verticalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            node.outputs.forEach { handle ->
+                                HandleView(node.id, handle, editorViewModel)
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -87,31 +125,65 @@ fun HotKeyNodeView(
 
     Box(modifier = Modifier.width(widthInDp).height(heightInDp)) {
         Card(modifier = Modifier.padding(8.dp)) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Hot Key")
-                TextField(
-                    value = node.hotKey,
-                    onValueChange = onHotKeyChanged,
-                    label = { Text("Hot Key") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        // Input Handles
-        Row(modifier = Modifier.align(Alignment.CenterStart).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                node.inputs.forEach { handle ->
-                    HandleView(node.id, handle, editorViewModel)
+            Column {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.DarkGray)
+                        .pointerInput(node.id) {
+                            detectDragGestures(
+                                onDragStart = { editorViewModel.onNodeDragStart(node.id) },
+                                onDragEnd = { editorViewModel.onNodeDragEnd() },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    editorViewModel.onNodeDrag(dragAmount.toSerializableOffset())
+                                }
+                            )
+                        }
+                        .padding(4.dp)
+                ) {
+                    Text("Hot Key", fontWeight = FontWeight.Bold)
                 }
-            }
-        }
+                Row(modifier = Modifier.height(IntrinsicSize.Min)) {
+                    // Input Handles
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxHeight(),
+                            verticalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            node.inputs.forEach { handle ->
+                                HandleView(node.id, handle, editorViewModel)
+                            }
+                        }
+                    }
 
-        // Output Handles
-        Row(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
-                node.outputs.forEach { handle ->
-                    HandleView(node.id, handle, editorViewModel)
+                    Column(modifier = Modifier.padding(16.dp).weight(1f)) {
+                        TextField(
+                            value = node.hotKey,
+                            onValueChange = onHotKeyChanged,
+                            label = { Text("Hot Key") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+
+                    // Output Handles
+                    Row(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxHeight(),
+                            verticalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            node.outputs.forEach { handle ->
+                                HandleView(node.id, handle, editorViewModel)
+                            }
+                        }
+                    }
                 }
             }
         }
