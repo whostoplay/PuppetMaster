@@ -3,6 +3,8 @@ package org.menagerie.puppet_master.state_machine
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 
+const val ANY_STATE = "ANY STATE"
+
 /**
  * A node that sets the puppet's state.
  */
@@ -16,7 +18,9 @@ data class SetStateNode(
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
         val nextNodeId = findNextNodeId(graph, "out")
-        val action = GraphAction.SetState(stateName)
+        // "ANY STATE" is a special state that doesn't produce an action itself,
+        // but serves as an entry point for global transitions.
+        val action = if (stateName == ANY_STATE) null else GraphAction.SetState(stateName)
         return ExecuteResult(nextNodeId, action)
     }
 }

@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.state_machine
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,9 +12,18 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,6 +45,8 @@ fun SetStateNodeView(
     node: SetStateNode,
     isStartNode: Boolean,
     puppetState: PuppetStateInfo?,
+    puppetStates: List<PuppetStateInfo>,
+    onStateNameChanged: (String) -> Unit,
     idleImage: ImageBitmap,
     editorViewModel: NodeEditorViewModel,
     uploadsDir: String
@@ -53,20 +65,52 @@ fun SetStateNodeView(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(
-                            modifier = Modifier,
+                            modifier = Modifier.fillMaxHeight(),
                             verticalArrangement = Arrangement.SpaceEvenly
                         ) {
                             node.inputs.forEach { handle ->
-                                HandleView(node.id, handle.id, editorViewModel)
+                                HandleView(node.id, handle, editorViewModel)
                             }
                         }
                     }
                 }
-                Column(modifier = Modifier.padding(16.dp)) {
-                    if (isStartNode) {
-                        Text("Start: ${node.stateName}", fontWeight = FontWeight.Bold)
-                    } else {
-                        Text("Set State: ${node.stateName}", fontWeight = FontWeight.Bold)
+                Column(modifier = Modifier.padding(16.dp).weight(1f)) {
+                    var expanded by remember { mutableStateOf(false) }
+                    val label = if (isStartNode) "Start: " else "Set State: "
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, fontWeight = FontWeight.Bold)
+                        Box {
+                            Row(
+                                modifier = Modifier.clickable { expanded = true },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(node.stateName.ifEmpty { "Select State" })
+                                Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                            }
+
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(ANY_STATE) },
+                                    onClick = {
+                                        onStateNameChanged(ANY_STATE)
+                                        expanded = false
+                                    }
+                                )
+                                puppetStates.forEach { state ->
+                                    DropdownMenuItem(
+                                        text = { Text(state.name) },
+                                        onClick = {
+                                            onStateNameChanged(state.name)
+                                            expanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
                     }
                     Box(modifier = Modifier.width(150.dp).height(150.dp)) {
                         LivePreview(
@@ -91,11 +135,11 @@ fun SetStateNodeView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(
-                        modifier = Modifier,
+                        modifier = Modifier.fillMaxHeight(),
                         verticalArrangement = Arrangement.SpaceEvenly
                     ) {
                         node.outputs.forEach { handle ->
-                            HandleView(node.id, handle.id, editorViewModel)
+                            HandleView(node.id, handle, editorViewModel)
                         }
                     }
                 }
@@ -105,7 +149,8 @@ fun SetStateNodeView(
 }
 
 @Composable
-private fun HandleView(nodeId: String, handleId: String, editorViewModel: NodeEditorViewModel) {
+private fun HandleView(nodeId: String, handle: Handle, editorViewModel: NodeEditorViewModel) {
+    val handleId = handle.id
     Canvas(modifier = Modifier
         .size(20.dp)
         .onGloballyPositioned { coordinates ->

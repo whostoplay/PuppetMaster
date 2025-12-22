@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -58,7 +59,7 @@ fun VolumeThresholdNodeView(
         Row(modifier = Modifier.align(Alignment.CenterStart).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
                 node.inputs.forEach { handle ->
-                    HandleView(node.id, handle.id, editorViewModel)
+                    HandleView(node.id, handle, editorViewModel)
                 }
             }
         }
@@ -67,7 +68,7 @@ fun VolumeThresholdNodeView(
         Row(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
                 node.outputs.forEach { handle ->
-                    HandleView(node.id, handle.id, editorViewModel)
+                    HandleView(node.id, handle, editorViewModel)
                 }
             }
         }
@@ -75,16 +76,64 @@ fun VolumeThresholdNodeView(
 }
 
 @Composable
-private fun HandleView(nodeId: String, handleId: String, editorViewModel: NodeEditorViewModel) {
+fun HotKeyNodeView(
+    node: HotKeyNode,
+    onHotKeyChanged: (String) -> Unit,
+    editorViewModel: NodeEditorViewModel
+) {
+    val density = LocalDensity.current
+    val widthInDp = with(density) { node.size.width.toDp() }
+    val heightInDp = with(density) { node.size.height.toDp() }
+
+    Box(modifier = Modifier.width(widthInDp).height(heightInDp)) {
+        Card(modifier = Modifier.padding(8.dp)) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("Hot Key")
+                TextField(
+                    value = node.hotKey,
+                    onValueChange = onHotKeyChanged,
+                    label = { Text("Hot Key") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        // Input Handles
+        Row(modifier = Modifier.align(Alignment.CenterStart).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
+                node.inputs.forEach { handle ->
+                    HandleView(node.id, handle, editorViewModel)
+                }
+            }
+        }
+
+        // Output Handles
+        Row(modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.fillMaxHeight(), verticalArrangement = Arrangement.SpaceEvenly) {
+                node.outputs.forEach { handle ->
+                    HandleView(node.id, handle, editorViewModel)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HandleView(nodeId: String, handle: Handle, editorViewModel: NodeEditorViewModel) {
+    val handleId = handle.id
     Canvas(modifier = Modifier
         .size(20.dp)
         .onGloballyPositioned { coordinates ->
             editorViewModel.updateHandlePosition(nodeId, handleId, coordinates.boundsInRoot().center)
         }
-        .pointerInput(Unit) {
+        .pointerInput(nodeId, handleId) {
             detectDragGestures(
-                onDragStart = { editorViewModel.onWireDragStart(nodeId, handleId) },
-                onDrag = { change, _ -> change.consume() }
+                onDragStart = { offset -> editorViewModel.onWireDragStart(nodeId, handleId) },
+                onDragEnd = { editorViewModel.onWireDragEnd() },
+                onDrag = { change, dragAmount ->
+                    change.consume()
+                    editorViewModel.onWireDrag(dragAmount)
+                }
             )
         }) { // Increased size for easier tapping
         drawCircle(

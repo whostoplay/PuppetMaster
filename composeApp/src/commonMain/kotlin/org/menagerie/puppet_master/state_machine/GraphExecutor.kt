@@ -5,7 +5,8 @@ package org.menagerie.puppet_master.state_machine
  * This object is created and updated by the MainViewModel.
  */
 data class GraphExecutionContext(
-    val microphoneVolume: Float = 0f
+    val microphoneVolume: Float = 0f,
+    val hotKeyPressed: String? = null
     // Future live data can be added here, e.g., timers, audience metrics, etc.
 )
 
@@ -30,6 +31,23 @@ class GraphExecutor(private val graph: NodeGraph) {
      * @return An action to be performed, like changing the puppet's state, or null if no action is required.
      */
     fun tick(context: GraphExecutionContext): GraphAction? {
+        // Find all "ANY STATE" nodes and check their outbound connections for triggered conditionals.
+        val anyStateNodes = graph.nodes.values.filter { it is SetStateNode && it.stateName == ANY_STATE }
+        for (node in anyStateNodes) {
+            val wires = graph.wires.filter { it.fromNodeId == node.id }
+            for (wire in wires) {
+                val nextNode = graph.nodes[wire.toNodeId]
+                if (nextNode != null) {
+                    val result = nextNode.execute(context, graph)
+                    if (result.nextNodeId != null) {
+                        // A global transition was triggered. Jump to that path.
+                        currentNodeId = result.nextNodeId
+                        break
+                    }
+                }
+            }
+        }
+
         var currentNode = currentNodeId?.let { graph.nodes[it] }
 
         while (currentNode != null) {

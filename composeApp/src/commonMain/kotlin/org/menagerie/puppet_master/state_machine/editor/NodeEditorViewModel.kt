@@ -194,6 +194,18 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         _nodeGraph.value = _nodeGraph.value.copy(wires = _nodeGraph.value.wires - wire)
     }
 
+    fun deleteNode(nodeId: String) {
+        val node = _nodeGraph.value.nodes[nodeId] ?: return
+        if (node.id == _nodeGraph.value.startNodeId) return // Cannot delete start node
+
+        val newNodes = _nodeGraph.value.nodes.toMutableMap()
+        newNodes.remove(nodeId)
+
+        val newWires = _nodeGraph.value.wires.filterNot { it.fromNodeId == nodeId || it.toNodeId == nodeId }
+
+        _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes, wires = newWires)
+    }
+
     fun updateNode(node: Node) {
         if (_draggedNodeInfo.value?.nodeId != node.id) {
             val newNodes = _nodeGraph.value.nodes.toMutableMap()

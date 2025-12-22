@@ -1,6 +1,9 @@
 package org.menagerie.puppet_master.state_machine.editor
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ContextMenuArea
+import androidx.compose.foundation.ContextMenuItem
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -21,6 +24,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.IntOffset
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.state_machine.ConditionalNode
+import org.menagerie.puppet_master.state_machine.HotKeyNode
+import org.menagerie.puppet_master.state_machine.HotKeyNodeView
 import org.menagerie.puppet_master.state_machine.NodeGraph
 import org.menagerie.puppet_master.state_machine.SetStateNode
 import org.menagerie.puppet_master.state_machine.SetStateNodeView
@@ -29,6 +34,7 @@ import org.menagerie.puppet_master.state_machine.VolumeThresholdNode
 import org.menagerie.puppet_master.state_machine.VolumeThresholdNodeView
 import kotlin.math.roundToInt
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NodeCanvas(
     modifier: Modifier = Modifier,
@@ -95,25 +101,33 @@ fun NodeCanvas(
         }
 
         graph.nodes.values.forEach { node ->
-            Box(
-                modifier = Modifier
-                    .offset {
-                        IntOffset(node.position.x.roundToInt(), node.position.y.roundToInt())
+            ContextMenuArea(items = {
+                listOf(
+                    ContextMenuItem("Delete") {
+                        editorViewModel.deleteNode(node.id)
                     }
-                    .pointerInput(node.id) {
-                        detectDragGestures(
-                            onDragStart = { editorViewModel.onNodeDragStart(node.id) },
-                            onDragEnd = { editorViewModel.onNodeDragEnd() },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                editorViewModel.onNodeDrag(dragAmount)
-                            }
-                        )
+                )
+            }) {
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(node.position.x.roundToInt(), node.position.y.roundToInt())
+                        }
+                        .pointerInput(node.id) {
+                            detectDragGestures(
+                                onDragStart = { editorViewModel.onNodeDragStart(node.id) },
+                                onDragEnd = { editorViewModel.onNodeDragEnd() },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    editorViewModel.onNodeDrag(dragAmount)
+                                }
+                            )
+                        }
+                ) {
+                    when (node) {
+                        is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel, graph)
+                        is ConditionalNode -> RenderConditionalNode(node, editorViewModel)
                     }
-            ) {
-                when (node) {
-                    is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel, graph)
-                    is ConditionalNode -> RenderConditionalNode(node, editorViewModel)
                 }
             }
         }
@@ -163,6 +177,8 @@ private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, edito
                 node = node,
                 isStartNode = node.id == graph.startNodeId,
                 puppetState = stateInfo,
+                puppetStates = puppetStates,
+                onStateNameChanged = { editorViewModel.updateNode(node.copy(stateName = it)) },
                 idleImage = it,
                 editorViewModel = editorViewModel,
                 uploadsDir = mainViewModel.uploadsDir
@@ -179,6 +195,15 @@ private fun RenderConditionalNode(node: ConditionalNode, editorViewModel: NodeEd
                 node = node,
                 onThresholdChanged = { newThreshold ->
                     editorViewModel.updateNode(node.copy(threshold = newThreshold))
+                },
+                editorViewModel = editorViewModel
+            )
+        }
+        is HotKeyNode -> {
+            HotKeyNodeView(
+                node = node,
+                onHotKeyChanged = { newHotKey ->
+                    editorViewModel.updateNode(node.copy(hotKey = newHotKey))
                 },
                 editorViewModel = editorViewModel
             )
