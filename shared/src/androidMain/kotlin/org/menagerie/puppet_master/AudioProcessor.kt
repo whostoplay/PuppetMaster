@@ -27,6 +27,7 @@ actual class AudioProcessor actual constructor(private val context: Any) {
 
     private val audioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var audioJob: Job? = null
+    private var smoothedLevel: Float = 0f
 
     /**
      * Starts listening to the microphone and reporting audio levels.
@@ -108,7 +109,11 @@ actual class AudioProcessor actual constructor(private val context: Any) {
         val rms = sqrt(sumOfSquares / readSize)
         val normalizedRms = (rms / MAX_AMPLITUDE).toFloat()
 
-        return normalizedRms.coerceIn(0f, 1f)
+        // Amplify the sensitivity and apply smoothing
+        val amplifiedLevel = (normalizedRms * SENSITIVITY).coerceIn(0f, 1f)
+        smoothedLevel += (amplifiedLevel - smoothedLevel) * SMOOTHING_FACTOR
+
+        return smoothedLevel
     }
 
     /**
@@ -123,5 +128,8 @@ actual class AudioProcessor actual constructor(private val context: Any) {
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val MAX_AMPLITUDE = 32767.0 // Max value for 16-bit signed audio
+
+        private const val SENSITIVITY = 10f // Increase this to make the audio level more sensitive
+        private const val SMOOTHING_FACTOR = 0.1f // Increase for faster response, decrease for more smoothing
     }
 }

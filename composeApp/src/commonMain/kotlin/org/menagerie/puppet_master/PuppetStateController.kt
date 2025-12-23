@@ -33,6 +33,9 @@ class PuppetStateController(
     private val _isListening = MutableStateFlow(false)
     val isListening: StateFlow<Boolean> = _isListening.asStateFlow()
 
+    private val _rawAudioLevel = MutableStateFlow(0f)
+    val rawAudioLevel: StateFlow<Float> = _rawAudioLevel.asStateFlow()
+
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel.asStateFlow()
 
@@ -44,12 +47,15 @@ class PuppetStateController(
     var controlMode: ControlMode = ControlMode.DIRECT
     var isPublishing: Boolean = false
 
+    private var smoothedLevel: Float = 0f
+
     init {
         scope.launch {
             dataManager.activePuppet.collect { puppet ->
                 val currentActiveStateName = _activeState.value?.name
                 _activeState.value = puppet?.states?.find { it.name == currentActiveStateName } ?: puppet?.states?.find { it.name == "idle" }
                 _audioLevel.value = 0f
+                _rawAudioLevel.value = 0f
             }
         }
 
@@ -147,14 +153,19 @@ class PuppetStateController(
 
     private fun startListening() {
         _isListening.value = true
-        audioProcessor.start { level ->
+        audioProcessor.start { rawLevel ->
+            _rawAudioLevel.value = rawLevel
+
+            val amplifiedLevel = (rawLevel * SENSITIVITY).coerceIn(0f, 1f)
+            smoothedLevel += (amplifiedLevel - smoothedLevel) * SMOOTHING_FACTOR
+            _audioLevel.value = smoothedLevel
+
             if (hotkeyStateActive) return@start
 
-            _audioLevel.value = level
             val isControlling = operatingMode == OperatingMode.OFFLINE || isPublishing
 
             if (isControlling && controlMode == ControlMode.DIRECT) {
-                val scaledLevel = level.pow(0.5f)
+                val scaledLevel = rawLevel.pow(0.5f)
                 val sortedThresholds = thresholds.value.entries.sortedBy { it.key }
                 val activeThresholdIndex = sortedThresholds.indexOfLast { scaledLevel >= it.key }
 
@@ -182,7 +193,16 @@ class PuppetStateController(
     private fun stopListening() {
         _isListening.value = false
         _audioLevel.value = 0f
+        _rawAudioLevel.value = 0f
         audioProcessor.stop()
+    }
+
+    fun setStateByName(stateName: String) {
+        val puppet = dataManager.activePuppet.value ?: return
+        val stateToSet = puppet.states.find { it.name == stateName }
+        if (stateToSet != null) {
+            _activeState.value = stateToSet
+        }
     }
 
     private fun returnToIdle() {
@@ -213,5 +233,10 @@ class PuppetStateController(
 
     fun stopBlinking() {
         clientBlinkingJob?.cancel()
+    }
+
+    companion object {
+        private const val SENSITIVITY = 10f
+        private const val SMOOTHING_FACTOR = 0.1f
     }
 }

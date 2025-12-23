@@ -18,6 +18,7 @@ data class VolumeThresholdNode(
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
+        println("volume is ${context.microphoneVolume} and threshold is $threshold")
         val handleId = if (context.microphoneVolume > threshold) "true" else "false"
         val nextNodeId = findNextNodeId(graph, handleId)
         return ExecuteResult(nextNodeId)

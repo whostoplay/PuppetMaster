@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
@@ -124,6 +125,7 @@ class MainViewModel(context: Any) : ScreenModel {
     val idleImage: StateFlow<ImageBitmap?> = _idleImage.asStateFlow()
 
     val isListening: StateFlow<Boolean> = stateController.isListening
+    val rawAudioLevel: StateFlow<Float> = stateController.rawAudioLevel
     val audioLevel: StateFlow<Float> = stateController.audioLevel
     val isBlinking: StateFlow<Boolean> = stateController.isBlinking
     val connectionState: StateFlow<ConnectionState> = dataManager.connectionState
@@ -174,7 +176,7 @@ class MainViewModel(context: Any) : ScreenModel {
     private var activeSpecialEffect: ActiveSpecialEffect? = null
     val displayedImageName: StateFlow<String?>
     private var graphExecutor: GraphExecutor? = null
-    private val _stateMachineActiveState = MutableStateFlow<PuppetStateInfo?>(null)
+    private val _lastPressedHotkey = MutableStateFlow<String?>(null)
 
     init {
         _settings.value = settingsRepository.loadSettings()
@@ -211,14 +213,20 @@ class MainViewModel(context: Any) : ScreenModel {
         }
 
         screenModelScope.launch {
-            audioLevel.collect { level ->
-                if (controlMode.value == ControlMode.STATE_MACHINE) {
-                    val action = graphExecutor?.tick(GraphExecutionContext(microphoneVolume = level, hotKeyPressed = null))
+            combine(audioLevel, _lastPressedHotkey, controlMode) { level, hotkey, mode ->
+                if (mode == ControlMode.STATE_MACHINE) {
+                    val context = GraphExecutionContext(microphoneVolume = level, hotKeyPressed = hotkey)
+                    val action = graphExecutor?.tick(context)
                     if (action is GraphAction.SetState) {
-                        _stateMachineActiveState.value = puppetStates.value.find { it.name == action.stateName }
+                        stateController.setStateByName(action.stateName)
+                    }
+
+                    // Reset the hotkey after it's been processed by the tick
+                    if (hotkey != null) {
+                        _lastPressedHotkey.value = null
                     }
                 }
-            }
+            }.collect()
         }
 
         val localActiveState = stateController.activeState
@@ -240,11 +248,7 @@ class MainViewModel(context: Any) : ScreenModel {
             if (mode == OperatingMode.ONLINE && !isPublishing) {
                 serverState.map { it?.puppetStateInfo }
             } else {
-                if (controlMode.value == ControlMode.STATE_MACHINE) {
-                    _stateMachineActiveState
-                } else {
-                    stateWithCursorUpdates
-                }
+                stateWithCursorUpdates
             }
         }.stateIn(screenModelScope, SharingStarted.Lazily, localActiveState.value)
 
@@ -305,18 +309,13 @@ class MainViewModel(context: Any) : ScreenModel {
     fun onKeyEvent(keyEvent: KeyEvent) {
         if (controlMode.value == ControlMode.DIRECT) {
             stateController.onKeyEvent(keyEvent)
-        } else {
-            troupe.value?.puppets?.forEach { puppet ->
-                puppet.states.forEach { state ->
-                    state.hotkey?.let { hotkey ->
-                        if (hotkey.isHotkey(keyEvent)) {
-                            val action = graphExecutor?.tick(GraphExecutionContext(hotKeyPressed = hotkey.toString())) //manually trigger tick to process the key regardless of frame
-                            if (action is GraphAction.SetState) {
-                                _stateMachineActiveState.value = puppetStates.value.find { it.name == action.stateName }
-                            }
-                        }
-                    }
+        } else if (controlMode.value == ControlMode.STATE_MACHINE) {
+            activePuppet.value?.states?.firstNotNullOfOrNull { state ->
+                state.hotkey?.let { hotkey ->
+                    if (hotkey.isHotkey(keyEvent)) hotkey.toString() else null
                 }
+            }?.let { hotkeyString ->
+                _lastPressedHotkey.value = hotkeyString
             }
         }
     }

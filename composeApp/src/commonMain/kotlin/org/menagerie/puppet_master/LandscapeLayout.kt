@@ -83,7 +83,7 @@ fun LandscapeLayout(
     val controlMode by viewModel.controlMode.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
-    val audioLevel by viewModel.audioLevel.collectAsState()
+    val rawAudioLevel by viewModel.rawAudioLevel.collectAsState()
     val thresholds by viewModel.thresholds.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val selectedState by viewModel.selectedState.collectAsState()
@@ -127,7 +127,7 @@ fun LandscapeLayout(
                 )
                 if (isListening) {
                     VolumeIndicator(
-                        level = audioLevel,
+                        level = rawAudioLevel,
                         modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
                         thresholds = thresholds,
                         onAddThreshold = {

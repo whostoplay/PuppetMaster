@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,7 +42,7 @@ fun VolumeThresholdNodeView(
     onThresholdChanged: (Float) -> Unit,
     editorViewModel: NodeEditorViewModel
 ) {
-    var currentLevel by remember { mutableStateOf(0f) } // This would be fed by a real audio stream
+    var currentLevel by remember { mutableFloatStateOf(0f) } // This would be fed by a real audio stream
     val density = LocalDensity.current
     val widthInDp = with(density) { node.size.width.toDp() }
     val heightInDp = with(density) { node.size.height.toDp() }
