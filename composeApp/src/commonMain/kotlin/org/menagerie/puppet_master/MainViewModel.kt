@@ -116,8 +116,8 @@ class MainViewModel(context: Any) : ScreenModel {
 
     val troupe: StateFlow<PuppetTroupe?> = dataManager.troupe
     val activePuppet: StateFlow<PuppetCharacter?> = dataManager.activePuppet
-    val puppetStates: StateFlow<List<PuppetStateInfo>> = dataManager.activePuppet
-        .map { it?.states ?: emptyList() }
+    val puppetStates: StateFlow<List<PuppetStateInfo>> = dataManager.troupe
+        .map { it?.puppets?.flatMap { it.states } ?: emptyList() }
         .stateIn(screenModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _idleImage = MutableStateFlow<ImageBitmap?>(null)
@@ -181,14 +181,14 @@ class MainViewModel(context: Any) : ScreenModel {
         _operatingMode.value = if (settings.value.startOffline) OperatingMode.OFFLINE else OperatingMode.ONLINE
 
         screenModelScope.launch {
-            activePuppet.collect { puppet ->
-                graphExecutor = puppet?.nodeGraph?.let { GraphExecutor(it) }
-                _thresholds.value = puppet?.thresholds ?: emptyMap()
+            troupe.collect { troupe ->
+                graphExecutor = troupe?.nodeGraph?.let { GraphExecutor(it) }
+                _thresholds.value = activePuppet.value?.thresholds ?: emptyMap()
                 _selectedState.value?.let { selected ->
-                    _selectedState.value = puppet?.states?.find { it.name == selected.name }
+                    _selectedState.value = activePuppet.value?.states?.find { it.name == selected.name }
                 }
                 val idleState =
-                    puppet?.states?.find { it.name == Constants.Puppet.IDLE_STATE_NAME } ?: puppet?.states?.firstOrNull()
+                    activePuppet.value?.states?.find { it.name == Constants.Puppet.IDLE_STATE_NAME } ?: activePuppet.value?.states?.firstOrNull()
                 if (idleState != null) {
                     val imageData = getImageData(idleState.imageName)
                     if (imageData != null) {
@@ -306,12 +306,14 @@ class MainViewModel(context: Any) : ScreenModel {
         if (controlMode.value == ControlMode.DIRECT) {
             stateController.onKeyEvent(keyEvent)
         } else {
-            activePuppet.value?.states?.forEach { state ->
-                state.hotkey?.let { hotkey ->
-                    if (hotkey.isHotkey(keyEvent)) {
-                        val action = graphExecutor?.tick(GraphExecutionContext(hotKeyPressed = hotkey.toString()))
-                        if (action is GraphAction.SetState) {
-                            _stateMachineActiveState.value = puppetStates.value.find { it.name == action.stateName }
+            troupe.value?.puppets?.forEach { puppet ->
+                puppet.states.forEach { state ->
+                    state.hotkey?.let { hotkey ->
+                        if (hotkey.isHotkey(keyEvent)) {
+                            val action = graphExecutor?.tick(GraphExecutionContext(hotKeyPressed = hotkey.toString()))
+                            if (action is GraphAction.SetState) {
+                                _stateMachineActiveState.value = puppetStates.value.find { it.name == action.stateName }
+                            }
                         }
                     }
                 }

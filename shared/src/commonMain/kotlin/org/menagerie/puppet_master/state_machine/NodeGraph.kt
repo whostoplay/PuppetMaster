@@ -23,6 +23,19 @@ data class NodeGraph(
     val wires: List<Wire> = emptyList(),
     val startNodeId: String? = null
 ) {
+
+    init {
+        // Self-healing for graphs that might be missing the start node in the main node map.
+        if (startNodeId != null && !nodes.containsKey(startNodeId)) {
+            val startNode = SetStateNode(
+                id = startNodeId,
+                position = SerializableOffset(50f, 50f),
+                stateName = "idle"
+            )
+            (nodes as MutableMap)[startNodeId] = startNode
+        }
+    }
+
     companion object {
         fun createInitialGraph(): NodeGraph {
             val startNode = SetStateNode(
@@ -31,7 +44,7 @@ data class NodeGraph(
                 stateName = "idle"
             )
             return NodeGraph(
-                nodes = mapOf(startNode.id to startNode),
+                nodes = mutableMapOf(startNode.id to startNode),
                 startNodeId = startNode.id
             )
         }
