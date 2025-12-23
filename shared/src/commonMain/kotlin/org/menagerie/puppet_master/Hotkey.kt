@@ -64,6 +64,17 @@ data class Hotkey(
         }
     }
 
+    fun shallowEquals(other: Hotkey?) : Boolean {
+        other?.let {
+            return (this.key == other.key &&
+                    this.isAltPressed == other.isAltPressed &&
+                    this.isCtrlPressed == other.isCtrlPressed &&
+                    this.isShiftPressed == other.isShiftPressed
+                    )
+        }
+        return false
+    }
+
     /**
      * Returns a human-readable string representation of the hotkey.
      * For example, "A + CTRL + SHIFT".

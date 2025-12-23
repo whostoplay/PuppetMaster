@@ -3,6 +3,10 @@ package org.menagerie.puppet_master
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import io.ktor.client.HttpClient
@@ -176,7 +180,7 @@ class MainViewModel(context: Any) : ScreenModel {
     private var activeSpecialEffect: ActiveSpecialEffect? = null
     val displayedImageName: StateFlow<String?>
     private var graphExecutor: GraphExecutor? = null
-    private val _lastPressedHotkey = MutableStateFlow<String?>(null)
+    private val _lastPressedKey = MutableStateFlow<Hotkey?>(null)
 
     init {
         _settings.value = settingsRepository.loadSettings()
@@ -213,7 +217,8 @@ class MainViewModel(context: Any) : ScreenModel {
         }
 
         screenModelScope.launch {
-            combine(audioLevel, _lastPressedHotkey, controlMode) { level, hotkey, mode ->
+            combine(audioLevel, _lastPressedKey, controlMode) { level, hotkey, mode ->
+                println(_lastPressedKey)
                 if (mode == ControlMode.STATE_MACHINE) {
                     val context = GraphExecutionContext(microphoneVolume = level, hotKeyPressed = hotkey)
                     val action = graphExecutor?.tick(context)
@@ -223,7 +228,7 @@ class MainViewModel(context: Any) : ScreenModel {
 
                     // Reset the hotkey after it's been processed by the tick
                     if (hotkey != null) {
-                        _lastPressedHotkey.value = null
+                        _lastPressedKey.value = null
                     }
                 }
             }.collect()
@@ -310,13 +315,12 @@ class MainViewModel(context: Any) : ScreenModel {
         if (controlMode.value == ControlMode.DIRECT) {
             stateController.onKeyEvent(keyEvent)
         } else if (controlMode.value == ControlMode.STATE_MACHINE) {
-            activePuppet.value?.states?.firstNotNullOfOrNull { state ->
-                state.hotkey?.let { hotkey ->
-                    if (hotkey.isHotkey(keyEvent)) hotkey.toString() else null
-                }
-            }?.let { hotkeyString ->
-                _lastPressedHotkey.value = hotkeyString
-            }
+            _lastPressedKey.value = Hotkey(
+                keyEvent.key.keyCode,
+                keyEvent.isShiftPressed,
+                keyEvent.isCtrlPressed,
+                keyEvent.isAltPressed,
+            )
         }
     }
 

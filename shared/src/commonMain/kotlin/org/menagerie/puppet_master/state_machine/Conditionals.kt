@@ -40,7 +40,7 @@ data class HotKeyNode(
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        val handleId = if (context.hotKeyPressed == hotkey.toString()) "true" else "false"
+        val handleId = if (context.hotKeyPressed?.shallowEquals(hotkey) ?: false) "true" else "false"
         val nextNodeId = findNextNodeId(graph, handleId)
         return ExecuteResult(nextNodeId)
     }

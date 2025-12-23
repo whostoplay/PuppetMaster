@@ -1,12 +1,14 @@
 package org.menagerie.puppet_master.state_machine
 
+import org.menagerie.puppet_master.Hotkey
+
 /**
  * A data container that provides the live values that a graph needs to execute its logic.
  * This object is created and updated by the MainViewModel.
  */
 data class GraphExecutionContext(
     val microphoneVolume: Float = 0f,
-    val hotKeyPressed: String? = null
+    val hotKeyPressed: Hotkey? = null
     // Future live data can be added here, e.g., timers, audience metrics, etc.
 )
 
