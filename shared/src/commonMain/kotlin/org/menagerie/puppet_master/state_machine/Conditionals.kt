@@ -34,7 +34,7 @@ data class HotKeyNode(
     override val id: NodeId,
     override val position: SerializableOffset,
     val hotkey: Hotkey = Hotkey(-1),
-    override val size: SerializableSize = SerializableSize(200f, 200f)
+    override val size: SerializableSize = SerializableSize(250f, 200f)
 ) : ConditionalNode {
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)

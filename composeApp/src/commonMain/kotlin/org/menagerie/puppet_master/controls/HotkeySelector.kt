@@ -3,6 +3,7 @@ package org.menagerie.puppet_master.controls
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -56,6 +57,7 @@ fun HotkeySelector(
     hotkey: Hotkey,
     modifier: Modifier = Modifier,
     horizontalArrangement: Arrangement.Horizontal = Arrangement.SpaceBetween,
+    splitLevel: Boolean = false,
     onHotkeyChanged: (Hotkey) -> Unit,
 ) {
     var isEditing by remember { mutableStateOf(false) }
@@ -75,76 +77,152 @@ fun HotkeySelector(
         }
     }
 
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            modifier = Modifier.padding(top = 8.dp).weight(1f),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = horizontalArrangement
+    if(splitLevel) {
+        Column (
+            modifier = modifier.fillMaxWidth(),
         ) {
-            Text(label)
-            TextField(
-                value = if (isEditing) Strings.getString(Strings.Keys.PRESS_ANY_KEY) else if (hotkey.key == 4294967296) Strings.getString(Strings.Keys.NOT_ASSIGNED) else hotkey.toString(),
-                onValueChange = {},
-                readOnly = true,
-                interactionSource = interactionSource,
-                modifier = Modifier
-                    .focusRequester(focusRequester)
-                    .onFocusChanged { focusState ->
-                        if (!focusState.isFocused) {
-                            isEditing = false
+            Row(
+                modifier = Modifier.padding(top = 8.dp).weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = horizontalArrangement
+            ) {
+                Text(label)
+                TextField(
+                    value = if (isEditing) Strings.getString(Strings.Keys.PRESS_ANY_KEY) else if (hotkey.key == 4294967296) Strings.getString(Strings.Keys.NOT_ASSIGNED) else hotkey.toString(),
+                    onValueChange = {},
+                    readOnly = true,
+                    interactionSource = interactionSource,
+                    modifier = Modifier
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { focusState ->
+                            if (!focusState.isFocused) {
+                                isEditing = false
+                            }
                         }
-                    }
-                    .width(150.dp)
-                    .onKeyEvent { event ->
-                        if (isEditing) {
-                            if (event.type == KeyEventType.KeyDown) {
-                                when (event.key) {
-                                    Key.Escape -> {
-                                        onHotkeyChanged(Hotkey(Key.Unknown.keyCode))
-                                        focusManager.clearFocus()
-                                    }
+                        .width(150.dp)
+                        .onKeyEvent { event ->
+                            if (isEditing) {
+                                if (event.type == KeyEventType.KeyDown) {
+                                    when (event.key) {
+                                        Key.Escape -> {
+                                            onHotkeyChanged(Hotkey(Key.Unknown.keyCode))
+                                            focusManager.clearFocus()
+                                        }
 
-                                    Key.ShiftLeft,
-                                    Key.ShiftRight,
-                                    Key.AltLeft,
-                                    Key.AltRight,
-                                    Key.CtrlLeft,
-                                    Key.CtrlRight -> {
-                                        //NO OP, Modifiers
-                                    }
+                                        Key.ShiftLeft,
+                                        Key.ShiftRight,
+                                        Key.AltLeft,
+                                        Key.AltRight,
+                                        Key.CtrlLeft,
+                                        Key.CtrlRight -> {
+                                            //NO OP, Modifiers
+                                        }
 
-                                    else -> {
-                                        onHotkeyChanged(
-                                            hotkey.copy(
-                                                key = event.key.keyCode,
-                                                isShiftPressed = event.isShiftPressed,
-                                                isCtrlPressed = event.isCtrlPressed,
-                                                isAltPressed = event.isAltPressed
+                                        else -> {
+                                            onHotkeyChanged(
+                                                hotkey.copy(
+                                                    key = event.key.keyCode,
+                                                    isShiftPressed = event.isShiftPressed,
+                                                    isCtrlPressed = event.isCtrlPressed,
+                                                    isAltPressed = event.isAltPressed
+                                                )
                                             )
-                                        )
-                                        focusManager.clearFocus()
+                                            focusManager.clearFocus()
+                                        }
                                     }
                                 }
+                                true
+                            } else {
+                                false
                             }
-                            true
-                        } else {
-                            false
                         }
-                    }
-            )
+                )
+            }
+            Row(
+                modifier = Modifier.padding(top = 8.dp).weight(.5f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(Strings.getString(Strings.Keys.TOGGLE))
+                Switch(
+                    checked = hotkey.hold,
+                    onCheckedChange = { onHotkeyChanged(hotkey.copy(hold = it)) })
+                Text(Strings.getString(Strings.Keys.HOLD))
+            }
         }
+    } else {
         Row(
-            modifier = Modifier.padding(top = 8.dp).weight(.5f),
-            verticalAlignment = Alignment.CenterVertically,
+            modifier = modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(Strings.getString(Strings.Keys.TOGGLE))
-            Switch(
-                checked = hotkey.hold,
-                onCheckedChange = { onHotkeyChanged(hotkey.copy(hold = it)) })
-            Text(Strings.getString(Strings.Keys.HOLD))
+            Row(
+                modifier = Modifier.padding(top = 8.dp).weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = horizontalArrangement
+            ) {
+                Text(label)
+                TextField(
+                    value = if (isEditing) Strings.getString(Strings.Keys.PRESS_ANY_KEY) else if (hotkey.key == 4294967296) Strings.getString(
+                        Strings.Keys.NOT_ASSIGNED
+                    ) else hotkey.toString(),
+                    onValueChange = {},
+                    readOnly = true,
+                    interactionSource = interactionSource,
+                    modifier = Modifier
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { focusState ->
+                            if (!focusState.isFocused) {
+                                isEditing = false
+                            }
+                        }
+                        .width(150.dp)
+                        .onKeyEvent { event ->
+                            if (isEditing) {
+                                if (event.type == KeyEventType.KeyDown) {
+                                    when (event.key) {
+                                        Key.Escape -> {
+                                            onHotkeyChanged(Hotkey(Key.Unknown.keyCode))
+                                            focusManager.clearFocus()
+                                        }
+
+                                        Key.ShiftLeft,
+                                        Key.ShiftRight,
+                                        Key.AltLeft,
+                                        Key.AltRight,
+                                        Key.CtrlLeft,
+                                        Key.CtrlRight -> {
+                                            //NO OP, Modifiers
+                                        }
+
+                                        else -> {
+                                            onHotkeyChanged(
+                                                hotkey.copy(
+                                                    key = event.key.keyCode,
+                                                    isShiftPressed = event.isShiftPressed,
+                                                    isCtrlPressed = event.isCtrlPressed,
+                                                    isAltPressed = event.isAltPressed
+                                                )
+                                            )
+                                            focusManager.clearFocus()
+                                        }
+                                    }
+                                }
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                )
+            }
+            Row(
+                modifier = Modifier.padding(top = 8.dp).weight(.5f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(Strings.getString(Strings.Keys.TOGGLE))
+                Switch(
+                    checked = hotkey.hold,
+                    onCheckedChange = { onHotkeyChanged(hotkey.copy(hold = it)) })
+                Text(Strings.getString(Strings.Keys.HOLD))
+            }
         }
     }
 }

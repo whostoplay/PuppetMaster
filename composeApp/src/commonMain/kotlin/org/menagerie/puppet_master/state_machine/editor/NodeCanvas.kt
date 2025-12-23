@@ -208,7 +208,7 @@ private fun RenderConditionalNode(node: ConditionalNode, editorViewModel: NodeEd
             HotKeyNodeView(
                 node = node,
                 onHotKeyChanged = { newHotKey ->
-                    editorViewModel.updateNode(node.copy(hotKey = newHotKey))
+                    editorViewModel.updateNode(node.copy(hotkey = newHotKey))
                 },
                 editorViewModel = editorViewModel
             )

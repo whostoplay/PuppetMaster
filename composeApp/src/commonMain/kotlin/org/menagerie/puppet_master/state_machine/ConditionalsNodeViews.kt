@@ -167,6 +167,7 @@ fun HotKeyNodeView(
                             label = "Hotkey",
                             hotkey = node.hotkey,
                             onHotkeyChanged = onHotKeyChanged,
+                            splitLevel = true,
                         )
                     }
 
