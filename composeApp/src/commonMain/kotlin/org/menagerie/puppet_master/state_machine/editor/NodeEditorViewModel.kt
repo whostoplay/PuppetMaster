@@ -11,6 +11,7 @@ import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.state_machine.Handle
 import org.menagerie.puppet_master.state_machine.Node
 import org.menagerie.puppet_master.state_machine.NodeGraph
+import org.menagerie.puppet_master.state_machine.StartNode
 import org.menagerie.puppet_master.state_machine.Wire
 import org.menagerie.puppet_master.toOffset
 import org.menagerie.puppet_master.toSerializableOffset
@@ -41,6 +42,19 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     // Handle Positions
     private val _handlePositions = MutableStateFlow<Map<String, Offset>>(emptyMap())
     val handlePositions: StateFlow<Map<String, Offset>> = _handlePositions.asStateFlow()
+
+    init {
+        val graph = _nodeGraph.value
+        val startNode = graph.startNodeId?.let { graph.nodes[it] }
+
+        if (graph.startNodeId != null && (startNode == null || startNode !is StartNode)) {
+            // The startNodeId is invalid (points to nothing or not a StartNode).
+            // This can happen when loading old graphs. Let's clean it up.
+            val correctedGraph = graph.copy(startNodeId = null)
+            _nodeGraph.value = correctedGraph
+            mainViewModel.updateNodeGraph(correctedGraph)
+        }
+    }
 
     fun onWireDragStart(nodeId: String, handleId: String) {
         _wireDragInfo.value = WireDragInfo(nodeId, handleId)
@@ -111,6 +125,11 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     }
 
     fun addNode(templateNode: Node) {
+        if (templateNode is StartNode && _nodeGraph.value.startNodeId != null) {
+            // Prevent adding more than one start node
+            return
+        }
+
         val spawnOffset = templateNode.size.toSize().width + 50f
         val basePosition = _nodeGraph.value.nodes[lastInteractedNodeId]?.position?.toOffset() ?: Offset(50f, 50f)
         var targetPosition = basePosition.copy(x = basePosition.x + spawnOffset)
@@ -133,7 +152,13 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
         val newNodes = _nodeGraph.value.nodes.toMutableMap()
         newNodes[newNode.id] = newNode
-        _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes)
+        val newGraph = if (newNode is StartNode) {
+            _nodeGraph.value.copy(nodes = newNodes, startNodeId = newNode.id)
+        } else {
+            _nodeGraph.value.copy(nodes = newNodes)
+        }
+
+        _nodeGraph.value = newGraph
         lastInteractedNodeId = newNode.id
     }
 
@@ -189,14 +214,18 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
     fun deleteNode(nodeId: String) {
         val node = _nodeGraph.value.nodes[nodeId] ?: return
-        if (node.id == _nodeGraph.value.startNodeId) return // Cannot delete start node
 
         val newNodes = _nodeGraph.value.nodes.toMutableMap()
         newNodes.remove(nodeId)
 
         val newWires = _nodeGraph.value.wires.filterNot { it.fromNodeId == nodeId || it.toNodeId == nodeId }
 
-        _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes, wires = newWires)
+        val newGraph = if (nodeId == _nodeGraph.value.startNodeId) {
+            _nodeGraph.value.copy(nodes = newNodes, wires = newWires, startNodeId = null)
+        } else {
+            _nodeGraph.value.copy(nodes = newNodes, wires = newWires)
+        }
+        _nodeGraph.value = newGraph
         mainViewModel.updateNodeGraph(nodeGraph.value)
     }
 

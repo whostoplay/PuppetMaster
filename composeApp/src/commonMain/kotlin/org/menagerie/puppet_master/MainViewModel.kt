@@ -310,7 +310,7 @@ class MainViewModel(context: Any) : ScreenModel {
                 puppet.states.forEach { state ->
                     state.hotkey?.let { hotkey ->
                         if (hotkey.isHotkey(keyEvent)) {
-                            val action = graphExecutor?.tick(GraphExecutionContext(hotKeyPressed = hotkey.toString()))
+                            val action = graphExecutor?.tick(GraphExecutionContext(hotKeyPressed = hotkey.toString())) //manually trigger tick to process the key regardless of frame
                             if (action is GraphAction.SetState) {
                                 _stateMachineActiveState.value = puppetStates.value.find { it.name == action.stateName }
                             }

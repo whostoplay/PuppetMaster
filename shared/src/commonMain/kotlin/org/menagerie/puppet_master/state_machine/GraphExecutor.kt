@@ -19,52 +19,63 @@ sealed interface GraphAction {
 
 /**
  * Executes the logic of a NodeGraph based on a given ExecutionContext.
+ * This executor is stateless. On every tick, it starts from the beginning of the graph
+ * and traverses it to determine the correct state.
  */
 class GraphExecutor(private val graph: NodeGraph) {
 
-    private var currentNodeId: NodeId? = graph.startNodeId
-
     /**
-     * Executes the graph's logic, starting from the current node.
-     * It will continue processing nodes until a node returns an action or the end of a branch is reached.
+     * Executes the graph's logic, starting from the graph's start node.
+     * It checks for global "ANY STATE" transitions first, then proceeds with normal
+     * graph traversal until an action is returned or a branch ends.
      * @param context The live data from the ViewModel.
-     * @return An action to be performed, like changing the puppet's state, or null if no action is required.
+     * @return An action to be performed, or null if no action is required.
      */
     fun tick(context: GraphExecutionContext): GraphAction? {
-        // Find all "ANY STATE" nodes and check their outbound connections for triggered conditionals.
-        val anyStateNodes = graph.nodes.values.filter { it is SetStateNode && it.stateName == ANY_STATE }
-        for (node in anyStateNodes) {
-            val wires = graph.wires.filter { it.fromNodeId == node.id }
-            for (wire in wires) {
-                val nextNode = graph.nodes[wire.toNodeId]
-                if (nextNode != null) {
-                    val result = nextNode.execute(context, graph)
-                    if (result.nextNodeId != null) {
-                        // A global transition was triggered. Jump to that path.
-                        currentNodeId = result.nextNodeId
-                        break
-                    }
-                }
+        val nextNodeId: NodeId? = graph.startNodeId
+
+        var currentNode = nextNodeId?.let { graph.nodes[it] }
+
+        if (currentNode == null) {
+            if (graph.startNodeId != null) {
+                println("GraphExecutor: Start node with id ${graph.startNodeId} not found in graph.")
+            } else {
+                println("GraphExecutor: No start node defined for the graph.")
             }
+            return null // Can't execute without a starting node.
         }
 
-        var currentNode = currentNodeId?.let { graph.nodes[it] }
+        println("GraphExecutor: Tick starting from node ${currentNode.id}")
 
         while (currentNode != null) {
+            println("GraphExecutor: Executing node ${currentNode.id}")
             val result = currentNode.execute(context, graph)
 
-            currentNodeId = result.nextNodeId
-            currentNode = currentNodeId?.let { graph.nodes[it] }
-
             if (result.action != null) {
+                println("GraphExecutor: Action triggered: ${result.action}")
+                // An action was found, so we're done for this tick.
                 return result.action
+            }
+
+            if (result.nextNodeId != null) {
+                println("GraphExecutor: Transitioning to node ${result.nextNodeId}")
+                currentNode = graph.nodes[result.nextNodeId]
+            } else {
+                // End of a branch.
+                println("GraphExecutor: End of branch reached at node ${currentNode.id}")
+                break
             }
         }
 
+        println("GraphExecutor: Tick finished without producing an action.")
         return null
     }
 
+    /**
+     * Resets the executor. As the executor is now stateless, this method is a no-op
+     * but is kept for API compatibility.
+     */
     fun reset() {
-        currentNodeId = graph.startNodeId
+        // No-op. The executor is stateless and resets on every tick automatically.
     }
 }

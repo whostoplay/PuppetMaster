@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ContextMenuArea
 import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,10 +29,13 @@ import org.menagerie.puppet_master.state_machine.HotKeyNodeView
 import org.menagerie.puppet_master.state_machine.NodeGraph
 import org.menagerie.puppet_master.state_machine.SetStateNode
 import org.menagerie.puppet_master.state_machine.SetStateNodeView
+import org.menagerie.puppet_master.state_machine.StartNode
 import org.menagerie.puppet_master.state_machine.StateNode
 import org.menagerie.puppet_master.state_machine.VolumeThresholdNode
 import org.menagerie.puppet_master.state_machine.VolumeThresholdNodeView
+import org.menagerie.puppet_master.state_machine.editor.views.StartNodeView
 import org.menagerie.puppet_master.toOffset
+import org.menagerie.puppet_master.toSerializableOffset
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -114,10 +118,20 @@ fun NodeCanvas(
                             val offset = node.position.toOffset()
                             IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
                         }
+                        .pointerInput(node.id) {
+                            detectDragGestures(
+                                onDragStart = { editorViewModel.onNodeDragStart(node.id) },
+                                onDragEnd = { editorViewModel.onNodeDragEnd() }
+                            ) { change, dragAmount ->
+                                change.consume()
+                                editorViewModel.onNodeDrag(dragAmount.toSerializableOffset())
+                            }
+                        }
                 ) {
                     when (node) {
                         is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel, graph)
                         is ConditionalNode -> RenderConditionalNode(node, editorViewModel)
+                        is StartNode -> StartNodeView(node, editorViewModel)
                     }
                 }
             }

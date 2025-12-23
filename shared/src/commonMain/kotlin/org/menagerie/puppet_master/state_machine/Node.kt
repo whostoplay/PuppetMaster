@@ -15,6 +15,7 @@ val nodeSerializersModule = SerializersModule {
         subclass(SetStateNode::class)
         subclass(VolumeThresholdNode::class)
         subclass(HotKeyNode::class)
+        subclass(StartNode::class)
     }
 }
 
@@ -90,11 +91,12 @@ sealed interface BehaviouralNode : Node {
 
 /**
  * STATE Nodes: Represent a puppet being in a specific state or switching to one.
+ * By default, these are terminal nodes.
  */
 @Serializable
 sealed interface StateNode : Node {
     override val inputs: List<InputHandle> get() = listOf(InputHandle("in"))
-    override val outputs: List<OutputHandle> get() = listOf(OutputHandle("out"))
+    override val outputs: List<OutputHandle> get() = emptyList()
 }
 
 /**

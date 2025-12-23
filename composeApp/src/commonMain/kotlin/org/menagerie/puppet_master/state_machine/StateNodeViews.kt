@@ -119,13 +119,6 @@ fun SetStateNodeView(
                                     expanded = expanded,
                                     onDismissRequest = { expanded = false }
                                 ) {
-                                    DropdownMenuItem(
-                                        text = { Text(ANY_STATE) },
-                                        onClick = {
-                                            onStateNameChanged(ANY_STATE)
-                                            expanded = false
-                                        }
-                                    )
                                     puppetStates.forEach { state ->
                                         DropdownMenuItem(
                                             text = { Text(state.name) },

@@ -1,7 +1,6 @@
 package org.menagerie.puppet_master.state_machine
 
 import kotlinx.serialization.Serializable
-import org.menagerie.puppet_master.SerializableOffset
 
 /**
  * Represents a wire connecting two nodes in the graph.
@@ -23,30 +22,9 @@ data class NodeGraph(
     val wires: List<Wire> = emptyList(),
     val startNodeId: String? = null
 ) {
-
-    init {
-        // Self-healing for graphs that might be missing the start node in the main node map.
-        if (startNodeId != null && !nodes.containsKey(startNodeId)) {
-            val startNode = SetStateNode(
-                id = startNodeId,
-                position = SerializableOffset(50f, 50f),
-                stateName = "idle"
-            )
-            (nodes as MutableMap)[startNodeId] = startNode
-        }
-    }
-
     companion object {
         fun createInitialGraph(): NodeGraph {
-            val startNode = SetStateNode(
-                id = "start",
-                position = SerializableOffset(50f, 50f),
-                stateName = "idle"
-            )
-            return NodeGraph(
-                nodes = mutableMapOf(startNode.id to startNode),
-                startNodeId = startNode.id
-            )
+            return NodeGraph()
         }
     }
 }

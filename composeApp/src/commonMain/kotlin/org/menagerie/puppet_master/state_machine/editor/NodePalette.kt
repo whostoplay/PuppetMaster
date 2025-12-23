@@ -25,11 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.state_machine.Node
 import org.menagerie.puppet_master.state_machine.getAvailableConditionalNodes
-import org.menagerie.puppet_master.state_machine.getAvailableStateNodes
+import org.menagerie.puppet_master.state_machine.getAvailableNodes
 
 @Composable
 fun NodePalette(modifier: Modifier = Modifier, editorViewModel: NodeEditorViewModel) {
-    val stateNodes = getAvailableStateNodes()
+    val stateNodes = getAvailableNodes()
     val conditionalNodes = getAvailableConditionalNodes()
 
     LazyColumn(modifier = modifier) {
