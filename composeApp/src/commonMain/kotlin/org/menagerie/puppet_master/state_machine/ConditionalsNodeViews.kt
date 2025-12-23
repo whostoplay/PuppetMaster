@@ -16,11 +16,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Card
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,6 +30,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.menagerie.puppet_master.Hotkey
+import org.menagerie.puppet_master.controls.HotkeySelector
 import org.menagerie.puppet_master.controls.VolumeIndicator
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 import org.menagerie.puppet_master.toSerializableOffset
@@ -117,7 +117,7 @@ fun VolumeThresholdNodeView(
 @Composable
 fun HotKeyNodeView(
     node: HotKeyNode,
-    onHotKeyChanged: (String) -> Unit,
+    onHotKeyChanged: (Hotkey) -> Unit,
     editorViewModel: NodeEditorViewModel
 ) {
     val density = LocalDensity.current
@@ -163,11 +163,10 @@ fun HotKeyNodeView(
                     }
 
                     Column(modifier = Modifier.padding(16.dp).weight(1f)) {
-                        TextField(
-                            value = node.hotKey,
-                            onValueChange = onHotKeyChanged,
-                            label = { Text("Hot Key") },
-                            modifier = Modifier.fillMaxWidth()
+                        HotkeySelector(
+                            label = "Hotkey",
+                            hotkey = node.hotkey,
+                            onHotkeyChanged = onHotKeyChanged,
                         )
                     }
 

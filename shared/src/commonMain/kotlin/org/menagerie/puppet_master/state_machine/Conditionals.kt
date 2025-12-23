@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.state_machine
 
 import kotlinx.serialization.Serializable
+import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.SerializableSize
 
@@ -32,14 +33,14 @@ data class VolumeThresholdNode(
 data class HotKeyNode(
     override val id: NodeId,
     override val position: SerializableOffset,
-    val hotKey: String = "",
-    override val size: SerializableSize = SerializableSize(200f, 120f)
+    val hotkey: Hotkey = Hotkey(-1),
+    override val size: SerializableSize = SerializableSize(200f, 200f)
 ) : ConditionalNode {
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        val handleId = if (context.hotKeyPressed == hotKey) "true" else "false"
+        val handleId = if (context.hotKeyPressed == hotkey.toString()) "true" else "false"
         val nextNodeId = findNextNodeId(graph, handleId)
         return ExecuteResult(nextNodeId)
     }
