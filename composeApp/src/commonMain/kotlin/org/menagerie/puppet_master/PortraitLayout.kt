@@ -29,14 +29,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import org.menagerie.puppet_master.Constants.UI.LandscapeLayout
 import org.menagerie.puppet_master.Constants.UI.PortraitLayout
-import org.menagerie.puppet_master.Strings.Keys.CREATE_OR_SELECT_PUPPET
-import org.menagerie.puppet_master.Strings.Keys.EYE_CONTACT_BUTTON
-import org.menagerie.puppet_master.Strings.Keys.PUPPET_CONTROLS_BUTTON
-import org.menagerie.puppet_master.Strings.Keys.SETTINGS_BUTTON
-import org.menagerie.puppet_master.Strings.Keys.STATES_TITLE
-import org.menagerie.puppet_master.Strings.Keys.STATE_CONTROLS_BUTTON
+import org.menagerie.puppet_master.localisation.Strings
+import org.menagerie.puppet_master.localisation.Strings.Keys.CREATE_OR_SELECT_PUPPET
+import org.menagerie.puppet_master.localisation.Strings.Keys.EYE_CONTACT_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.PUPPET_CONTROLS_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.SETTINGS_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.STATES_TITLE
+import org.menagerie.puppet_master.localisation.Strings.Keys.STATE_CONTROLS_BUTTON
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.ControlDrawer
 import org.menagerie.puppet_master.controls.ModeControls
@@ -74,6 +74,7 @@ fun PortraitLayout(
     val troupe by viewModel.troupe.collectAsState()
     val activePuppet by viewModel.activePuppet.collectAsState()
     val operatingMode by viewModel.operatingMode.collectAsState()
+    val controlMode by viewModel.controlMode.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
     val audioLevel by viewModel.audioLevel.collectAsState()
@@ -106,7 +107,7 @@ fun PortraitLayout(
                 rootFocusRequester = rootFocusRequester
             )
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            ModeControls(operatingMode, viewModel::setOperatingMode)
+            ModeControls(operatingMode, viewModel::setOperatingMode, controlMode, viewModel::setControlMode)
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             ServerControls(
                 operatingMode,
@@ -215,7 +216,8 @@ fun PortraitLayout(
         verticalAlignment = Alignment.Bottom,
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }) { Text(Strings.getString(EYE_CONTACT_BUTTON)) }
+        Button(onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) }) { Text(
+            Strings.getString(EYE_CONTACT_BUTTON)) }
         Button(onClick = { navigator.push(SettingsScreen(viewModel)) }) { Text(Strings.getString(SETTINGS_BUTTON)) }
     }
 }

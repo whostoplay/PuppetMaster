@@ -32,9 +32,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import org.menagerie.puppet_master.EyeState
 import org.menagerie.puppet_master.MainViewModel
-import org.menagerie.puppet_master.Strings
-import org.menagerie.puppet_master.Strings.Keys.LEFT_EYE
-import org.menagerie.puppet_master.Strings.Keys.LEFT_PUPIL_CONTENT_DESCRIPTION
+import org.menagerie.puppet_master.localisation.Strings
+import org.menagerie.puppet_master.localisation.Strings.Keys.LEFT_EYE
+import org.menagerie.puppet_master.localisation.Strings.Keys.LEFT_PUPIL_CONTENT_DESCRIPTION
 import org.menagerie.puppet_master.decodeToImageBitmap
 
 /**

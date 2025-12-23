@@ -33,7 +33,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.menagerie.puppet_master.MainViewModel
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.state_machine.editor.NodeCanvas
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 import org.menagerie.puppet_master.state_machine.editor.NodePalette

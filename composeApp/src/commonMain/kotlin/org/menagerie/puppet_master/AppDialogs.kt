@@ -13,15 +13,16 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import org.menagerie.puppet_master.Strings.Keys.ASSIGN_STATE_TITLE
-import org.menagerie.puppet_master.Strings.Keys.CANCEL_BUTTON
-import org.menagerie.puppet_master.Strings.Keys.CONNECTION_FAILED_TEXT
-import org.menagerie.puppet_master.Strings.Keys.CONNECTION_FAILED_TITLE
-import org.menagerie.puppet_master.Strings.Keys.OVERWRITE_BUTTON
-import org.menagerie.puppet_master.Strings.Keys.OVERWRITE_STATE_TEXT
-import org.menagerie.puppet_master.Strings.Keys.OVERWRITE_STATE_TITLE
-import org.menagerie.puppet_master.Strings.Keys.TRY_AGAIN_BUTTON
-import org.menagerie.puppet_master.Strings.Keys.WORK_OFFLINE_BUTTON
+import org.menagerie.puppet_master.localisation.Strings
+import org.menagerie.puppet_master.localisation.Strings.Keys.ASSIGN_STATE_TITLE
+import org.menagerie.puppet_master.localisation.Strings.Keys.CANCEL_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.CONNECTION_FAILED_TEXT
+import org.menagerie.puppet_master.localisation.Strings.Keys.CONNECTION_FAILED_TITLE
+import org.menagerie.puppet_master.localisation.Strings.Keys.OVERWRITE_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.OVERWRITE_STATE_TEXT
+import org.menagerie.puppet_master.localisation.Strings.Keys.OVERWRITE_STATE_TITLE
+import org.menagerie.puppet_master.localisation.Strings.Keys.TRY_AGAIN_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.WORK_OFFLINE_BUTTON
 
 /**
  * A composable that manages the display of various dialogs throughout the application.

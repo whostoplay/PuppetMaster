@@ -36,7 +36,7 @@ import org.menagerie.puppet_master.Eye
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SerializableOffset
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.rememberGlobalPointerPosition
 import org.menagerie.puppet_master.rememberImageFromUrl
 import kotlin.math.cos

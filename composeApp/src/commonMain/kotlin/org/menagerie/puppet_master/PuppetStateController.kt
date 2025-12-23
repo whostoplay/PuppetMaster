@@ -41,6 +41,7 @@ class PuppetStateController(
     private var hotkeyStateActive = false
 
     var operatingMode: OperatingMode = OperatingMode.OFFLINE
+    var controlMode: ControlMode = ControlMode.DIRECT
     var isPublishing: Boolean = false
 
     init {
@@ -107,28 +108,30 @@ class PuppetStateController(
     }
 
     fun onKeyEvent(keyEvent: KeyEvent) {
-        val puppet = dataManager.activePuppet.value ?: return
-        for (state in puppet.states) {
-            state.hotkey?.let { hotkey ->
-                if (hotkey.isHotkey(keyEvent)) {
-                    if (hotkey.hold) {
-                        if (hotkey.isDown) {
-                            _activeState.value = state
-                            hotkeyStateActive = true
+        if (controlMode == ControlMode.DIRECT) {
+            val puppet = dataManager.activePuppet.value ?: return
+            for (state in puppet.states) {
+                state.hotkey?.let { hotkey ->
+                    if (hotkey.isHotkey(keyEvent)) {
+                        if (hotkey.hold) {
+                            if (hotkey.isDown) {
+                                _activeState.value = state
+                                hotkeyStateActive = true
+                            } else {
+                                hotkeyStateActive = false
+                                returnToIdle()
+                            }
                         } else {
-                            hotkeyStateActive = false
-                            returnToIdle()
+                            if (_activeState.value == state && hotkeyStateActive) {
+                                hotkeyStateActive = false
+                                returnToIdle()
+                            } else {
+                                _activeState.value = state
+                                hotkeyStateActive = true
+                            }
                         }
-                    } else {
-                        if (_activeState.value == state && hotkeyStateActive) {
-                            hotkeyStateActive = false
-                            returnToIdle()
-                        } else {
-                            _activeState.value = state
-                            hotkeyStateActive = true
-                        }
+                        return
                     }
-                    return
                 }
             }
         }
@@ -150,7 +153,7 @@ class PuppetStateController(
             _audioLevel.value = level
             val isControlling = operatingMode == OperatingMode.OFFLINE || isPublishing
 
-            if (isControlling) {
+            if (isControlling && controlMode == ControlMode.DIRECT) {
                 val scaledLevel = level.pow(0.5f)
                 val sortedThresholds = thresholds.value.entries.sortedBy { it.key }
                 val activeThresholdIndex = sortedThresholds.indexOfLast { scaledLevel >= it.key }

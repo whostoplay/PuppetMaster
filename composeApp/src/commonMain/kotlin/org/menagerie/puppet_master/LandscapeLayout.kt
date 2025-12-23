@@ -33,11 +33,7 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.menagerie.puppet_master.Constants.UI.LandscapeLayout
-import org.menagerie.puppet_master.Strings.Keys.CREATE_OR_SELECT_PUPPET
-import org.menagerie.puppet_master.Strings.Keys.EYE_CONTACT_BUTTON
-import org.menagerie.puppet_master.Strings.Keys.SETTINGS_BUTTON
-import org.menagerie.puppet_master.Strings.Keys.STATE_GRAPH_BUTTON
-import org.menagerie.puppet_master.Strings.Keys.STATES_TITLE
+import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.DraggableSplitter
 import org.menagerie.puppet_master.controls.ModeControls
@@ -84,6 +80,7 @@ fun LandscapeLayout(
     val troupe by viewModel.troupe.collectAsState()
     val activePuppet by viewModel.activePuppet.collectAsState()
     val operatingMode by viewModel.operatingMode.collectAsState()
+    val controlMode by viewModel.controlMode.collectAsState()
     val isPublishing by viewModel.isPublishing.collectAsState()
     val isListening by viewModel.isListening.collectAsState()
     val audioLevel by viewModel.audioLevel.collectAsState()
@@ -119,7 +116,7 @@ fun LandscapeLayout(
                     rootFocusRequester = rootFocusRequester
                 )
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                ModeControls(operatingMode, viewModel::setOperatingMode)
+                ModeControls(operatingMode, viewModel::setOperatingMode, controlMode, viewModel::setControlMode)
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 ServerControls(
                     operatingMode,
@@ -148,21 +145,21 @@ fun LandscapeLayout(
                     onClick = { navigator.push(EyeContactScreen(activePuppet, viewModel)) },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text(Strings.getString(EYE_CONTACT_BUTTON))
+                    Text(Strings.getString(Strings.Keys.EYE_CONTACT_BUTTON))
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Button(
                     onClick = { navigator.push(NodeEditorScreen(viewModel)) },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text(Strings.getString(STATE_GRAPH_BUTTON))
+                    Text(Strings.getString(Strings.Keys.STATE_GRAPH_BUTTON))
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                 Button(
                     onClick = { navigator.push(SettingsScreen(viewModel)) },
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 ) {
-                    Text(Strings.getString(SETTINGS_BUTTON))
+                    Text(Strings.getString(Strings.Keys.SETTINGS_BUTTON))
                 }
                 Spacer(modifier = Modifier.height(8.dp))
             }
@@ -209,7 +206,7 @@ fun LandscapeLayout(
                         )
                     }
                     item { HorizontalDivider() }
-                    item { Text(text = Strings.getString(STATES_TITLE)) }
+                    item { Text(text = Strings.getString(Strings.Keys.STATES_TITLE)) }
                     item { HorizontalDivider() }
                     items(currentPuppet.states) { state ->
                         Text(
@@ -255,7 +252,7 @@ fun LandscapeLayout(
                             modifier = Modifier.fillParentMaxSize().padding(16.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(Strings.getString(CREATE_OR_SELECT_PUPPET))
+                            Text(Strings.getString(Strings.Keys.CREATE_OR_SELECT_PUPPET))
                         }
                     }
                 }

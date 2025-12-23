@@ -31,8 +31,9 @@ import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.Constants.UI.CONTROLS_VISIBILITY_DELAY_MS
 import org.menagerie.puppet_master.Constants.UI.DEFAULT_PANEL_WIDTH_FRACTION
 import org.menagerie.puppet_master.Constants.UI.FileDialogs
-import org.menagerie.puppet_master.Strings.Keys.GETTING_STARTED
-import org.menagerie.puppet_master.Strings.Keys.LOAD_STATE_IMAGE
+import org.menagerie.puppet_master.localisation.Strings
+import org.menagerie.puppet_master.localisation.Strings.Keys.GETTING_STARTED
+import org.menagerie.puppet_master.localisation.Strings.Keys.LOAD_STATE_IMAGE
 import org.menagerie.puppet_master.controls.FilePicker
 import org.menagerie.puppet_master.controls.FileSaver
 import org.menagerie.puppet_master.navigation.AppNavigator

@@ -25,7 +25,7 @@ import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SpecialEffectsManager
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.controls.HotkeySelector
 import kotlin.math.roundToLong
 

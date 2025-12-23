@@ -35,7 +35,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.filterIsInstance
 import org.menagerie.puppet_master.Hotkey
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 
 /**
  * A composable for selecting a hotkey combination.

@@ -51,7 +51,7 @@ import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.SpecialEffect
 import org.menagerie.puppet_master.SpecialEffectsManager
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.previews.EffectPreview
 import org.menagerie.puppet_master.previews.LivePreview
 import org.menagerie.puppet_master.rememberImageFromUrl

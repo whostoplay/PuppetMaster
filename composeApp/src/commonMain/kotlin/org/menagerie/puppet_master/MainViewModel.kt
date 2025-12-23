@@ -26,10 +26,18 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import org.menagerie.puppet_master.localisation.Strings
+import org.menagerie.puppet_master.state_machine.GraphAction
+import org.menagerie.puppet_master.state_machine.GraphExecutionContext
+import org.menagerie.puppet_master.state_machine.GraphExecutor
 import org.menagerie.puppet_master.state_machine.NodeGraph
 
 enum class OperatingMode {
     ONLINE, OFFLINE
+}
+
+enum class ControlMode {
+    DIRECT, STATE_MACHINE
 }
 
 data class UiState(
@@ -132,6 +140,9 @@ class MainViewModel(context: Any) : ScreenModel {
     private val _operatingMode = MutableStateFlow(OperatingMode.OFFLINE)
     val operatingMode: StateFlow<OperatingMode> = _operatingMode.asStateFlow()
 
+    private val _controlMode = MutableStateFlow(ControlMode.DIRECT)
+    val controlMode: StateFlow<ControlMode> = _controlMode.asStateFlow()
+
     private val _isAudienceCheckForced = MutableStateFlow(false)
     val isAudienceCheckForced: StateFlow<Boolean> = _isAudienceCheckForced.asStateFlow()
 
@@ -162,6 +173,8 @@ class MainViewModel(context: Any) : ScreenModel {
     val activeState: StateFlow<PuppetStateInfo?>
     private var activeSpecialEffect: ActiveSpecialEffect? = null
     val displayedImageName: StateFlow<String?>
+    private var graphExecutor: GraphExecutor? = null
+    private val _stateMachineActiveState = MutableStateFlow<PuppetStateInfo?>(null)
 
     init {
         _settings.value = settingsRepository.loadSettings()
@@ -169,6 +182,7 @@ class MainViewModel(context: Any) : ScreenModel {
 
         screenModelScope.launch {
             activePuppet.collect { puppet ->
+                graphExecutor = puppet?.nodeGraph?.let { GraphExecutor(it) }
                 _thresholds.value = puppet?.thresholds ?: emptyMap()
                 _selectedState.value?.let { selected ->
                     _selectedState.value = puppet?.states?.find { it.name == selected.name }
@@ -196,6 +210,17 @@ class MainViewModel(context: Any) : ScreenModel {
             }
         }
 
+        screenModelScope.launch {
+            audioLevel.collect { level ->
+                if (controlMode.value == ControlMode.STATE_MACHINE) {
+                    val action = graphExecutor?.tick(GraphExecutionContext(microphoneVolume = level, hotKeyPressed = null))
+                    if (action is GraphAction.SetState) {
+                        _stateMachineActiveState.value = puppetStates.value.find { it.name == action.stateName }
+                    }
+                }
+            }
+        }
+
         val localActiveState = stateController.activeState
         val localDisplayedImageName = stateController.displayedImageName
 
@@ -215,7 +240,11 @@ class MainViewModel(context: Any) : ScreenModel {
             if (mode == OperatingMode.ONLINE && !isPublishing) {
                 serverState.map { it?.puppetStateInfo }
             } else {
-                stateWithCursorUpdates
+                if (controlMode.value == ControlMode.STATE_MACHINE) {
+                    _stateMachineActiveState
+                } else {
+                    stateWithCursorUpdates
+                }
             }
         }.stateIn(screenModelScope, SharingStarted.Lazily, localActiveState.value)
 
@@ -274,7 +303,20 @@ class MainViewModel(context: Any) : ScreenModel {
     }
 
     fun onKeyEvent(keyEvent: KeyEvent) {
-        stateController.onKeyEvent(keyEvent)
+        if (controlMode.value == ControlMode.DIRECT) {
+            stateController.onKeyEvent(keyEvent)
+        } else {
+            activePuppet.value?.states?.forEach { state ->
+                state.hotkey?.let { hotkey ->
+                    if (hotkey.isHotkey(keyEvent)) {
+                        val action = graphExecutor?.tick(GraphExecutionContext(hotKeyPressed = hotkey.toString()))
+                        if (action is GraphAction.SetState) {
+                            _stateMachineActiveState.value = puppetStates.value.find { it.name == action.stateName }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun updateSettings(newSettings: SettingsModel) {
@@ -358,6 +400,12 @@ class MainViewModel(context: Any) : ScreenModel {
         _operatingMode.value = mode
         dataManager.setOperatingMode(mode)
         stateController.operatingMode = mode
+    }
+
+    fun setControlMode(mode: ControlMode) {
+        if (mode == _controlMode.value) return
+        _controlMode.value = mode
+        stateController.controlMode = mode
     }
 
     fun toggleOperatingMode() {
@@ -672,5 +720,6 @@ class MainViewModel(context: Any) : ScreenModel {
 
     fun updateNodeGraph(nodeGraph: NodeGraph) {
         dataManager.updateNodeGraph(nodeGraph)
+        graphExecutor = GraphExecutor(nodeGraph)
     }
 }

@@ -14,7 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 
 /**
  * A composable that can be dragged horizontally to resize adjacent elements.

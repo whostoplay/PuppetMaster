@@ -20,6 +20,7 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.navigation.AppNavigator
 import java.awt.Window as AwtWindow
 import java.io.File

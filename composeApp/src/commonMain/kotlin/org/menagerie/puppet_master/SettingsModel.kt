@@ -2,7 +2,7 @@ package org.menagerie.puppet_master
 
 import androidx.compose.ui.input.key.Key
 import kotlinx.serialization.Serializable
-import org.menagerie.puppet_master.Hotkey
+import org.menagerie.puppet_master.localisation.Strings
 
 @Serializable
 data class SettingsModel(

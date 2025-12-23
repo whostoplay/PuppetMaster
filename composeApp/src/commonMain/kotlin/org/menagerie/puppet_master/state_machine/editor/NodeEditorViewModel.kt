@@ -201,13 +201,11 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     }
 
     fun updateNode(node: Node) {
-        if (_draggedNodeInfo.value?.nodeId != node.id) {
-            val newNodes = _nodeGraph.value.nodes.toMutableMap()
-            newNodes[node.id] = node
-            _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes)
-            lastInteractedNodeId = node.id
-            mainViewModel.updateNodeGraph(nodeGraph.value)
-        }
+        val newNodes = _nodeGraph.value.nodes.toMutableMap()
+        newNodes[node.id] = node
+        _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes)
+        lastInteractedNodeId = node.id
+        mainViewModel.updateNodeGraph(nodeGraph.value)
     }
 
     fun updateHandlePosition(nodeId: String, handleId: String, position: Offset) {

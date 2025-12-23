@@ -15,7 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 
 /**
  * A dialog that prompts the user to name a new troupe.

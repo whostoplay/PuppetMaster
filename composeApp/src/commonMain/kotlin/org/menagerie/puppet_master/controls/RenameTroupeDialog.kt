@@ -10,7 +10,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 
 /**
  * A dialog that prompts the user to rename a troupe.

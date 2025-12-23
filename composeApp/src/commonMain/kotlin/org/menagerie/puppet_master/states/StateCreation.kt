@@ -40,7 +40,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.ImagePickerDialog
 import org.menagerie.puppet_master.MainViewModel
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 
 /**
  * A composable that provides a UI for creating and editing puppet states.

@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ContextMenuArea
 import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,7 +32,6 @@ import org.menagerie.puppet_master.state_machine.StateNode
 import org.menagerie.puppet_master.state_machine.VolumeThresholdNode
 import org.menagerie.puppet_master.state_machine.VolumeThresholdNodeView
 import org.menagerie.puppet_master.toOffset
-import org.menagerie.puppet_master.toSerializableOffset
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -115,16 +113,6 @@ fun NodeCanvas(
                         .offset {
                             val offset = node.position.toOffset()
                             IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
-                        }
-                        .pointerInput(node.id) {
-                            detectDragGestures(
-                                onDragStart = { editorViewModel.onNodeDragStart(node.id) },
-                                onDragEnd = { editorViewModel.onNodeDragEnd() },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    editorViewModel.onNodeDrag(dragAmount.toSerializableOffset())
-                                }
-                            )
                         }
                 ) {
                     when (node) {

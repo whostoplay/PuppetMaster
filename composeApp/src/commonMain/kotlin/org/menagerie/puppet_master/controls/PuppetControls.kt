@@ -32,7 +32,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.PuppetCharacter
 import org.menagerie.puppet_master.PuppetTroupe
-import org.menagerie.puppet_master.Strings
+import org.menagerie.puppet_master.localisation.Strings
 
 /**
  * A composable that provides UI controls for managing puppets and troupes.
