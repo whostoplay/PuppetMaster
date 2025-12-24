@@ -358,13 +358,13 @@ class EyeContactScreen(
 
                     if (checkOnAudience) {
                         LabeledSlider(
-                            label = Strings.getString(Strings.Keys.AUDIENCE_CHECK_RATE),
+                            label = String.format(Strings.getString(Strings.Keys.AUDIENCE_CHECK_RATE), audienceCheckRate / 1000f),
                             value = audienceCheckRate,
                             onValueChange = { audienceCheckRate = it },
                             range = 1000f..20000f
                         )
                         LabeledSlider(
-                            label = Strings.getString(Strings.Keys.AUDIENCE_CHECK_DURATION),
+                            label = String.format(Strings.getString(Strings.Keys.AUDIENCE_CHECK_DURATION), audienceCheckDuration / 1000f),
                             value = audienceCheckDuration,
                             onValueChange = { audienceCheckDuration = it },
                             range = 500f..5000f
@@ -516,7 +516,7 @@ private fun LabeledSlider(
     range: ClosedFloatingPointRange<Float>
 ) {
     Column(modifier = Modifier.fillMaxWidth(0.8f)) {
-        Text("$label: ${value.roundToInt()}ms")
+        Text(label)
         Slider(
             value = value,
             onValueChange = onValueChange,

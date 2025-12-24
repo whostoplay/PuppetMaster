@@ -213,6 +213,10 @@ object Strings {
         }
     }
 
+    fun getString(key: String, vararg formatArgs: Any?): String {
+        return String.format(getString(key), *formatArgs)
+    }
+
     interface LocalizedStrings {
         val strings: Map<String, String>
     }
