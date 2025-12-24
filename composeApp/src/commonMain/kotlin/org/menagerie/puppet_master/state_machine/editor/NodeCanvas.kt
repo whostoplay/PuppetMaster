@@ -1,8 +1,6 @@
 package org.menagerie.puppet_master.state_machine.editor
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.ContextMenuArea
-import androidx.compose.foundation.ContextMenuItem
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -105,13 +103,13 @@ fun NodeCanvas(
         }
 
         graph.nodes.values.forEach { node ->
-            ContextMenuArea(items = {
+            ContextMenuWrapper(items = {
                 listOf(
                     ContextMenuItem("Delete") {
                         editorViewModel.deleteNode(node.id)
                     }
                 )
-            }) {
+            }) { 
                 Box(
                     modifier = Modifier
                         .offset {

@@ -46,7 +46,7 @@ fun main() = application {
             exitApplication()
         },
         title = windowTitle,
-        state = windowState
+        state = windowState,
     ) {
         SideEffect { windowRef = window }
         Box(modifier = Modifier.fillMaxSize().padding(WindowInsets.captionBar.asPaddingValues())) {

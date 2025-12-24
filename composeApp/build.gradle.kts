@@ -100,17 +100,18 @@ compose.desktop {
 
             linux {
                 packageName = "puppet-master"
-                // This points to our custom resources, including the .desktop file
-                // which defines the application name for the Linux app menu.
                 appResourcesRootDir.set(project.layout.projectDirectory.dir("src/jvmMain/resources/dist"))
+                iconFile.set(project.layout.projectDirectory.file("src/commonMain/composeResources/drawable/icon.png"))
             }
 
             macOS {
                 packageName = "Puppet Master"
+                iconFile.set(project.layout.projectDirectory.file("src/commonMain/composeResources/drawable/icon.png"))
             }
 
             windows {
                 menuGroup = "Puppet Master"
+                iconFile.set(project.layout.projectDirectory.file("src/commonMain/composeResources/drawable/icon.png"))
             }
         }
     }

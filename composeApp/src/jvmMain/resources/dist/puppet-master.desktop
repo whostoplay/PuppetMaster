@@ -1,0 +1,9 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Puppet Master HO HO HOLIDAY EDITION
+Comment=Remote control application
+Exec=x-terminal-emulator -e puppet-master
+Icon=/home/azea/Projects/Code Projects/Puppet Master/composeApp/src/commonMain/composeResources/drawable/icon.png
+Terminal=false
+StartupWMClass=org.menagerie.puppet_master.MainKt
