@@ -217,21 +217,25 @@ class MainViewModel(context: Any) : ScreenModel {
         }
 
         screenModelScope.launch {
-            combine(audioLevel, _lastPressedKey, controlMode) { level, hotkey, mode ->
-                println(_lastPressedKey)
+            controlMode.collectLatest { mode ->
                 if (mode == ControlMode.STATE_MACHINE) {
-                    val context = GraphExecutionContext(microphoneVolume = level, hotKeyPressed = hotkey)
-                    val action = graphExecutor?.tick(context)
-                    if (action is GraphAction.SetState) {
-                        stateController.setStateByName(action.stateName)
-                    }
+                    while (true) {
+                        val level = audioLevel.value
+                        val hotkey = _lastPressedKey.value
+                        val context = GraphExecutionContext(microphoneVolume = level, hotKeyPressed = hotkey)
+                        val action = graphExecutor?.tick(context)
+                        if (action is GraphAction.SetState) {
+                            stateController.setStateByName(action.stateName)
+                        }
 
-                    // Reset the hotkey after it's been processed by the tick
-                    if (hotkey != null) {
-                        _lastPressedKey.value = null
+                        // Reset the hotkey after it's been processed by the tick
+                        if (hotkey != null) {
+                            _lastPressedKey.value = null
+                        }
+                        kotlinx.coroutines.delay(16) // roughly 60 fps
                     }
                 }
-            }.collect()
+            }
         }
 
         val localActiveState = stateController.activeState
