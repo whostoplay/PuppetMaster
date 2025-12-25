@@ -10,7 +10,8 @@ data class GraphExecutionContext(
     val microphoneVolume: Float = 0f,
     val hotKeyPressed: Hotkey? = null,
     val toggledOnNodes: Set<NodeId> = emptySet(),
-    val puppetId: String? = null
+    val puppetId: String? = null,
+    val lastProcessedHotkey: Hotkey? = null // We need to know if a key press has already been handled
 )
 
 /**
@@ -20,6 +21,8 @@ sealed interface GraphAction {
     data class SetState(val stateName: String, val puppetId: String? = null) : GraphAction
     data class SetGraphStart(val nodeId: NodeId) : GraphAction
     object ResetGraphStart : GraphAction
+    // This is an internal action for the executor to handle, requested by a node
+    data class RequestToggle(val nodeId: NodeId) : GraphAction
 }
 
 /**
@@ -40,19 +43,7 @@ class GraphExecutor(private val graph: NodeGraph) {
      * @return An action to be performed, or null if no action is required.
      */
     fun tick(context: GraphExecutionContext): GraphAction? {
-        // Update toggled nodes based on new hotkey presses
-        if (context.hotKeyPressed != null && !context.hotKeyPressed.shallowEquals(lastProcessedHotkey)) {
-            graph.nodes.values.forEach { node ->
-                if (node is HotKeyNode && !node.mode && node.hotkey.shallowEquals(context.hotKeyPressed)) {
-                    if (toggledOnNodes.contains(node.id)) {
-                        toggledOnNodes.remove(node.id)
-                    } else {
-                        toggledOnNodes.add(node.id)
-                    }
-                }
-            }
-        }
-        lastProcessedHotkey = context.hotKeyPressed
+        // Global hotkey processing is removed. Nodes will handle their own logic.
 
         val startNodeId = overrideStartNodeId ?: graph.startNodeId
         val startNode = startNodeId?.let { graph.nodes[it] }
@@ -71,7 +62,10 @@ class GraphExecutor(private val graph: NodeGraph) {
             .mapNotNull { wire -> graph.nodes[wire.toNodeId] }
             .sortedBy { it.branchPriority }
 
-        var executionContext = context.copy(toggledOnNodes = toggledOnNodes)
+        var executionContext = context.copy(
+            toggledOnNodes = toggledOnNodes,
+            lastProcessedHotkey = lastProcessedHotkey
+        )
         if (startNode is StartNode) {
             executionContext = executionContext.copy(puppetId = startNode.puppetId)
         }
@@ -92,9 +86,9 @@ class GraphExecutor(private val graph: NodeGraph) {
                 val result = currentNode.execute(executionContext, graph)
 
                 if (result.action != null) {
-                    when (result.action) {
+                    when (val action = result.action) {
                         is GraphAction.SetGraphStart -> {
-                            overrideStartNodeId = result.action.nodeId
+                            overrideStartNodeId = action.nodeId
                             // Continue execution from the new start node
                             return tick(context)
                         }
@@ -103,7 +97,18 @@ class GraphExecutor(private val graph: NodeGraph) {
                             // Stop execution for this tick
                             return null
                         }
-                        else -> return result.action
+                        is GraphAction.RequestToggle -> {
+                            if (toggledOnNodes.contains(action.nodeId)) {
+                                toggledOnNodes.remove(action.nodeId)
+                            } else {
+                                toggledOnNodes.add(action.nodeId)
+                            }
+                            // By setting lastProcessedHotkey here, we ensure that this specific key press
+                            // doesn't trigger another toggle in the same tick if it appears again.
+                            lastProcessedHotkey = context.hotKeyPressed
+                            // We do NOT return, execution continues.
+                        }
+                        else -> return action // This bubbles up to the UI
                     }
                 }
 
@@ -115,6 +120,8 @@ class GraphExecutor(private val graph: NodeGraph) {
             }
         }
 
+        // Update the hotkey at the very end of the tick.
+        lastProcessedHotkey = context.hotKeyPressed
         return null
     }
 

@@ -50,13 +50,26 @@ data class HotKeyNode(
     }
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        val handleId = if (mode) { // Hold mode
-            if (context.hotKeyPressed?.shallowEquals(hotkey) == true) "true" else "false"
+        if (mode) { // Hold mode
+            val handleId = if (context.hotKeyPressed?.shallowEquals(hotkey) == true) "true" else "false"
+            val nextNodeId = findNextNodeId(graph, handleId)
+            return ExecuteResult(nextNodeId)
         } else { // Toggle mode
-            if (context.toggledOnNodes.contains(id)) "true" else "false"
+            val keyWasPressed = context.hotKeyPressed?.shallowEquals(hotkey) == true &&
+                    context.hotKeyPressed?.shallowEquals(context.lastProcessedHotkey) != true
+
+            val isCurrentlyOn = context.toggledOnNodes.contains(id)
+
+            val shouldBeOn = if (keyWasPressed) !isCurrentlyOn else isCurrentlyOn
+
+            val handleId = if (shouldBeOn) "true" else "false"
+            val nextNodeId = findNextNodeId(graph, handleId)
+
+            return ExecuteResult(
+                nextNodeId = nextNodeId,
+                action = if (keyWasPressed) GraphAction.RequestToggle(id) else null
+            )
         }
-        val nextNodeId = findNextNodeId(graph, handleId)
-        return ExecuteResult(nextNodeId)
     }
 }
 

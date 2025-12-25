@@ -3,6 +3,7 @@ package org.menagerie.puppet_master.state_machine.editor
 import androidx.compose.animation.core.copy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.IntSize
 import cafe.adriel.voyager.core.model.ScreenModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -53,6 +54,8 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     // Handle Positions
     private val _handlePositions = MutableStateFlow<Map<String, Offset>>(emptyMap())
     val handlePositions: StateFlow<Map<String, Offset>> = _handlePositions.asStateFlow()
+
+    private val _canvasSize = MutableStateFlow(IntSize.Zero)
 
     init {
         val graph = _nodeGraph.value
@@ -154,6 +157,12 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
                 targetPosition = targetPosition.copy(y = basePosition.y - verticalOffset)
             }
             offsetMultiplier++
+        }
+        
+        val canvasWidth = _canvasSize.value.width
+        val nodeWidth = templateNode.size.toSize().width
+        if (canvasWidth > 0 && targetPosition.x + nodeWidth > canvasWidth) {
+            targetPosition = targetPosition.copy(x = canvasWidth - nodeWidth - 20f)
         }
 
         val newNode = templateNode.copyNode(
@@ -330,6 +339,10 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
         _nodeGraph.value = newGraph
         mainViewModel.updateNodeGraph(newGraph)
+    }
+    
+    fun updateCanvasSize(newSize: IntSize) {
+        _canvasSize.value = newSize
     }
 
     fun updateNode(node: Node) {

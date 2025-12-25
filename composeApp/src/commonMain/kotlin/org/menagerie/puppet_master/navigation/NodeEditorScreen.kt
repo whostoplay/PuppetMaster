@@ -1,12 +1,16 @@
 package org.menagerie.puppet_master.navigation
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -85,6 +89,10 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                 var pointerPosition by remember { mutableStateOf(Offset.Zero) }
                 var boxCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 val gridSize = 40f
+                val canvasSize = 3000.dp
+
+                val horizontalScrollState = rememberScrollState()
+                val verticalScrollState = rememberScrollState()
 
                 Box(
                     modifier = Modifier
@@ -95,7 +103,10 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                                 while (true) {
                                     val event = awaitPointerEvent()
                                     val change = event.changes.first()
-                                    pointerPosition = change.position
+                                    pointerPosition = change.position + Offset(
+                                        horizontalScrollState.value.toFloat(),
+                                        verticalScrollState.value.toFloat()
+                                    )
 
                                     val wasDraggingWire = wireDragInfo != null
                                     val isPointerUp = event.changes.any { !it.pressed }
@@ -106,47 +117,54 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                                 }
                             }
                         }
+                        .horizontalScroll(horizontalScrollState)
+                        .verticalScroll(verticalScrollState)
                 ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        // Draw Grid
-                        for (x in 0..size.width.toInt() step gridSize.toInt()) {
-                            drawLine(
-                                color = Color.DarkGray,
-                                start = Offset(x.toFloat(), 0f),
-                                end = Offset(x.toFloat(), size.height),
-                                strokeWidth = 1f
-                            )
-                        }
-                        for (y in 0..size.height.toInt() step gridSize.toInt()) {
-                            drawLine(
-                                color = Color.DarkGray,
-                                start = Offset(0f, y.toFloat()),
-                                end = Offset(size.width, y.toFloat()),
-                                strokeWidth = 1f
-                            )
-                        }
+                    Box(Modifier.size(canvasSize)) {
+                        Canvas(modifier = Modifier.fillMaxSize()) {
+                            // Draw Grid
+                            for (x in 0..size.width.toInt() step gridSize.toInt()) {
+                                drawLine(
+                                    color = Color.DarkGray,
+                                    start = Offset(x.toFloat(), 0f),
+                                    end = Offset(x.toFloat(), size.height),
+                                    strokeWidth = 1f
+                                )
+                            }
+                            for (y in 0..size.height.toInt() step gridSize.toInt()) {
+                                drawLine(
+                                    color = Color.DarkGray,
+                                    start = Offset(0f, y.toFloat()),
+                                    end = Offset(size.width, y.toFloat()),
+                                    strokeWidth = 1f
+                                )
+                            }
 
-                        // Draw Ghost Wire for wire creation
-                        wireDragInfo?.let { dragInfo ->
-                            val startPosAbsolute = handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
-                            if (startPosAbsolute != null) {
-                                boxCoordinates?.let {
-                                    val startPosLocal = startPosAbsolute - it.localToRoot(Offset.Zero)
-                                    drawLine(
-                                        color = Color.Yellow,
-                                        start = startPosLocal,
-                                        end = pointerPosition,
-                                        strokeWidth = 3f
-                                    )
+                            // Draw Ghost Wire for wire creation
+                            wireDragInfo?.let { dragInfo ->
+                                val startPosAbsolute = handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
+                                if (startPosAbsolute != null) {
+                                    boxCoordinates?.let {
+                                        val startPosLocal = startPosAbsolute - it.localToRoot(Offset.Zero) + Offset(
+                                            horizontalScrollState.value.toFloat(),
+                                            verticalScrollState.value.toFloat()
+                                        )
+                                        drawLine(
+                                            color = Color.Yellow,
+                                            start = startPosLocal,
+                                            end = pointerPosition,
+                                            strokeWidth = 3f
+                                        )
+                                    }
                                 }
                             }
                         }
+                        NodeCanvas(
+                            mainViewModel = mainViewModel,
+                            editorViewModel = editorViewModel,
+                            highlightMode = highlightMode
+                        )
                     }
-                    NodeCanvas(
-                        mainViewModel = mainViewModel,
-                        editorViewModel = editorViewModel,
-                        highlightMode = highlightMode
-                    )
                 }
             }
         }

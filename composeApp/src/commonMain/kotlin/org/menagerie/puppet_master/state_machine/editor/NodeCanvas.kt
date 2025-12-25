@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -72,6 +73,7 @@ fun NodeCanvas(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                .onSizeChanged { editorViewModel.updateCanvasSize(it) }
                 .onGloballyPositioned { canvasCoordinates = it }
                 .pointerInput(graph.wires) {
                     detectTapGestures(

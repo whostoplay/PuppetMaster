@@ -15,7 +15,7 @@ data class SetPuppetNode(
     val puppetId: String? = null,
     val mode: SetPuppetMode = SetPuppetMode.SWITCH,
     override val position: SerializableOffset,
-    override val size: SerializableSize = SerializableSize(150f, 120f), // Increased height for toggle
+    override val size: SerializableSize = SerializableSize(250f, 220f), // Increased height for toggle
     override val branchPriority: Int = 0
 ) : UtilityNode {
 
