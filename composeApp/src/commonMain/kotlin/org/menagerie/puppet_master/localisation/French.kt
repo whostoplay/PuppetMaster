@@ -132,6 +132,7 @@ object French : Strings.LocalizedStrings {
             Keys.APPLIED_EFFECT to "Effet appliqué: %1\$s",
             Keys.STATE_HOTKEY to "Raccourci d'état",
             Keys.LANGUAGE to "Langue",
-            Keys.STATE_GRAPH_BUTTON to "TRANSLATION DATA ERROR"
+            Keys.STATE_GRAPH_BUTTON to "TRANSLATION DATA ERROR",
+            Keys.HIGHLIGHT_ON to "Surlignage"
         )
     }

@@ -3,10 +3,12 @@ package org.menagerie.puppet_master
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
 import io.ktor.client.HttpClient
@@ -227,11 +229,6 @@ class MainViewModel(context: Any) : ScreenModel {
                         if (action is GraphAction.SetState) {
                             stateController.setStateByName(action.stateName)
                         }
-
-                        // Reset the hotkey after it's been processed by the tick
-                        if (hotkey != null) {
-                            _lastPressedKey.value = null
-                        }
                         kotlinx.coroutines.delay(16) // roughly 60 fps
                     }
                 }
@@ -319,12 +316,19 @@ class MainViewModel(context: Any) : ScreenModel {
         if (controlMode.value == ControlMode.DIRECT) {
             stateController.onKeyEvent(keyEvent)
         } else if (controlMode.value == ControlMode.STATE_MACHINE) {
-            _lastPressedKey.value = Hotkey(
+            val hotkey = Hotkey(
                 keyEvent.key.keyCode,
                 keyEvent.isShiftPressed,
                 keyEvent.isCtrlPressed,
                 keyEvent.isAltPressed,
             )
+            if (keyEvent.type == KeyEventType.KeyDown) {
+                _lastPressedKey.value = hotkey
+            } else if (keyEvent.type == KeyEventType.KeyUp) {
+                if (_lastPressedKey.value?.shallowEquals(hotkey) == true) {
+                    _lastPressedKey.value = null
+                }
+            }
         }
     }
 
@@ -413,6 +417,11 @@ class MainViewModel(context: Any) : ScreenModel {
 
     fun setControlMode(mode: ControlMode) {
         if (mode == _controlMode.value) return
+
+        if (mode == ControlMode.DIRECT) {
+            graphExecutor?.reset()
+        }
+
         _controlMode.value = mode
         stateController.controlMode = mode
     }

@@ -133,6 +133,7 @@ object English : LocalizedStrings {
         Keys.APPLIED_EFFECT to "Applied Effect: %1\$s",
         Keys.STATE_HOTKEY to "State Hotkey",
         Keys.LANGUAGE to "Language",
-        Keys.STATE_GRAPH_BUTTON to "Puppeteering"
+        Keys.STATE_GRAPH_BUTTON to "Puppeteering",
+        Keys.HIGHLIGHT_ON to "Highlight"
     )
 }

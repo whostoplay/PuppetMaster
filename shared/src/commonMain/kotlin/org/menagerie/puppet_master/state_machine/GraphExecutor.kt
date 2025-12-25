@@ -8,8 +8,8 @@ import org.menagerie.puppet_master.Hotkey
  */
 data class GraphExecutionContext(
     val microphoneVolume: Float = 0f,
-    val hotKeyPressed: Hotkey? = null
-    // Future live data can be added here, e.g., timers, audience metrics, etc.
+    val hotKeyPressed: Hotkey? = null,
+    val toggledOnNodes: Set<NodeId> = emptySet()
 )
 
 /**
@@ -21,10 +21,12 @@ sealed interface GraphAction {
 
 /**
  * Executes the logic of a NodeGraph based on a given ExecutionContext.
- * This executor is stateless. On every tick, it starts from the beginning of the graph
- * and traverses it to determine the correct state.
+ * This executor is stateful and tracks toggled nodes.
  */
 class GraphExecutor(private val graph: NodeGraph) {
+
+    private val toggledOnNodes = mutableSetOf<NodeId>()
+    private var lastProcessedHotkey: Hotkey? = null
 
     /**
      * Executes the graph's logic, starting from the graph's start node.
@@ -34,11 +36,22 @@ class GraphExecutor(private val graph: NodeGraph) {
      * @return An action to be performed, or null if no action is required.
      */
     fun tick(context: GraphExecutionContext): GraphAction? {
-        val nextNodeId: NodeId? = graph.startNodeId
+        // Update toggled nodes based on new hotkey presses
+        if (context.hotKeyPressed != null && context.hotKeyPressed != lastProcessedHotkey) {
+            graph.nodes.values.forEach { node ->
+                if (node is HotKeyNode && node.mode == !node.hotkey.hold && node.hotkey.shallowEquals(context.hotKeyPressed)) {
+                    if (toggledOnNodes.contains(node.id)) {
+                        toggledOnNodes.remove(node.id)
+                    } else {
+                        toggledOnNodes.add(node.id)
+                    }
+                }
+            }
+        }
+        lastProcessedHotkey = context.hotKeyPressed
 
-        var currentNode = nextNodeId?.let { graph.nodes[it] }
-
-        if (currentNode == null) {
+        val startNode = graph.startNodeId?.let { graph.nodes[it] }
+        if (startNode == null) {
             if (graph.startNodeId != null) {
                 println("GraphExecutor: Start node with id ${graph.startNodeId} not found in graph.")
             } else {
@@ -47,37 +60,40 @@ class GraphExecutor(private val graph: NodeGraph) {
             return null // Can't execute without a starting node.
         }
 
-        println("GraphExecutor: Tick starting from node ${currentNode.id}")
+        val childrenOfStart = graph.wires
+            .filter { it.fromNodeId == startNode.id }
+            .mapNotNull { wire -> graph.nodes[wire.toNodeId] }
+            .sortedBy { it.branchPriority }
 
-        while (currentNode != null) {
-            println("GraphExecutor: Executing node ${currentNode.id}")
-            val result = currentNode.execute(context, graph)
+        val executionContext = context.copy(toggledOnNodes = toggledOnNodes)
 
-            if (result.action != null) {
-                println("GraphExecutor: Action triggered: ${result.action}")
-                // An action was found, so we're done for this tick.
-                return result.action
-            }
+        for (childNode in childrenOfStart) {
+            var currentNode: Node? = childNode
+            if (currentNode == null) continue
 
-            if (result.nextNodeId != null) {
-                println("GraphExecutor: Transitioning to node ${result.nextNodeId}")
-                currentNode = graph.nodes[result.nextNodeId]
-            } else {
-                // End of a branch.
-                println("GraphExecutor: End of branch reached at node ${currentNode.id}")
-                break
+            while (currentNode != null) {
+                val result = currentNode.execute(executionContext, graph)
+
+                if (result.action != null) {
+                    return result.action
+                }
+
+                if (result.nextNodeId != null) {
+                    currentNode = graph.nodes[result.nextNodeId]
+                } else {
+                    break
+                }
             }
         }
 
-        println("GraphExecutor: Tick finished without producing an action.")
         return null
     }
 
     /**
-     * Resets the executor. As the executor is now stateless, this method is a no-op
-     * but is kept for API compatibility.
+     * Resets the executor, clearing all toggled nodes.
      */
     fun reset() {
-        // No-op. The executor is stateless and resets on every tick automatically.
+        toggledOnNodes.clear()
+        lastProcessedHotkey = null
     }
 }

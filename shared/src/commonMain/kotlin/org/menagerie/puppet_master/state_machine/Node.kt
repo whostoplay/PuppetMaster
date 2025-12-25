@@ -48,6 +48,7 @@ sealed interface Node {
     val inputs: List<InputHandle>
     val outputs: List<OutputHandle>
     val size: SerializableSize
+    val branchPriority: Int
 
     /**
      * Creates a copy of this node with a new ID and position.

@@ -133,6 +133,7 @@ object Pirate : LocalizedStrings {
         Keys.APPLIED_EFFECT to "Applied Effect: %1\$s",
         Keys.STATE_HOTKEY to "State Hotkey",
         Keys.LANGUAGE to "Tongue",
-        Keys.STATE_GRAPH_BUTTON to "Make 'em Dance"
+        Keys.STATE_GRAPH_BUTTON to "Make 'em Dance",
+        Keys.HIGHLIGHT_ON to "Glowin' Marks",
     )
 }

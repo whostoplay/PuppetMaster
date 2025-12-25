@@ -13,6 +13,7 @@ import org.menagerie.puppet_master.SerializableSize
 data class StartNode(
     override val id: NodeId,
     override val position: SerializableOffset,
+    override val branchPriority: Int = 0,
     override val size: SerializableSize = SerializableSize(180f, 120f),
     override val inputs: List<InputHandle> = emptyList(),
     override val outputs: List<OutputHandle> = listOf(OutputHandle("out"))
@@ -35,6 +36,7 @@ data class SetStateNode(
     override val id: NodeId,
     override val position: SerializableOffset,
     val stateName: String, // e.g., "IDLE", "TALK"
+    override val branchPriority: Int = 0,
     override val size: SerializableSize = SerializableSize(300f, 250f)
 ) : StateNode {
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)

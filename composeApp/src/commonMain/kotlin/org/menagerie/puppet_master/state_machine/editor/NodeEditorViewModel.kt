@@ -29,6 +29,14 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     private val _nodeGraph = MutableStateFlow(mainViewModel.troupe.value?.nodeGraph ?: NodeGraph.createInitialGraph())
     val nodeGraph: StateFlow<NodeGraph> = _nodeGraph.asStateFlow()
 
+    // Highlight Mode
+    private val _highlightMode = MutableStateFlow(false)
+    val highlightMode: StateFlow<Boolean> = _highlightMode.asStateFlow()
+
+    fun toggleHighlightMode() {
+        _highlightMode.value = !_highlightMode.value
+    }
+
     // Wire Drag and Drop State
     private val _wireDragInfo = MutableStateFlow<WireDragInfo?>(null)
     val wireDragInfo: StateFlow<WireDragInfo?> = _wireDragInfo.asStateFlow()

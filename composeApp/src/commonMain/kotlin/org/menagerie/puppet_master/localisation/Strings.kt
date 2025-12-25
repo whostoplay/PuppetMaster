@@ -182,6 +182,7 @@ object Strings {
 
         //region State Graph
         const val STATE_GRAPH_BUTTON = "STATE_GRAPH"
+        const val HIGHLIGHT_ON = "HIGHLIGHT_ON"
     }
 
     enum class Language {
