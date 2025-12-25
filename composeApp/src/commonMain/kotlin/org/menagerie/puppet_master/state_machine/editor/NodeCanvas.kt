@@ -119,11 +119,13 @@ fun NodeCanvas(
             }
         }
 
-        val childrenOfStart = remember(graph) {
-            graph.startNodeId?.let { startId ->
+        val childrenOfStart = remember(graph.nodes) {
+            val children = graph.startNodeId?.let { startId ->
                 graph.wires.filter { it.fromNodeId == startId }.mapNotNull { graph.nodes[it.toNodeId] }
             } ?: emptyList()
-        }
+            Pair(children, children.map { it.branchPriority })
+        }.first
+
 
         graph.nodes.values.forEach { node ->
             val highlightInfo = highlightData[node.id]
@@ -227,9 +229,8 @@ private fun BranchPriorityDropdown(
     editorViewModel: NodeEditorViewModel
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val sortedChildren = remember(childrenOfStart, childrenOfStart.map { it.branchPriority }) {
-        childrenOfStart.sortedBy { it.branchPriority }
-    }
+    val sortedChildren = childrenOfStart.sortedBy { it.branchPriority }
+
 
     val items = (1..sortedChildren.size).toList()
     val currentNodeIndex = sortedChildren.indexOfFirst { it.id == node.id }
@@ -258,8 +259,7 @@ private fun BranchPriorityDropdown(
                         onClick = {
                             val nodeToSwapWith = sortedChildren[newIndex]
 
-                            copyNodeWithNewPriority(node, nodeToSwapWith.branchPriority)?.let { editorViewModel.updateNode(it) }
-                            copyNodeWithNewPriority(nodeToSwapWith, node.branchPriority)?.let { editorViewModel.updateNode(it) }
+                            editorViewModel.swapNodePriorities(node.id, nodeToSwapWith.id)
 
                             expanded = false
                         }
@@ -267,15 +267,6 @@ private fun BranchPriorityDropdown(
                 }
             }
         }
-    }
-}
-
-private fun copyNodeWithNewPriority(node: Node, newPriority: Int): Node? {
-    return when (node) {
-        is SetStateNode -> node.copy(branchPriority = newPriority)
-        is VolumeThresholdNode -> node.copy(branchPriority = newPriority)
-        is HotKeyNode -> node.copy(branchPriority = newPriority)
-        else -> null
     }
 }
 

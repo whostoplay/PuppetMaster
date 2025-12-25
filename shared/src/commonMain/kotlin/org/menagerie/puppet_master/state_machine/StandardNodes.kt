@@ -20,6 +20,10 @@ data class StartNode(
 ) : Node {
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
 
+    override fun copyNodeWithNewPriority(priority: Int): Node {
+        return this.copy(branchPriority = priority)
+    }
+
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
         // The StartNode's only job is to pass execution to the next node in the graph.
         val nextNodeId = findNextNodeId(graph, "out")
@@ -40,6 +44,10 @@ data class SetStateNode(
     override val size: SerializableSize = SerializableSize(300f, 250f)
 ) : StateNode {
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
+
+    override fun copyNodeWithNewPriority(priority: Int): Node {
+        return this.copy(branchPriority = priority)
+    }
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
         // SetState is a terminal action for the tick.

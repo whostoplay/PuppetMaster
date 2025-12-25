@@ -37,9 +37,9 @@ class GraphExecutor(private val graph: NodeGraph) {
      */
     fun tick(context: GraphExecutionContext): GraphAction? {
         // Update toggled nodes based on new hotkey presses
-        if (context.hotKeyPressed != null && context.hotKeyPressed != lastProcessedHotkey) {
+        if (context.hotKeyPressed != null && !context.hotKeyPressed.shallowEquals(lastProcessedHotkey)) {
             graph.nodes.values.forEach { node ->
-                if (node is HotKeyNode && node.mode == !node.hotkey.hold && node.hotkey.shallowEquals(context.hotKeyPressed)) {
+                if (node is HotKeyNode && !node.mode && node.hotkey.shallowEquals(context.hotKeyPressed)) {
                     if (toggledOnNodes.contains(node.id)) {
                         toggledOnNodes.remove(node.id)
                     } else {

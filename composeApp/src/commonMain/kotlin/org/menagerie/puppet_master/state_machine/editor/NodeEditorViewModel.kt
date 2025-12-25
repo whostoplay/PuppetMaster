@@ -1,5 +1,6 @@
 package org.menagerie.puppet_master.state_machine.editor
 
+import androidx.compose.animation.core.copy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import cafe.adriel.voyager.core.model.ScreenModel
@@ -178,8 +179,9 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     }
 
     private fun addWire(node1Id: String, handle1Id: String, node2Id: String, handle2Id: String) {
-        val node1 = _nodeGraph.value.nodes[node1Id]
-        val node2 = _nodeGraph.value.nodes[node2Id]
+        val currentGraph = _nodeGraph.value
+        val node1 = currentGraph.nodes[node1Id]
+        val node2 = currentGraph.nodes[node2Id]
         if (node1 == null || node2 == null) return
 
         val handle1IsOutput = node1.outputs.any { it.id == handle1Id }
@@ -208,33 +210,87 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             }
         }
 
-        val newWire = Wire(fromNodeId, fromHandleId, toNodeId, toHandleId)
-        if (!_nodeGraph.value.wires.contains(newWire)) {
-            _nodeGraph.value = _nodeGraph.value.copy(wires = _nodeGraph.value.wires + newWire)
+        val newNodes = currentGraph.nodes.toMutableMap()
+
+        if (fromNodeId == currentGraph.startNodeId) {
+            val toNode = newNodes[toNodeId]
+            if (toNode != null) {
+                val children = currentGraph.wires
+                    .filter { it.fromNodeId == fromNodeId }
+                    .mapNotNull { currentGraph.nodes[it.toNodeId] }
+
+                val maxPriority = children.maxOfOrNull { it.branchPriority } ?: -1
+                newNodes[toNodeId] = toNode.copyNodeWithNewPriority(maxPriority + 1)
+            }
         }
+
+        val newWire = Wire(fromNodeId, fromHandleId, toNodeId, toHandleId)
+        val newWires = if (!currentGraph.wires.contains(newWire)) {
+            currentGraph.wires + newWire
+        } else {
+            currentGraph.wires
+        }
+
+        _nodeGraph.value = currentGraph.copy(nodes = newNodes, wires = newWires)
+
         lastInteractedNodeId = toNodeId
     }
 
     fun deleteWire(wire: Wire) {
-        _nodeGraph.value = _nodeGraph.value.copy(wires = _nodeGraph.value.wires - wire)
-        mainViewModel.updateNodeGraph(nodeGraph.value)
+        val currentGraph = _nodeGraph.value
+        val updatedWires = currentGraph.wires - wire
+        var updatedNodes = currentGraph.nodes
+
+        if (wire.fromNodeId == currentGraph.startNodeId) {
+            // Re-prioritize remaining children of the start node
+            val remainingChildren = updatedWires
+                .filter { it.fromNodeId == currentGraph.startNodeId }
+                .mapNotNull { currentGraph.nodes[it.toNodeId] }
+                .sortedBy { it.branchPriority }
+
+            val newNodesMap = currentGraph.nodes.toMutableMap()
+            remainingChildren.forEachIndexed { index, node ->
+                newNodesMap[node.id] = node.copyNodeWithNewPriority(priority = index)
+            }
+            updatedNodes = newNodesMap
+        }
+
+        _nodeGraph.value = currentGraph.copy(nodes = updatedNodes, wires = updatedWires)
+        mainViewModel.updateNodeGraph(_nodeGraph.value)
     }
 
     fun deleteNode(nodeId: String) {
-        val node = _nodeGraph.value.nodes[nodeId] ?: return
+        val currentGraph = _nodeGraph.value
+        val node = currentGraph.nodes[nodeId] ?: return
 
-        val newNodes = _nodeGraph.value.nodes.toMutableMap()
+        val newNodes = currentGraph.nodes.toMutableMap()
         newNodes.remove(nodeId)
 
-        val newWires = _nodeGraph.value.wires.filterNot { it.fromNodeId == nodeId || it.toNodeId == nodeId }
+        val wiresForNode = currentGraph.wires.filter { it.fromNodeId == nodeId || it.toNodeId == nodeId }
+        val newWires = currentGraph.wires - wiresForNode.toSet()
 
-        val newGraph = if (nodeId == _nodeGraph.value.startNodeId) {
-            _nodeGraph.value.copy(nodes = newNodes, wires = newWires, startNodeId = null)
+        var newGraph = if (nodeId == currentGraph.startNodeId) {
+            currentGraph.copy(nodes = newNodes, wires = newWires, startNodeId = null)
         } else {
-            _nodeGraph.value.copy(nodes = newNodes, wires = newWires)
+            currentGraph.copy(nodes = newNodes, wires = newWires)
         }
+
+        // if the deleted node was connected to the start node, re-prioritize
+        if (wiresForNode.any { it.fromNodeId == currentGraph.startNodeId }) {
+            val remainingChildren = newGraph.wires
+                .filter { it.fromNodeId == newGraph.startNodeId }
+                .mapNotNull { newGraph.nodes[it.toNodeId] }
+                .sortedBy { it.branchPriority }
+
+            val updatedNodes = newGraph.nodes.toMutableMap()
+            remainingChildren.forEachIndexed { index, childNode ->
+                updatedNodes[childNode.id] = childNode.copyNodeWithNewPriority(priority = index)
+            }
+            newGraph = newGraph.copy(nodes = updatedNodes)
+        }
+
         _nodeGraph.value = newGraph
-        mainViewModel.updateNodeGraph(nodeGraph.value)
+        mainViewModel.updateNodeGraph(newGraph)
     }
 
     fun updateNode(node: Node) {
@@ -244,6 +300,29 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         lastInteractedNodeId = node.id
         mainViewModel.updateNodeGraph(nodeGraph.value)
     }
+
+    fun swapNodePriorities(node1Id: String, node2Id: String) {
+        val currentGraph = _nodeGraph.value
+        val node1 = currentGraph.nodes[node1Id]
+        val node2 = currentGraph.nodes[node2Id]
+
+        if (node1 == null || node2 == null) return
+
+        val priority1 = node1.branchPriority
+        val priority2 = node2.branchPriority
+
+        val updatedNode1 = node1.copyNodeWithNewPriority(priority = priority2)
+        val updatedNode2 = node2.copyNodeWithNewPriority(priority = priority1)
+
+        val newNodes = currentGraph.nodes.toMutableMap().apply {
+            this[node1Id] = updatedNode1
+            this[node2Id] = updatedNode2
+        }
+
+        _nodeGraph.value = currentGraph.copy(nodes = newNodes)
+        mainViewModel.updateNodeGraph(_nodeGraph.value)
+    }
+
 
     fun updateHandlePosition(nodeId: String, handleId: String, position: Offset) {
         val key = "$nodeId-$handleId"

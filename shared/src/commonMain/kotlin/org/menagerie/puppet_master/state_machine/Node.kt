@@ -57,6 +57,12 @@ sealed interface Node {
     fun copyNode(id: NodeId, position: SerializableOffset): Node
 
     /**
+     * Creates a copy of this node with a new branch priority.
+     * This is essential for reordering branches in the UI.
+     */
+    fun copyNodeWithNewPriority(priority: Int): Node
+
+    /**
      * Executes the node's specific logic.
      * @param context The live data needed for decision making (e.g., volume).
      * @param graph The overall graph structure, used to find connected nodes.
