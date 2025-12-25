@@ -224,6 +224,11 @@ class MainViewModel(context: Any) : ScreenModel {
                         val context = GraphExecutionContext(microphoneVolume = level, hotKeyPressed = hotkey)
                         val action = graphExecutor?.tick(context)
                         if (action is GraphAction.SetState) {
+                            action.puppetId?.let { puppetId ->
+                                if (puppetId != activePuppet.value?.name) {
+                                    setActivePuppet(puppetId)
+                                }
+                            }
                             stateController.setStateByName(action.stateName)
                         }
                         kotlinx.coroutines.delay(16) // roughly 60 fps

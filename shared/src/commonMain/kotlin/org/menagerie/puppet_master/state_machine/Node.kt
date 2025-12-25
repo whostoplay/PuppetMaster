@@ -16,6 +16,8 @@ val nodeSerializersModule = SerializersModule {
         subclass(VolumeThresholdNode::class)
         subclass(HotKeyNode::class)
         subclass(StartNode::class)
+        subclass(SetPuppetNode::class)
+        subclass(ResetSetNode::class)
     }
 }
 

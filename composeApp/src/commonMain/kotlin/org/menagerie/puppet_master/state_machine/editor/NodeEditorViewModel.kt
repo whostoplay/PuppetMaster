@@ -12,6 +12,8 @@ import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.state_machine.Handle
 import org.menagerie.puppet_master.state_machine.Node
 import org.menagerie.puppet_master.state_machine.NodeGraph
+import org.menagerie.puppet_master.state_machine.SetPuppetNode
+import org.menagerie.puppet_master.state_machine.SetStateNode
 import org.menagerie.puppet_master.state_machine.StartNode
 import org.menagerie.puppet_master.state_machine.Wire
 import org.menagerie.puppet_master.toOffset
@@ -231,9 +233,46 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             currentGraph.wires
         }
 
+        val fromNode = newNodes[fromNodeId]
+        val puppetId = when (fromNode) {
+            is StartNode -> fromNode.puppetId
+            is SetPuppetNode -> fromNode.puppetId
+            else -> getPuppetIdFromGraph(fromNodeId)
+        }
+
+        if (puppetId != null) {
+            propagatePuppetId(toNodeId, puppetId, newNodes)
+        }
+
         _nodeGraph.value = currentGraph.copy(nodes = newNodes, wires = newWires)
 
         lastInteractedNodeId = toNodeId
+    }
+
+    private fun getPuppetIdFromGraph(nodeId: String): String? {
+        val allWires = _nodeGraph.value.wires
+        val incomingWire = allWires.find { it.toNodeId == nodeId }
+        if (incomingWire != null) {
+            return when (val fromNode = _nodeGraph.value.nodes[incomingWire.fromNodeId]) {
+                is StartNode -> fromNode.puppetId
+                is SetPuppetNode -> fromNode.puppetId
+                null -> null
+                else -> getPuppetIdFromGraph(fromNode.id)
+            }
+        }
+        return null
+    }
+
+    private fun propagatePuppetId(nodeId: String, puppetId: String, nodes: MutableMap<String, Node>) {
+        val node = nodes[nodeId]
+        if (node is SetStateNode) {
+            nodes[nodeId] = node.copy(puppetId = puppetId)
+        }
+
+        val wires = _nodeGraph.value.wires.filter { it.fromNodeId == nodeId }
+        for (wire in wires) {
+            propagatePuppetId(wire.toNodeId, puppetId, nodes)
+        }
     }
 
     fun deleteWire(wire: Wire) {
@@ -296,6 +335,17 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     fun updateNode(node: Node) {
         val newNodes = _nodeGraph.value.nodes.toMutableMap()
         newNodes[node.id] = node
+
+        val puppetId = when (node) {
+            is StartNode -> node.puppetId
+            is SetPuppetNode -> node.puppetId
+            else -> null
+        }
+
+        if (puppetId != null) {
+            propagatePuppetId(node.id, puppetId, newNodes)
+        }
+
         _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes)
         lastInteractedNodeId = node.id
         mainViewModel.updateNodeGraph(nodeGraph.value)

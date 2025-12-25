@@ -47,50 +47,54 @@ fun SetStateNodeView(
         editorViewModel = editorViewModel
     ) {
         Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
-            var expanded by remember { mutableStateOf(false) }
+            if (node.puppetId == null) {
+                Text("Awaiting Puppet Context", color = Color.White)
+            } else {
+                var expanded by remember { mutableStateOf(false) }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Set State: ", fontWeight = FontWeight.Bold)
-                Box(modifier = Modifier.weight(1f)) {
-                    Row(
-                        modifier = Modifier.clickable { expanded = true },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(node.stateName.ifEmpty { "Select State" })
-                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Set State: ", fontWeight = FontWeight.Bold)
+                    Box(modifier = Modifier.weight(1f)) {
+                        Row(
+                            modifier = Modifier.clickable { expanded = true },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(node.stateName.ifEmpty { "Select State" })
+                            Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                        }
 
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        puppetStates.forEach { state ->
-                            DropdownMenuItem(
-                                text = { Text(state.name) },
-                                onClick = {
-                                    onStateNameChanged(state.name)
-                                    expanded = false
-                                }
-                            )
+                        DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            puppetStates.forEach { state ->
+                                DropdownMenuItem(
+                                    text = { Text(state.name) },
+                                    onClick = {
+                                        onStateNameChanged(state.name)
+                                        expanded = false
+                                    }
+                                )
+                            }
                         }
                     }
                 }
-            }
-            Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
-                LivePreview(
-                    operatingMode = OperatingMode.OFFLINE,
-                    puppetState = puppetState,
-                    isBlinking = false,
-                    uploadsDir = uploadsDir,
-                    backgroundColor = Color.Transparent,
-                    serverIp = "",
-                    animationState = AnimationState(),
-                    isAudienceCheckForced = false,
-                    window = null,
-                    displayedImageName = puppetState?.imageName,
-                    idleImage = idleImage,
-                    onFocusPointUpdate = {}
-                )
+                Box(modifier = Modifier.fillMaxWidth().height(150.dp)) {
+                    LivePreview(
+                        operatingMode = OperatingMode.OFFLINE,
+                        puppetState = puppetState,
+                        isBlinking = false,
+                        uploadsDir = uploadsDir,
+                        backgroundColor = Color.Transparent,
+                        serverIp = "",
+                        animationState = AnimationState(),
+                        isAudienceCheckForced = false,
+                        window = null,
+                        displayedImageName = puppetState?.imageName,
+                        idleImage = idleImage,
+                        onFocusPointUpdate = {}
+                    )
+                }
             }
         }
     }

@@ -26,11 +26,13 @@ import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.state_machine.Node
 import org.menagerie.puppet_master.state_machine.getAvailableConditionalNodes
 import org.menagerie.puppet_master.state_machine.getAvailableNodes
+import org.menagerie.puppet_master.state_machine.getAvailableUtilityNodes
 
 @Composable
 fun NodePalette(modifier: Modifier = Modifier, editorViewModel: NodeEditorViewModel) {
     val stateNodes = getAvailableNodes()
     val conditionalNodes = getAvailableConditionalNodes()
+    val utilityNodes = getAvailableUtilityNodes()
 
     LazyColumn(modifier = modifier) {
         item {
@@ -43,6 +45,13 @@ fun NodePalette(modifier: Modifier = Modifier, editorViewModel: NodeEditorViewMo
         item {
             CollapsibleSection("Conditional Nodes") {
                 conditionalNodes.forEach { node ->
+                    PaletteItem(node, editorViewModel)
+                }
+            }
+        }
+        item {
+            CollapsibleSection("Utility Nodes") {
+                utilityNodes.forEach { node ->
                     PaletteItem(node, editorViewModel)
                 }
             }

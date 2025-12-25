@@ -12,6 +12,7 @@ import org.menagerie.puppet_master.SerializableSize
 @Serializable
 data class StartNode(
     override val id: NodeId,
+    val puppetId: String? = null,
     override val position: SerializableOffset,
     override val branchPriority: Int = 0,
     override val size: SerializableSize = SerializableSize(180f, 120f),
@@ -38,6 +39,7 @@ data class StartNode(
 @Serializable
 data class SetStateNode(
     override val id: NodeId,
+    val puppetId: String? = null,
     override val position: SerializableOffset,
     val stateName: String, // e.g., "IDLE", "TALK"
     override val branchPriority: Int = 0,
@@ -51,7 +53,7 @@ data class SetStateNode(
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
         // SetState is a terminal action for the tick.
-        return ExecuteResult(null, GraphAction.SetState(stateName))
+        return ExecuteResult(null, GraphAction.SetState(stateName, puppetId))
     }
 }
 

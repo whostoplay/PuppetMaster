@@ -38,11 +38,12 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.menagerie.puppet_master.MainViewModel
-import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.state_machine.*
-import org.menagerie.puppet_master.state_machine.editor.views.StartNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.HotKeyNodeView
+import org.menagerie.puppet_master.state_machine.editor.views.ResetSetNodeView
+import org.menagerie.puppet_master.state_machine.editor.views.SetPuppetNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.SetStateNodeView
+import org.menagerie.puppet_master.state_machine.editor.views.StartNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.VolumeThresholdNodeView
 import org.menagerie.puppet_master.toOffset
 import kotlin.math.roundToInt
@@ -155,9 +156,10 @@ fun NodeCanvas(
                 ) {
                     val content: @Composable () -> Unit = {
                         when (node) {
-                            is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel, graph)
+                            is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel)
                             is ConditionalNode -> RenderConditionalNode(node, editorViewModel)
                             is StartNode -> StartNodeView(node, editorViewModel)
+                            is UtilityNode -> RenderUtilityNode(node, editorViewModel)
                         }
                     }
 
@@ -289,26 +291,26 @@ private fun distanceToSegment(p: Offset, v: Offset, w: Offset): Float {
 
 
 @Composable
-private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, editorViewModel: NodeEditorViewModel, graph: NodeGraph) {
-    val puppet by editorViewModel.mainViewModel.activePuppet.collectAsState()
+private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, editorViewModel: NodeEditorViewModel) {
+    val troupe by editorViewModel.mainViewModel.troupe.collectAsState()
+    val puppets = troupe?.puppets ?: emptyList()
     val idleImage by editorViewModel.mainViewModel.idleImage.collectAsState()
 
-    puppet?.let { character ->
-        val puppetStates = character.states
+    if (node is SetStateNode) {
+        val puppet = puppets.find { it.name == node.puppetId }
+        val puppetStates = puppet?.states ?: emptyList()
+        val stateInfo = puppetStates.find { it.name == node.stateName }
 
-        if (node is SetStateNode) {
-            val stateInfo = puppetStates.find { it.name == node.stateName }
-            idleImage?.let { bitmap ->
-                SetStateNodeView(
-                    node = node,
-                    puppetState = stateInfo,
-                    puppetStates = puppetStates,
-                    onStateNameChanged = { editorViewModel.updateNode(node.copy(stateName = it)) },
-                    idleImage = bitmap,
-                    editorViewModel = editorViewModel,
-                    uploadsDir = mainViewModel.uploadsDir
-                )
-            }
+        idleImage?.let { bitmap ->
+            SetStateNodeView(
+                node = node,
+                puppetState = stateInfo,
+                puppetStates = puppetStates,
+                onStateNameChanged = { editorViewModel.updateNode(node.copy(stateName = it)) },
+                idleImage = bitmap,
+                editorViewModel = editorViewModel,
+                uploadsDir = mainViewModel.uploadsDir
+            )
         }
     }
 }
@@ -332,6 +334,24 @@ private fun RenderConditionalNode(node: ConditionalNode, editorViewModel: NodeEd
                 onHotKeyChanged = { newHotKey ->
                     editorViewModel.updateNode(node.copy(hotkey = newHotKey, mode = newHotKey.hold))
                 },
+                editorViewModel = editorViewModel
+            )
+        }
+    }
+}
+
+@Composable
+private fun RenderUtilityNode(node: UtilityNode, editorViewModel: NodeEditorViewModel) {
+    when (node) {
+        is SetPuppetNode -> {
+            SetPuppetNodeView(
+                node = node,
+                editorViewModel = editorViewModel
+            )
+        }
+        is ResetSetNode -> {
+            ResetSetNodeView(
+                node = node,
                 editorViewModel = editorViewModel
             )
         }

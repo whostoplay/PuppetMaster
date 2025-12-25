@@ -3,6 +3,7 @@ package org.menagerie.puppet_master.state_machine.editor.views
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -11,6 +12,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -22,23 +24,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import org.menagerie.puppet_master.state_machine.StartNode
+import org.menagerie.puppet_master.state_machine.ResetSetNode
+import org.menagerie.puppet_master.state_machine.SetPuppetMode
+import org.menagerie.puppet_master.state_machine.SetPuppetNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 
 @Composable
-fun StartNodeView(
-    node: StartNode,
+fun SetPuppetNodeView(
+    node: SetPuppetNode,
     editorViewModel: NodeEditorViewModel,
 ) {
     NodeView(
         node = node,
-        title = "Start Node",
+        title = "Set Puppet",
         editorViewModel = editorViewModel
     ) {
-        Row(
+        Column(
             modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
         ) {
             val troupe by editorViewModel.mainViewModel.troupe.collectAsState()
             val puppets = troupe?.puppets ?: emptyList()
@@ -64,6 +68,37 @@ fun StartNodeView(
                     }
                 }
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Switch")
+                Switch(
+                    checked = node.mode == SetPuppetMode.SET,
+                    onCheckedChange = {
+                        val newMode = if (it) SetPuppetMode.SET else SetPuppetMode.SWITCH
+                        editorViewModel.updateNode(node.copy(mode = newMode))
+                    }
+                )
+                Text("Set")
+            }
+        }
+    }
+}
+
+@Composable
+fun ResetSetNodeView(
+    node: ResetSetNode,
+    editorViewModel: NodeEditorViewModel,
+) {
+    NodeView(
+        node = node,
+        title = "Reset Start",
+        editorViewModel = editorViewModel
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text("RESET")
         }
     }
 }

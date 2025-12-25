@@ -9,14 +9,17 @@ import org.menagerie.puppet_master.Hotkey
 data class GraphExecutionContext(
     val microphoneVolume: Float = 0f,
     val hotKeyPressed: Hotkey? = null,
-    val toggledOnNodes: Set<NodeId> = emptySet()
+    val toggledOnNodes: Set<NodeId> = emptySet(),
+    val puppetId: String? = null
 )
 
 /**
  * Represents an action that the UI should take based on the graph's execution.
  */
 sealed interface GraphAction {
-    data class SetState(val stateName: String) : GraphAction
+    data class SetState(val stateName: String, val puppetId: String? = null) : GraphAction
+    data class SetGraphStart(val nodeId: NodeId) : GraphAction
+    object ResetGraphStart : GraphAction
 }
 
 /**
@@ -27,6 +30,7 @@ class GraphExecutor(private val graph: NodeGraph) {
 
     private val toggledOnNodes = mutableSetOf<NodeId>()
     private var lastProcessedHotkey: Hotkey? = null
+    private var overrideStartNodeId: NodeId? = null
 
     /**
      * Executes the graph's logic, starting from the graph's start node.
@@ -50,10 +54,12 @@ class GraphExecutor(private val graph: NodeGraph) {
         }
         lastProcessedHotkey = context.hotKeyPressed
 
-        val startNode = graph.startNodeId?.let { graph.nodes[it] }
+        val startNodeId = overrideStartNodeId ?: graph.startNodeId
+        val startNode = startNodeId?.let { graph.nodes[it] }
+
         if (startNode == null) {
-            if (graph.startNodeId != null) {
-                println("GraphExecutor: Start node with id ${graph.startNodeId} not found in graph.")
+            if (startNodeId != null) {
+                println("GraphExecutor: Start node with id $startNodeId not found in graph.")
             } else {
                 println("GraphExecutor: No start node defined for the graph.")
             }
@@ -65,17 +71,40 @@ class GraphExecutor(private val graph: NodeGraph) {
             .mapNotNull { wire -> graph.nodes[wire.toNodeId] }
             .sortedBy { it.branchPriority }
 
-        val executionContext = context.copy(toggledOnNodes = toggledOnNodes)
+        var executionContext = context.copy(toggledOnNodes = toggledOnNodes)
+        if (startNode is StartNode) {
+            executionContext = executionContext.copy(puppetId = startNode.puppetId)
+        }
 
         for (childNode in childrenOfStart) {
             var currentNode: Node? = childNode
             if (currentNode == null) continue
 
             while (currentNode != null) {
+                if (currentNode is SetPuppetNode) {
+                    executionContext = executionContext.copy(puppetId = currentNode.puppetId)
+                }
+
+                if (currentNode is SetStateNode && currentNode.puppetId == null) {
+                    currentNode = currentNode.copy(puppetId = executionContext.puppetId)
+                }
+
                 val result = currentNode.execute(executionContext, graph)
 
                 if (result.action != null) {
-                    return result.action
+                    when (result.action) {
+                        is GraphAction.SetGraphStart -> {
+                            overrideStartNodeId = result.action.nodeId
+                            // Continue execution from the new start node
+                            return tick(context)
+                        }
+                        is GraphAction.ResetGraphStart -> {
+                            overrideStartNodeId = null
+                            // Stop execution for this tick
+                            return null
+                        }
+                        else -> return result.action
+                    }
                 }
 
                 if (result.nextNodeId != null) {
@@ -95,5 +124,6 @@ class GraphExecutor(private val graph: NodeGraph) {
     fun reset() {
         toggledOnNodes.clear()
         lastProcessedHotkey = null
+        overrideStartNodeId = null
     }
 }
