@@ -44,8 +44,8 @@ import org.menagerie.puppet_master.controls.VolumeIndicator
 import org.menagerie.puppet_master.navigation.EyeContactScreen
 import org.menagerie.puppet_master.navigation.NodeEditorScreen
 import org.menagerie.puppet_master.navigation.SettingsScreen
-import org.menagerie.puppet_master.states.StateCreation
-import org.menagerie.puppet_master.states.StateEditor
+import org.menagerie.puppet_master.state_machine.states.StateCreation
+import org.menagerie.puppet_master.state_machine.states.StateEditor
 
 /**
  * The main layout for the application when in landscape orientation or on a desktop device.

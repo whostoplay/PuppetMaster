@@ -18,7 +18,6 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -39,11 +38,13 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.menagerie.puppet_master.MainViewModel
-import org.menagerie.puppet_master.localisation.Strings
+import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.state_machine.*
 import org.menagerie.puppet_master.state_machine.editor.views.StartNodeView
+import org.menagerie.puppet_master.state_machine.editor.views.HotKeyNodeView
+import org.menagerie.puppet_master.state_machine.editor.views.SetStateNodeView
+import org.menagerie.puppet_master.state_machine.editor.views.VolumeThresholdNodeView
 import org.menagerie.puppet_master.toOffset
-import org.menagerie.puppet_master.toSerializableOffset
 import kotlin.math.roundToInt
 
 data class HighlightInfo(val color: Color, val number: Int)
@@ -53,14 +54,14 @@ data class HighlightInfo(val color: Color, val number: Int)
 fun NodeCanvas(
     modifier: Modifier = Modifier,
     mainViewModel: MainViewModel,
-    editorViewModel: NodeEditorViewModel
+    editorViewModel: NodeEditorViewModel,
+    highlightMode: Boolean
 ) {
     val graph by editorViewModel.nodeGraph.collectAsState()
     val handlePositions by editorViewModel.handlePositions.collectAsState()
     val wireDragInfo by editorViewModel.wireDragInfo.collectAsState()
     val draggedWireEndPosition by editorViewModel.draggedWireEndPosition.collectAsState()
     var canvasCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    val highlightMode by editorViewModel.highlightMode.collectAsState()
 
     val highlightData by remember(graph, highlightMode) {
         mutableStateOf(if (highlightMode) calculateHighlightInfo(graph) else emptyMap())
@@ -142,15 +143,15 @@ fun NodeCanvas(
                             val offset = node.position.toOffset()
                             IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
                         }
-                        .pointerInput(node.id) {
-                            detectDragGestures(
-                                onDragStart = { editorViewModel.onNodeDragStart(node.id) },
-                                onDragEnd = { editorViewModel.onNodeDragEnd() }
-                            ) { change, dragAmount ->
-                                change.consume()
-                                editorViewModel.onNodeDrag(dragAmount.toSerializableOffset())
-                            }
-                        }
+//                        .pointerInput(node.id) {
+//                            detectDragGestures(
+//                                onDragStart = { editorViewModel.onNodeDragStart(node.id) },
+//                                onDragEnd = { editorViewModel.onNodeDragEnd() }
+//                            ) { change, dragAmount ->
+//                                change.consume()
+//                                editorViewModel.onNodeDrag(dragAmount.toSerializableOffset())
+//                            }
+//                        }
                 ) {
                     val content: @Composable () -> Unit = {
                         when (node) {
@@ -204,20 +205,6 @@ fun NodeCanvas(
                     }
                 }
             }
-        }
-
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = Strings.getString(Strings.Keys.HIGHLIGHT_ON), color = Color.White)
-            Switch(
-                checked = highlightMode,
-                onCheckedChange = { editorViewModel.toggleHighlightMode() },
-                modifier = Modifier.padding(start = 8.dp)
-            )
         }
     }
 }
@@ -303,22 +290,25 @@ private fun distanceToSegment(p: Offset, v: Offset, w: Offset): Float {
 
 @Composable
 private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, editorViewModel: NodeEditorViewModel, graph: NodeGraph) {
-    val puppetStates by editorViewModel.mainViewModel.puppetStates.collectAsState()
+    val puppet by editorViewModel.mainViewModel.activePuppet.collectAsState()
     val idleImage by editorViewModel.mainViewModel.idleImage.collectAsState()
 
-    if (node is SetStateNode) {
-        val stateInfo = puppetStates.find { it.name == node.stateName }
-        idleImage?.let {
-            SetStateNodeView(
-                node = node,
-                isStartNode = node.id == graph.startNodeId,
-                puppetState = stateInfo,
-                puppetStates = puppetStates,
-                onStateNameChanged = { editorViewModel.updateNode(node.copy(stateName = it)) },
-                idleImage = it,
-                editorViewModel = editorViewModel,
-                uploadsDir = mainViewModel.uploadsDir
-            )
+    puppet?.let { character ->
+        val puppetStates = character.states
+
+        if (node is SetStateNode) {
+            val stateInfo = puppetStates.find { it.name == node.stateName }
+            idleImage?.let { bitmap ->
+                SetStateNodeView(
+                    node = node,
+                    puppetState = stateInfo,
+                    puppetStates = puppetStates,
+                    onStateNameChanged = { editorViewModel.updateNode(node.copy(stateName = it)) },
+                    idleImage = bitmap,
+                    editorViewModel = editorViewModel,
+                    uploadsDir = mainViewModel.uploadsDir
+                )
+            }
         }
     }
 }

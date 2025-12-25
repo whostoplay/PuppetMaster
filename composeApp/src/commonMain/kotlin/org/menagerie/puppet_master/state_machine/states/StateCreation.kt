@@ -1,4 +1,4 @@
-package org.menagerie.puppet_master.states
+package org.menagerie.puppet_master.state_machine.states
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image

@@ -123,9 +123,6 @@ class MainViewModel(context: Any) : ScreenModel {
 
     val troupe: StateFlow<PuppetTroupe?> = dataManager.troupe
     val activePuppet: StateFlow<PuppetCharacter?> = dataManager.activePuppet
-    val puppetStates: StateFlow<List<PuppetStateInfo>> = dataManager.troupe
-        .map { it?.puppets?.flatMap { it.states } ?: emptyList() }
-        .stateIn(screenModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _idleImage = MutableStateFlow<ImageBitmap?>(null)
     val idleImage: StateFlow<ImageBitmap?> = _idleImage.asStateFlow()
