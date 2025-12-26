@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -110,7 +111,7 @@ fun SpecialEffectsUI(
             vibrationDistance = it.vibrationDistance
             vibrationSpeed = it.vibrationSpeed
             glowIntensity = it.glowIntensity ?: 1f
-            glowColor = Color(it.glowColor ?: 0xffffff)
+            glowColor = Color(it.glowColor ?: 0xFFFFFFFF.toInt())
             scaleX = it.scaleX
             scaleY = it.scaleY
             scaleSpeed = it.scaleSpeed
@@ -217,10 +218,10 @@ fun SpecialEffectsUI(
 
     if (showGlowColorPicker) {
         AlertDialog(
+            modifier = Modifier.size(300.dp),
             onDismissRequest = { showGlowColorPicker = false },
-            title = { Text(Strings.getString(Strings.Keys.BG_COLOR_TEXT)) },
-            text = { ColorPicker(true) { glowColor = it; showGlowColorPicker = false; onValuesChanged() } },
-            confirmButton = { Button(onClick = { showGlowColorPicker = false }) { Text(Strings.getString(Strings.Keys.CANCEL_BUTTON)) } }
+            text = { Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { ColorGrid{ glowColor = it; showGlowColorPicker = false; onValuesChanged() } } },
+            confirmButton = { }
         )
     }
 

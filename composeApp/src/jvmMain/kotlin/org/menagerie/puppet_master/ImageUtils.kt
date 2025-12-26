@@ -23,14 +23,14 @@ actual fun decodeToImageBitmap(byteArray: ByteArray): ImageBitmap {
  * @return The generated [ImageBitmap].
  */
 @Composable
-actual fun rememberColorMapBitmap(width: Int, height: Int): ImageBitmap {
-    val byteArray = remember(width, height) {
+actual fun rememberColorMapBitmap(width: Int, height: Int, value: Float): ImageBitmap {
+    val byteArray = remember(width, height, value) {
         val buffer = IntArray(width * height)
         for (y in 0 until height) {
             for (x in 0 until width) {
                 val hue = (x.toFloat() / width) * 360f
                 val saturation = 1f - (y.toFloat() / height)
-                buffer[y * width + x] = Color.hsv(hue, saturation, 1f).toArgb()
+                buffer[y * width + x] = Color.hsv(hue, saturation, value).toArgb()
             }
         }
 
