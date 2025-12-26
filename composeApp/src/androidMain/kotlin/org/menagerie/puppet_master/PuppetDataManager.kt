@@ -19,8 +19,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.menagerie.puppet_master.state_machine.NodeGraph
 import org.menagerie.puppet_master.state_machine.nodeSerializersModule
+import puppetmaster.composeapp.generated.resources.Res
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -37,6 +39,7 @@ import java.util.zip.ZipOutputStream
  * @param scope The [CoroutineScope] for launching background tasks.
  * @param context The Android application [Context].
  */
+@OptIn(ExperimentalResourceApi::class)
 actual class PuppetDataManager actual constructor(private val scope: CoroutineScope, private val context: Any) {
 
     actual val uploadsDir = getUploadsDir(context)
@@ -98,7 +101,9 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
     }
 
     private fun createDefaultTroupe(): PuppetTroupe {
-        extractDefaultImages()
+        scope.launch {
+            extractDefaultImages()
+        }
 
         val leftEye = Eye(
             openState = "iris.png",
@@ -179,7 +184,7 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         )
     }
 
-    private fun extractDefaultImages() {
+    private suspend fun extractDefaultImages() {
         val defaultImages = listOf(
             "icon_rough.png",
             "icon_rough_closed.png",
@@ -187,21 +192,14 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
             "iris.png",
             "pupil.png"
         )
-        val androidContext = context as Context
 
         defaultImages.forEach { imageName ->
             val imageFile = File(uploadsDir, imageName)
             if (!imageFile.exists()) {
                 try {
-                    val resourceName = imageName.substringBeforeLast('.')
-                    val resourceId = androidContext.resources.getIdentifier(resourceName, "drawable", androidContext.packageName)
-                    if (resourceId != 0) {
-                        androidContext.resources.openRawResource(resourceId).use { inputStream ->
-                            FileOutputStream(imageFile).use { outputStream ->
-                                inputStream.copyTo(outputStream)
-                            }
-                        }
-                    }
+                    val resourcePath = "drawable/$imageName"
+                    val bytes = Res.readBytes(resourcePath)
+                    imageFile.writeBytes(bytes)
                 } catch (e: Exception) {
                     println("Error extracting default image $imageName: ${e.message}")
                 }

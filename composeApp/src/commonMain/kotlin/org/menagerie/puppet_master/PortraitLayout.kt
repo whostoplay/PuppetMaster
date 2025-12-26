@@ -30,13 +30,6 @@ import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import org.menagerie.puppet_master.Constants.UI.PortraitLayout
-import org.menagerie.puppet_master.localisation.Strings
-import org.menagerie.puppet_master.localisation.Strings.Keys.CREATE_OR_SELECT_PUPPET
-import org.menagerie.puppet_master.localisation.Strings.Keys.EYE_CONTACT_BUTTON
-import org.menagerie.puppet_master.localisation.Strings.Keys.PUPPET_CONTROLS_BUTTON
-import org.menagerie.puppet_master.localisation.Strings.Keys.SETTINGS_BUTTON
-import org.menagerie.puppet_master.localisation.Strings.Keys.STATES_TITLE
-import org.menagerie.puppet_master.localisation.Strings.Keys.STATE_CONTROLS_BUTTON
 import org.menagerie.puppet_master.controls.ColorPicker
 import org.menagerie.puppet_master.controls.ControlDrawer
 import org.menagerie.puppet_master.controls.ModeControls
@@ -44,7 +37,16 @@ import org.menagerie.puppet_master.controls.PuppetControls
 import org.menagerie.puppet_master.controls.ServerControls
 import org.menagerie.puppet_master.controls.SpecialEffectsUI
 import org.menagerie.puppet_master.controls.VolumeIndicator
+import org.menagerie.puppet_master.localisation.Strings
+import org.menagerie.puppet_master.localisation.Strings.Keys.CREATE_OR_SELECT_PUPPET
+import org.menagerie.puppet_master.localisation.Strings.Keys.EYE_CONTACT_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.PUPPET_CONTROLS_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.SETTINGS_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.STATES_TITLE
+import org.menagerie.puppet_master.localisation.Strings.Keys.STATE_CONTROLS_BUTTON
+import org.menagerie.puppet_master.localisation.Strings.Keys.STATE_GRAPH_BUTTON
 import org.menagerie.puppet_master.navigation.EyeContactScreen
+import org.menagerie.puppet_master.navigation.NodeEditorScreen
 import org.menagerie.puppet_master.navigation.SettingsScreen
 import org.menagerie.puppet_master.state_machine.states.StateCreation
 import org.menagerie.puppet_master.state_machine.states.StateEditor
@@ -89,48 +91,64 @@ fun PortraitLayout(
         show = showLeftDrawer,
         onDismissRequest = { showLeftDrawer = false }
     ) {
-        Column(
+        LazyColumn(
             modifier = Modifier.fillMaxWidth().padding(16.dp)
         ) {
-            PuppetControls(
-                troupe = troupe,
-                activePuppet = activePuppet,
-                onPuppetSelected = { viewModel.setActivePuppet(it) },
-                onPuppetCreated = viewModel::createNewPuppet,
-                onImportPuppet = { onShowPuppetImportPickerChange(true) },
-                onExportPuppet = { onShowPuppetExportSaverChange(true) },
-                onRenameTroupe = viewModel::renameTroupe,
-                onLoadTroupe = { onShowTroupeLoadPickerChange(true) },
-                onNewTroupeCreated = viewModel::createNewTroupe,
-                onActiveChange = { onHover(PortraitLayout.PUPPET_CONTROLS_ID, it) },
-                onFocusChange = { onFocusChange(PortraitLayout.PUPPET_CONTROLS_ID, it) },
-                rootFocusRequester = rootFocusRequester
-            )
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            ModeControls(operatingMode, viewModel::setOperatingMode, controlMode, viewModel::setControlMode)
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            ServerControls(
-                operatingMode,
-                isPublishing,
-                isListening,
-                { viewModel.setPublishing(it) },
-                { viewModel.toggleListening() }
-            )
-            if (isListening) {
-                VolumeIndicator(
-                    level = rawAudioLevel,
-                    modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
-                    thresholds = thresholds,
-                    onAddThreshold = {
-                        viewModel.addThreshold(it)
-                        viewModel.showStateAssignmentDialog(it)
-                    },
-                    onUpdateThreshold = viewModel::updateThreshold,
-                    onThresholdSelected = { viewModel.showStateAssignmentDialog(it) }
+            item {
+                PuppetControls(
+                    troupe = troupe,
+                    activePuppet = activePuppet,
+                    onPuppetSelected = { viewModel.setActivePuppet(it) },
+                    onPuppetCreated = viewModel::createNewPuppet,
+                    onImportPuppet = { onShowPuppetImportPickerChange(true) },
+                    onExportPuppet = { onShowPuppetExportSaverChange(true) },
+                    onRenameTroupe = viewModel::renameTroupe,
+                    onLoadTroupe = { onShowTroupeLoadPickerChange(true) },
+                    onNewTroupeCreated = viewModel::createNewTroupe,
+                    onActiveChange = { onHover(PortraitLayout.PUPPET_CONTROLS_ID, it) },
+                    onFocusChange = { onFocusChange(PortraitLayout.PUPPET_CONTROLS_ID, it) },
+                    rootFocusRequester = rootFocusRequester
                 )
             }
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-            ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
+            item {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+            item {
+                ModeControls(operatingMode, viewModel::setOperatingMode, controlMode, viewModel::setControlMode)
+            }
+            item {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+            item {
+                ServerControls(
+                    operatingMode,
+                    isPublishing,
+                    isListening,
+                    { viewModel.setPublishing(it) },
+                    { viewModel.toggleListening() }
+                )
+            }
+            if (isListening) {
+                item {
+                    VolumeIndicator(
+                        level = rawAudioLevel,
+                        modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
+                        thresholds = thresholds,
+                        onAddThreshold = {
+                            viewModel.addThreshold(it)
+                            viewModel.showStateAssignmentDialog(it)
+                        },
+                        onUpdateThreshold = viewModel::updateThreshold,
+                        onThresholdSelected = { viewModel.showStateAssignmentDialog(it) }
+                    )
+                }
+            }
+            item {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            }
+            item {
+                ColorPicker(onColorSelected = { viewModel.setBackgroundColor(it) })
+            }
         }
     }
 
@@ -204,12 +222,19 @@ fun PortraitLayout(
         }
     }
 
-    Row(
+    Column(
         modifier = Modifier.fillMaxSize(),
-        horizontalArrangement = Arrangement.SpaceEvenly
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Button(onClick = { showLeftDrawer = true }) { Text(Strings.getString(PUPPET_CONTROLS_BUTTON)) }
-        Button(onClick = { showRightDrawer = true }) { Text(Strings.getString(STATE_CONTROLS_BUTTON)) }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            Button(onClick = { showLeftDrawer = true }) { Text(Strings.getString(PUPPET_CONTROLS_BUTTON)) }
+            Button(onClick = { showRightDrawer = true }) { Text(Strings.getString(STATE_CONTROLS_BUTTON)) }
+            Button(onClick = { navigator.push(NodeEditorScreen(viewModel)) }) { Text(Strings.getString(STATE_GRAPH_BUTTON)) }
+        }
     }
     Row(
         modifier = Modifier.fillMaxSize(),

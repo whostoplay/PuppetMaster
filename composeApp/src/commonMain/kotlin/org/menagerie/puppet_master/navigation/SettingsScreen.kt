@@ -132,7 +132,9 @@ class SettingsScreen(
                                             // When an item is clicked:
                                             // 1. Update the settings via the ViewModel
                                             viewModel.updateSettings(settings.copy(language = language))
-                                            // 2. Close the menu
+                                            // 2. Update the Strings object
+                                            Strings.setLanguage(language)
+                                            // 3. Close the menu
                                             languageMenuExpanded = false
                                         }
                                     )

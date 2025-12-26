@@ -1,11 +1,9 @@
 package org.menagerie.puppet_master.controls
 
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
 
 /**
  * A modal bottom sheet that displays controls for the application.
@@ -27,7 +25,6 @@ actual fun ControlDrawer(
         ModalBottomSheet(
             onDismissRequest = onDismissRequest,
             sheetState = sheetState,
-            modifier = Modifier.fillMaxHeight(0.85f)
         ) {
             content()
         }

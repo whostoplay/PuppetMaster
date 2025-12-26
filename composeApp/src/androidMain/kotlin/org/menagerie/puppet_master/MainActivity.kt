@@ -17,6 +17,10 @@ import com.seiko.imageloader.component.setupDefaultComponents
 import com.seiko.imageloader.intercept.DiskCacheInterceptor
 import com.seiko.imageloader.intercept.MemoryCacheInterceptor
 import okio.Path.Companion.toOkioPath
+import org.menagerie.puppet_master.localisation.English
+import org.menagerie.puppet_master.localisation.French
+import org.menagerie.puppet_master.localisation.Pirate
+import org.menagerie.puppet_master.localisation.Strings
 
 /**
  * The main activity for the Android application.
@@ -26,6 +30,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        
+        val settingsRepository = SettingsRepository(this)
+        val language = settingsRepository.loadSettings().language
+        Strings.init(language, English, French, Pirate)
+        Strings.setLanguage(language)
 
         setContent {
             CompositionLocalProvider(LocalImageLoader provides generateImageLoader(this)) {

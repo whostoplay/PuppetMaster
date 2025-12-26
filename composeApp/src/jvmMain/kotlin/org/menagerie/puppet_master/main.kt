@@ -20,6 +20,9 @@ import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.WindowState
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import org.menagerie.puppet_master.localisation.English
+import org.menagerie.puppet_master.localisation.French
+import org.menagerie.puppet_master.localisation.Pirate
 import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.navigation.AppNavigator
 import java.awt.Window as AwtWindow
@@ -38,7 +41,11 @@ fun main() = application {
     val settingsRepository = SettingsRepository(Unit) // Pass Unit for context on desktop
     SettingsProvider.initialize(settingsRepository)
 
-    var windowTitle by remember { mutableStateOf(Strings.getString(Strings.Keys.WINDOW_TITLE)) }
+    val language = settingsRepository.loadSettings().language
+    Strings.init(language, English, French, Pirate)
+    Strings.setLanguage(language)
+
+    val windowTitle = Strings.getString(Strings.Keys.WINDOW_TITLE)
 
     Window(
         onCloseRequest = {

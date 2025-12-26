@@ -1,5 +1,7 @@
 package org.menagerie.puppet_master.localisation
 
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import org.menagerie.puppet_master.SettingsProvider
 
 object Strings {
@@ -191,27 +193,24 @@ object Strings {
         PIRATE
     }
 
-    private val strings = mapOf(
-        Language.ENGLISH to English,
-        Language.FRENCH to French,
-        Language.PIRATE to Pirate
-    )
+    private val strings = mutableMapOf<Language, LocalizedStrings>()
+    private lateinit var currentLanguage: MutableState<Language>
+
+    fun init(language: Language, english: LocalizedStrings, french: LocalizedStrings, pirate: LocalizedStrings) {
+        strings[Language.ENGLISH] = english
+        strings[Language.FRENCH] = french
+        strings[Language.PIRATE] = pirate
+        currentLanguage = mutableStateOf(language)
+    }
+
+    fun setLanguage(language: Language) {
+        currentLanguage.value = language
+    }
 
     fun getString(key: String): String {
-        try {
-            val repository = SettingsProvider.get()
-
-            val language = repository.loadSettings().language
-
-            val languageStrings = strings[language] ?: English
-
-            return languageStrings.strings[key] ?: key
-        }  catch (e: IllegalStateException) {
-            // This happens if SettingsProvider wasn't initialized.
-            // Fallback gracefully to the key itself.
-            println("Warning: SettingsProvider not initialized. Using string key as fallback. ${e.message}")
-            return key
-        }
+        val language = currentLanguage.value
+        val languageStrings = strings[language] ?: strings[Language.ENGLISH]
+        return languageStrings?.strings?.get(key) ?: key
     }
 
     fun getString(key: String, vararg formatArgs: Any?): String {
