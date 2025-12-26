@@ -24,6 +24,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.state_machine.Node
+import org.menagerie.puppet_master.state_machine.getAvailableBehaviouralNodes
 import org.menagerie.puppet_master.state_machine.getAvailableConditionalNodes
 import org.menagerie.puppet_master.state_machine.getAvailableNodes
 import org.menagerie.puppet_master.state_machine.getAvailableUtilityNodes
@@ -33,6 +34,7 @@ fun NodePalette(modifier: Modifier = Modifier, editorViewModel: NodeEditorViewMo
     val stateNodes = getAvailableNodes()
     val conditionalNodes = getAvailableConditionalNodes()
     val utilityNodes = getAvailableUtilityNodes()
+    val behaviouralNodes = getAvailableBehaviouralNodes()
 
     LazyColumn(modifier = modifier) {
         item {
@@ -52,6 +54,13 @@ fun NodePalette(modifier: Modifier = Modifier, editorViewModel: NodeEditorViewMo
         item {
             CollapsibleSection("Utility Nodes") {
                 utilityNodes.forEach { node ->
+                    PaletteItem(node, editorViewModel)
+                }
+            }
+        }
+        item {
+            CollapsibleSection("Behavioural Nodes") {
+                behaviouralNodes.forEach { node ->
                     PaletteItem(node, editorViewModel)
                 }
             }

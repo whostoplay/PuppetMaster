@@ -5,7 +5,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -40,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.state_machine.*
+import org.menagerie.puppet_master.state_machine.editor.views.GoThroughStateNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.HotKeyNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.ResetSetNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.SetPuppetNodeView
@@ -78,7 +78,8 @@ fun NodeCanvas(
                 .pointerInput(graph.wires) {
                     detectTapGestures(
                         onLongPress = { offset ->
-                            val wire = findWireAt(offset, graph.wires, handlePositions, canvasCoordinates)
+                            val wire =
+                                findWireAt(offset, graph.wires, handlePositions, canvasCoordinates)
                             if (wire != null) {
                                 editorViewModel.deleteWire(wire)
                             }
@@ -106,7 +107,8 @@ fun NodeCanvas(
 
             wireDragInfo?.let { dragInfo ->
                 draggedWireEndPosition?.let { endPos ->
-                    val startPos = handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
+                    val startPos =
+                        handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
                     if (startPos != null) {
                         canvasCoordinates?.let { coords ->
                             val startPosLocal = startPos - coords.localToRoot(Offset.Zero)
@@ -125,7 +127,8 @@ fun NodeCanvas(
 
         val childrenOfStart = remember(graph.nodes) {
             val children = graph.startNodeId?.let { startId ->
-                graph.wires.filter { it.fromNodeId == startId }.mapNotNull { graph.nodes[it.toNodeId] }
+                graph.wires.filter { it.fromNodeId == startId }
+                    .mapNotNull { graph.nodes[it.toNodeId] }
             } ?: emptyList()
             Pair(children, children.map { it.branchPriority })
         }.first
@@ -133,80 +136,65 @@ fun NodeCanvas(
 
         graph.nodes.values.forEach { node ->
             val highlightInfo = highlightData[node.id]
-            ContextMenuWrapper(items = {
-                listOf(
-                    ContextMenuItem("Delete") {
-                        editorViewModel.deleteNode(node.id)
-                    }
-                )
-            }) { 
-                Box(
-                    modifier = Modifier
-                        .offset {
-                            val offset = node.position.toOffset()
-                            IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
-                        }
-//                        .pointerInput(node.id) {
-//                            detectDragGestures(
-//                                onDragStart = { editorViewModel.onNodeDragStart(node.id) },
-//                                onDragEnd = { editorViewModel.onNodeDragEnd() }
-//                            ) { change, dragAmount ->
-//                                change.consume()
-//                                editorViewModel.onNodeDrag(dragAmount.toSerializableOffset())
-//                            }
-//                        }
-                ) {
-                    val content: @Composable () -> Unit = {
-                        when (node) {
-                            is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel)
-                            is ConditionalNode -> RenderConditionalNode(node, editorViewModel)
-                            is StartNode -> StartNodeView(node, editorViewModel)
-                            is UtilityNode -> RenderUtilityNode(node, editorViewModel)
-                        }
-                    }
 
-                    if (highlightMode && highlightInfo != null) {
-                        Box(
-                            modifier = Modifier
-                                .background(
-                                    color = highlightInfo.color.copy(alpha = 0.2f),
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .border(
-                                    width = 2.dp,
-                                    color = highlightInfo.color,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .padding(8.dp)
-                        ) {
-                            content()
-                        }
+            Box(
+                modifier = Modifier
+                    .offset {
+                        val offset = node.position.toOffset()
+                        IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
+                    }
+            ) {
+                val content: @Composable () -> Unit = {
+                    when (node) {
+                        is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel)
+                        is ConditionalNode -> RenderConditionalNode(node, editorViewModel)
+                        is BehaviouralNode -> RenderBehaviouralNode(node, mainViewModel, editorViewModel)
+                        is StartNode -> StartNodeView(node, editorViewModel)
+                        is UtilityNode -> RenderUtilityNode(node, editorViewModel)
+                    }
+                }
 
-                        val isChildOfStart = childrenOfStart.any { it.id == node.id }
-                        if (isChildOfStart) {
-                            Box(
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 12.dp, y = (-12).dp)
-                            ) {
-                                BranchPriorityDropdown(node, childrenOfStart, editorViewModel)
-                            }
-                        } else {
-                            Text(
-                                text = highlightInfo.number.toString(),
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .offset(x = 12.dp, y = (-12).dp),
-                                color = Color.White,
-                                style = TextStyle(
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 14.sp
-                                )
+                if (highlightMode && highlightInfo != null) {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = highlightInfo.color.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(8.dp)
                             )
-                        }
-                    } else {
+                            .border(
+                                width = 2.dp,
+                                color = highlightInfo.color,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(8.dp)
+                    ) {
                         content()
                     }
+
+                    val isChildOfStart = childrenOfStart.any { it.id == node.id }
+                    if (isChildOfStart) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 12.dp, y = (-12).dp)
+                        ) {
+                            BranchPriorityDropdown(node, childrenOfStart, editorViewModel)
+                        }
+                    } else {
+                        Text(
+                            text = highlightInfo.number.toString(),
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 12.dp, y = (-12).dp),
+                            color = Color.White,
+                            style = TextStyle(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        )
+                    }
+                } else {
+                    content()
                 }
             }
         }
@@ -313,6 +301,37 @@ private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, edito
                 editorViewModel = editorViewModel,
                 uploadsDir = mainViewModel.uploadsDir
             )
+        }
+    }
+}
+
+@Composable
+private fun RenderBehaviouralNode(
+    node: BehaviouralNode,
+    mainViewModel: MainViewModel,
+    editorViewModel: NodeEditorViewModel
+) {
+    val troupe by mainViewModel.troupe.collectAsState()
+    val puppets = troupe?.puppets ?: emptyList()
+    val idleImage by mainViewModel.idleImage.collectAsState()
+
+    when (node) {
+        is GoThroughStateNode -> {
+            val puppet = puppets.find { it.name == node.puppetId }
+            val puppetStates = puppet?.states ?: emptyList()
+            val stateInfo = puppetStates.find { it.name == node.stateName }
+
+            idleImage?.let { bitmap ->
+                GoThroughStateNodeView(
+                    node = node,
+                    puppetState = stateInfo,
+                    puppetStates = puppetStates,
+                    onStateNameChanged = { editorViewModel.updateNode(node.copy(stateName = it)) },
+                    idleImage = bitmap,
+                    editorViewModel = editorViewModel,
+                    uploadsDir = mainViewModel.uploadsDir
+                )
+            }
         }
     }
 }

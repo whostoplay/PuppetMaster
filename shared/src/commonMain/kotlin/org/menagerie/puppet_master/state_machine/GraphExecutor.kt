@@ -27,13 +27,89 @@ sealed interface GraphAction {
 
 /**
  * Executes the logic of a NodeGraph based on a given ExecutionContext.
- * This executor is stateful and tracks toggled nodes.
+ * This executor is stateful and tracks toggled nodes and delayed graph continuations.
  */
 class GraphExecutor(private val graph: NodeGraph) {
 
     private val toggledOnNodes = mutableSetOf<NodeId>()
     private var lastProcessedHotkey: Hotkey? = null
     private var overrideStartNodeId: NodeId? = null
+
+    private data class DelayedContinuation(
+        val nodeId: NodeId,
+        val context: GraphExecutionContext,
+        val resumeTime: Long
+    )
+    private val pendingContinuations = mutableListOf<DelayedContinuation>()
+
+    /**
+     * Executes a branch of the graph starting from a given node.
+     * @return An action to be performed, or null if execution completes without action.
+     */
+    private fun executeFromNode(startNode: Node, context: GraphExecutionContext): GraphAction? {
+        var currentNode: Node? = startNode
+        var executionContext = context
+
+        while (currentNode != null) {
+            if (currentNode is SetPuppetNode) {
+                executionContext = executionContext.copy(puppetId = currentNode.puppetId)
+            }
+
+            if (currentNode is SetStateNode && currentNode.puppetId == null) {
+                currentNode = currentNode.copy(puppetId = executionContext.puppetId)
+            }
+
+            if (currentNode is GoThroughStateNode) {
+                if (currentNode.puppetId == null) {
+                    currentNode = currentNode.copy(puppetId = executionContext.puppetId)
+                }
+                val result = currentNode.execute(executionContext, graph)
+                if (result.nextNodeId != null) {
+                    pendingContinuations.add(
+                        DelayedContinuation(
+                            nodeId = result.nextNodeId,
+                            context = executionContext,
+                            resumeTime = System.currentTimeMillis() + currentNode.delay
+                        )
+                    )
+                }
+                // Always return the action from a GoThroughStateNode and halt this execution path.
+                return result.action
+            }
+
+            val result = currentNode.execute(executionContext, graph)
+
+            if (result.action != null) {
+                when (val action = result.action) {
+                    is GraphAction.SetGraphStart -> {
+                        overrideStartNodeId = action.nodeId
+                        return action
+                    }
+                    is GraphAction.ResetGraphStart -> {
+                        overrideStartNodeId = null
+                        return action
+                    }
+                    is GraphAction.RequestToggle -> {
+                        if (toggledOnNodes.contains(action.nodeId)) {
+                            toggledOnNodes.remove(action.nodeId)
+                        } else {
+                            toggledOnNodes.add(action.nodeId)
+                        }
+                        lastProcessedHotkey = context.hotKeyPressed
+                        // Execution continues
+                    }
+                    else -> return action // This bubbles up to the UI
+                }
+            }
+
+            if (result.nextNodeId != null) {
+                currentNode = graph.nodes[result.nextNodeId]
+            } else {
+                break
+            }
+        }
+        return null
+    }
 
     /**
      * Executes the graph's logic, starting from the graph's start node.
@@ -43,7 +119,27 @@ class GraphExecutor(private val graph: NodeGraph) {
      * @return An action to be performed, or null if no action is required.
      */
     fun tick(context: GraphExecutionContext): GraphAction? {
-        // Global hotkey processing is removed. Nodes will handle their own logic.
+        // Process pending continuations
+        val now = System.currentTimeMillis()
+        val readyContinuations = pendingContinuations.filter { it.resumeTime <= now }
+        if (readyContinuations.isNotEmpty()) {
+            pendingContinuations.removeAll(readyContinuations)
+            for (continuation in readyContinuations) {
+                graph.nodes[continuation.nodeId]?.let { node ->
+                    val action = executeFromNode(node, continuation.context)
+                    if (action != null) {
+                        if (action is GraphAction.SetGraphStart) {
+                            overrideStartNodeId = action.nodeId
+                            return tick(context) // Restart tick
+                        }
+                        if (action is GraphAction.ResetGraphStart) {
+                            overrideStartNodeId = null
+                        }
+                        return action
+                    }
+                }
+            }
+        }
 
         val startNodeId = overrideStartNodeId ?: graph.startNodeId
         val startNode = startNodeId?.let { graph.nodes[it] }
@@ -71,52 +167,17 @@ class GraphExecutor(private val graph: NodeGraph) {
         }
 
         for (childNode in childrenOfStart) {
-            var currentNode: Node? = childNode
-            if (currentNode == null) continue
-
-            while (currentNode != null) {
-                if (currentNode is SetPuppetNode) {
-                    executionContext = executionContext.copy(puppetId = currentNode.puppetId)
+            val action = executeFromNode(childNode, executionContext)
+            if (action != null) {
+                if (action is GraphAction.SetGraphStart) {
+                    overrideStartNodeId = action.nodeId
+                    return tick(context) // Restart tick
                 }
-
-                if (currentNode is SetStateNode && currentNode.puppetId == null) {
-                    currentNode = currentNode.copy(puppetId = executionContext.puppetId)
+                if (action is GraphAction.ResetGraphStart) {
+                    overrideStartNodeId = null
+                    return null // Stop execution for this tick
                 }
-
-                val result = currentNode.execute(executionContext, graph)
-
-                if (result.action != null) {
-                    when (val action = result.action) {
-                        is GraphAction.SetGraphStart -> {
-                            overrideStartNodeId = action.nodeId
-                            // Continue execution from the new start node
-                            return tick(context)
-                        }
-                        is GraphAction.ResetGraphStart -> {
-                            overrideStartNodeId = null
-                            // Stop execution for this tick
-                            return null
-                        }
-                        is GraphAction.RequestToggle -> {
-                            if (toggledOnNodes.contains(action.nodeId)) {
-                                toggledOnNodes.remove(action.nodeId)
-                            } else {
-                                toggledOnNodes.add(action.nodeId)
-                            }
-                            // By setting lastProcessedHotkey here, we ensure that this specific key press
-                            // doesn't trigger another toggle in the same tick if it appears again.
-                            lastProcessedHotkey = context.hotKeyPressed
-                            // We do NOT return, execution continues.
-                        }
-                        else -> return action // This bubbles up to the UI
-                    }
-                }
-
-                if (result.nextNodeId != null) {
-                    currentNode = graph.nodes[result.nextNodeId]
-                } else {
-                    break
-                }
+                return action
             }
         }
 
@@ -132,5 +193,6 @@ class GraphExecutor(private val graph: NodeGraph) {
         toggledOnNodes.clear()
         lastProcessedHotkey = null
         overrideStartNodeId = null
+        pendingContinuations.clear()
     }
 }

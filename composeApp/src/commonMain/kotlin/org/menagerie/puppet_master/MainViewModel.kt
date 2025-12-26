@@ -188,12 +188,17 @@ class MainViewModel(context: Any) : ScreenModel {
         screenModelScope.launch {
             troupe.collect { troupe ->
                 graphExecutor = troupe?.nodeGraph?.let { GraphExecutor(it) }
-                _thresholds.value = activePuppet.value?.thresholds ?: emptyMap()
+            }
+        }
+
+        screenModelScope.launch {
+            activePuppet.collect { puppet ->
+                _thresholds.value = puppet?.thresholds ?: emptyMap()
                 _selectedState.value?.let { selected ->
-                    _selectedState.value = activePuppet.value?.states?.find { it.name == selected.name }
+                    _selectedState.value = puppet?.states?.find { it.name == selected.name }
                 }
                 val idleState =
-                    activePuppet.value?.states?.find { it.name == Constants.Puppet.IDLE_STATE_NAME } ?: activePuppet.value?.states?.firstOrNull()
+                    puppet?.states?.find { it.name == Constants.Puppet.IDLE_STATE_NAME } ?: puppet?.states?.firstOrNull()
                 if (idleState != null) {
                     val imageData = getImageData(idleState.imageName)
                     if (imageData != null) {

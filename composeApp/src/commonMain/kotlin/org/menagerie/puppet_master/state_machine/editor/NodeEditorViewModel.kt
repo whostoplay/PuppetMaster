@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.SerializableOffset
+import org.menagerie.puppet_master.state_machine.GoThroughStateNode
 import org.menagerie.puppet_master.state_machine.Handle
 import org.menagerie.puppet_master.state_machine.Node
 import org.menagerie.puppet_master.state_machine.NodeGraph
@@ -158,7 +159,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             }
             offsetMultiplier++
         }
-        
+
         val canvasWidth = _canvasSize.value.width
         val nodeWidth = templateNode.size.toSize().width
         if (canvasWidth > 0 && targetPosition.x + nodeWidth > canvasWidth) {
@@ -274,7 +275,12 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
     private fun propagatePuppetId(nodeId: String, puppetId: String, nodes: MutableMap<String, Node>) {
         val node = nodes[nodeId]
+        if (node is SetPuppetNode) return
+
         if (node is SetStateNode) {
+            nodes[nodeId] = node.copy(puppetId = puppetId)
+        }
+        if (node is GoThroughStateNode) {
             nodes[nodeId] = node.copy(puppetId = puppetId)
         }
 

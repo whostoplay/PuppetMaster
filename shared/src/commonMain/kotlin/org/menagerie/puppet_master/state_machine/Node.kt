@@ -18,6 +18,7 @@ val nodeSerializersModule = SerializersModule {
         subclass(StartNode::class)
         subclass(SetPuppetNode::class)
         subclass(ResetSetNode::class)
+        subclass(GoThroughStateNode::class)
     }
 }
 
