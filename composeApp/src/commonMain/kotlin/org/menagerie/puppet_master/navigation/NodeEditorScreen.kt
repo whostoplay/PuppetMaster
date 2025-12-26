@@ -89,7 +89,7 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                 var pointerPosition by remember { mutableStateOf(Offset.Zero) }
                 var boxCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 val gridSize = 40f
-                val canvasSize = 3000.dp
+                val canvasSize = 30000.dp
 
                 val horizontalScrollState = rememberScrollState()
                 val verticalScrollState = rememberScrollState()
