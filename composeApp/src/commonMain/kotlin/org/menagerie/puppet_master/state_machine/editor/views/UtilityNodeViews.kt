@@ -12,9 +12,11 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import org.menagerie.puppet_master.state_machine.DelayTimerNode
 import org.menagerie.puppet_master.state_machine.ResetSetNode
 import org.menagerie.puppet_master.state_machine.SetPuppetMode
 import org.menagerie.puppet_master.state_machine.SetPuppetNode
@@ -99,6 +102,43 @@ fun ResetSetNodeView(
             horizontalArrangement = Arrangement.Center
         ) {
             Text("RESET")
+        }
+    }
+}
+
+@Composable
+fun DelayTimerNodeView(
+    node: DelayTimerNode,
+    editorViewModel: NodeEditorViewModel,
+) {
+    var sliderPosition by remember { mutableStateOf(node.delay.toFloat()) }
+
+    LaunchedEffect(node.delay) {
+        sliderPosition = node.delay.toFloat()
+    }
+
+    NodeView(
+        node = node,
+        title = "Delay Timer",
+        editorViewModel = editorViewModel
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text("Delay: ${sliderPosition.toLong() / 1000f} s", color = Color.White)
+            Slider(
+                value = sliderPosition,
+                onValueChange = {
+                    sliderPosition = it
+                },
+                onValueChangeFinished = {
+                    editorViewModel.updateNode(node.copy(delay = sliderPosition.toLong()))
+                },
+                valueRange = 0f..10000f,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

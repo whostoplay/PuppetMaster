@@ -19,6 +19,7 @@ val nodeSerializersModule = SerializersModule {
         subclass(SetPuppetNode::class)
         subclass(ResetSetNode::class)
         subclass(GoThroughStateNode::class)
+        subclass(DelayTimerNode::class)
     }
 }
 

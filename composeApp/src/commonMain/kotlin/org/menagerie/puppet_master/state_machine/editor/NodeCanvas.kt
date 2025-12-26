@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.state_machine.*
+import org.menagerie.puppet_master.state_machine.editor.views.DelayTimerNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.GoThroughStateNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.HotKeyNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.ResetSetNodeView
@@ -372,6 +373,12 @@ private fun RenderUtilityNode(node: UtilityNode, editorViewModel: NodeEditorView
         }
         is ResetSetNode -> {
             ResetSetNodeView(
+                node = node,
+                editorViewModel = editorViewModel
+            )
+        }
+        is DelayTimerNode -> {
+            DelayTimerNodeView(
                 node = node,
                 editorViewModel = editorViewModel
             )

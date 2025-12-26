@@ -62,9 +62,34 @@ data class ResetSetNode(
     }
 }
 
+@Serializable
+data class DelayTimerNode(
+    override val id: NodeId,
+    val delay: Long = 1000, // Delay in milliseconds
+    override val position: SerializableOffset,
+    override val size: SerializableSize = SerializableSize(180f, 120f),
+    override val branchPriority: Int = 0
+) : UtilityNode {
+
+    override fun copyNode(id: NodeId, position: SerializableOffset): Node {
+        return copy(id = id, position = position)
+    }
+
+    override fun copyNodeWithNewPriority(priority: Int): Node {
+        return copy(branchPriority = priority)
+    }
+
+    override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
+        val nextNodeId = findNextNodeId(graph, "out")
+        val action = nextNodeId?.let { GraphAction.RequestDelay(it, delay) }
+        return ExecuteResult(null, action)
+    }
+}
+
 fun getAvailableUtilityNodes(): List<Node> {
     return listOf(
         SetPuppetNode(id = "", position = SerializableOffset(0f, 0f)),
-        ResetSetNode(id = "", position = SerializableOffset(0f, 0f))
+        ResetSetNode(id = "", position = SerializableOffset(0f, 0f)),
+        DelayTimerNode(id = "", position = SerializableOffset(0f, 0f))
     )
 }

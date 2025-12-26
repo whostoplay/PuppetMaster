@@ -23,6 +23,7 @@ sealed interface GraphAction {
     object ResetGraphStart : GraphAction
     // This is an internal action for the executor to handle, requested by a node
     data class RequestToggle(val nodeId: NodeId) : GraphAction
+    data class RequestDelay(val nextNodeId: NodeId, val delay: Long) : GraphAction
 }
 
 /**
@@ -97,6 +98,17 @@ class GraphExecutor(private val graph: NodeGraph) {
                         }
                         lastProcessedHotkey = context.hotKeyPressed
                         // Execution continues
+                    }
+                    is GraphAction.RequestDelay -> {
+                        pendingContinuations.add(
+                            DelayedContinuation(
+                                nodeId = action.nextNodeId,
+                                context = executionContext,
+                                resumeTime = System.currentTimeMillis() + action.delay
+                            )
+                        )
+                        // Stop execution for this tick
+                        return null
                     }
                     else -> return action // This bubbles up to the UI
                 }
