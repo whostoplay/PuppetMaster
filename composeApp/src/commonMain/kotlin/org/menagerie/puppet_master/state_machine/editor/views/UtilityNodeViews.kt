@@ -31,7 +31,7 @@ import org.menagerie.puppet_master.state_machine.DelayTimerNode
 import org.menagerie.puppet_master.state_machine.ResetSetNode
 import org.menagerie.puppet_master.state_machine.SetPuppetMode
 import org.menagerie.puppet_master.state_machine.SetPuppetNode
-import org.menagerie.puppet_master.state_machine.WaitNode
+import org.menagerie.puppet_master.state_machine.TriggerOnWaitNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 
 @Composable
@@ -146,8 +146,8 @@ fun DelayTimerNodeView(
 }
 
 @Composable
-fun WaitNodeView(
-    node: WaitNode,
+fun TriggerOnWaitNodeView(
+    node: TriggerOnWaitNode,
     editorViewModel: NodeEditorViewModel,
 ) {
     var sliderPosition by remember { mutableFloatStateOf(node.waitMillis.toFloat()) }
@@ -158,7 +158,7 @@ fun WaitNodeView(
 
     NodeView(
         node = node,
-        title = "Wait For",
+        title = "Trigger on Wait",
         editorViewModel = editorViewModel
     ) {
         Column(

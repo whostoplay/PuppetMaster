@@ -17,9 +17,10 @@ data class GoThroughStateNode(
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
         val nextNodeId = findNextNodeId(graph, "out")
+        val finalPuppetId = puppetId ?: context.puppetId
         return ExecuteResult(
             nextNodeId = nextNodeId,
-            action = GraphAction.SetState(stateName, puppetId)
+            action = GraphAction.SetState(stateName, finalPuppetId)
         )
     }
 

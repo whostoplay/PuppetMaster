@@ -45,7 +45,6 @@ class GraphExecutor(private val graph: NodeGraph) {
 
     private data class DelayedContinuation(
         val nodeId: NodeId,
-        val context: GraphExecutionContext,
         val resumeTime: Long
     )
     private val pendingContinuations = mutableListOf<DelayedContinuation>()
@@ -68,38 +67,34 @@ class GraphExecutor(private val graph: NodeGraph) {
             }
 
             if (currentNode is GoThroughStateNode) {
-                if (currentNode.puppetId == null) {
-                    currentNode = currentNode.copy(puppetId = executionContext.puppetId)
-                }
-                val result = currentNode.execute(executionContext, graph)
-                if (result.nextNodeId != null) {
+                val finalPuppetId = currentNode.puppetId ?: executionContext.puppetId
+                val nextNodeId = currentNode.findNextNodeId(graph, "out")
+
+                if (nextNodeId != null) {
                     pendingContinuations.add(
                         DelayedContinuation(
-                            nodeId = result.nextNodeId,
-                            context = executionContext,
+                            nodeId = nextNodeId,
                             resumeTime = System.currentTimeMillis() + currentNode.delay
                         )
                     )
-                    val wire = graph.wires.find { it.fromNodeId == currentNode!!.id && it.toNodeId == result.nextNodeId }
+                    val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
                     wire?.let { activeWires.add(it) }
-                    activeNodes.add(result.nextNodeId)
+                    activeNodes.add(nextNodeId)
                 }
-                // Always return the action from a GoThroughStateNode and halt this execution path.
-                return result.action
+                return GraphAction.SetState(currentNode.stateName, finalPuppetId)
             }
 
-            // Special handling for WaitNode
-            if (currentNode is WaitNode) {
+            if (currentNode is TriggerOnWaitNode) {
                 val thresholdTicks = (currentNode.waitMillis / 16)
                 val counter = waitNodeCounters.getOrDefault(currentNode.id, 0) + 1
-                val nextNodeId: NodeId?
 
-                if (counter >= thresholdTicks) {
+                val result = currentNode.execute(context, graph) // Now we can rely on the node's own logic
+                val nextNodeId = if (counter >= thresholdTicks) {
                     waitNodeCounters.remove(currentNode.id) // Reset counter
-                    nextNodeId = currentNode.findNextNodeId(graph, "out.trigger")
+                    result.nextNodeId // This will be the "trigger" path
                 } else {
                     waitNodeCounters[currentNode.id] = counter
-                    nextNodeId = currentNode.findNextNodeId(graph, "out.fail")
+                    result.alternativeNextNodeId // This will be the "fail" path
                 }
 
                 if (nextNodeId != null) {
@@ -137,7 +132,6 @@ class GraphExecutor(private val graph: NodeGraph) {
                         pendingContinuations.add(
                             DelayedContinuation(
                                 nodeId = action.nextNodeId,
-                                context = executionContext,
                                 resumeTime = System.currentTimeMillis() + action.delay
                             )
                         )
@@ -175,29 +169,39 @@ class GraphExecutor(private val graph: NodeGraph) {
         activeWires.clear()
 
         try {
-            // Process pending continuations
+            // Step 1: Process pending continuations. If any are ready, we process them and DO NOT continue to normal execution.
             val now = System.currentTimeMillis()
             val readyContinuations = pendingContinuations.filter { it.resumeTime <= now }
+
             if (readyContinuations.isNotEmpty()) {
                 pendingContinuations.removeAll(readyContinuations)
+                var resultingAction: GraphAction? = null
+                val continuationContext = context.copy(
+                    toggledOnNodes = toggledOnNodes,
+                    lastProcessedHotkey = lastProcessedHotkey
+                )
                 for (continuation in readyContinuations) {
                     graph.nodes[continuation.nodeId]?.let { node ->
                         activeNodes.add(node.id)
-                        val action = executeFromNode(node, continuation.context)
+                        val action = executeFromNode(node, continuationContext)
                         if (action != null) {
-                            if (action is GraphAction.SetGraphStart) {
-                                overrideStartNodeId = action.nodeId
-                                return tick(context) // Restart tick
-                            }
-                            if (action is GraphAction.ResetGraphStart) {
-                                overrideStartNodeId = null
-                            }
-                            return action
+                            resultingAction = action
                         }
                     }
                 }
+
+                if (resultingAction is GraphAction.SetGraphStart) {
+                    overrideStartNodeId = resultingAction.nodeId
+                    return tick(context) // Restart tick immediately
+                }
+                if (resultingAction is GraphAction.ResetGraphStart) {
+                    overrideStartNodeId = null
+                }
+
+                return resultingAction // End the tick here.
             }
 
+            // Step 2: Normal execution from start node (only if no continuations were ready)
             val startNodeId = overrideStartNodeId ?: graph.startNodeId
             val startNode = startNodeId?.let { graph.nodes[it] }
 
@@ -244,8 +248,8 @@ class GraphExecutor(private val graph: NodeGraph) {
 
             return null
         } finally {
-            // Reset counters for any WaitNodes that were not visited this tick
-            val allWaitNodes = graph.nodes.values.filterIsInstance<WaitNode>()
+            // Reset counters for any TriggerOnWaitNodes that were not visited this tick
+            val allWaitNodes = graph.nodes.values.filterIsInstance<TriggerOnWaitNode>()
             for (waitNode in allWaitNodes) {
                 if (waitNode.id !in activeNodes) {
                     waitNodeCounters.remove(waitNode.id)

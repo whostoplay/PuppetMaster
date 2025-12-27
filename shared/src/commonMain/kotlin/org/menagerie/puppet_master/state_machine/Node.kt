@@ -20,7 +20,7 @@ val nodeSerializersModule = SerializersModule {
         subclass(ResetSetNode::class)
         subclass(GoThroughStateNode::class)
         subclass(DelayTimerNode::class)
-        subclass(WaitNode::class)
+        subclass(TriggerOnWaitNode::class)
     }
 }
 
@@ -39,8 +39,13 @@ data class OutputHandle(override val id: String) : Handle
  * The result of a node's execution.
  * @param nextNodeId The ID of the next node to execute, determined by following a wire.
  * @param action An optional action for the UI to perform (e.g., changing state).
+ * @param alternativeNextNodeId An alternative node ID for special cases like the TriggerOnWaitNode.
  */
-data class ExecuteResult(val nextNodeId: NodeId?, val action: GraphAction? = null)
+data class ExecuteResult(
+    val nextNodeId: NodeId?,
+    val action: GraphAction? = null,
+    val alternativeNextNodeId: NodeId? = null
+)
 
 /**
  * The base for all nodes in the graph. Using a sealed interface ensures

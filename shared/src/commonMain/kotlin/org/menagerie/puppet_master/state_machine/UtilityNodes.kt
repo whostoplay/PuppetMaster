@@ -87,7 +87,7 @@ data class DelayTimerNode(
 }
 
 @Serializable
-data class WaitNode(
+data class TriggerOnWaitNode(
     override val id: NodeId,
     val waitMillis: Long = 1000, // Time to wait in milliseconds before triggering
     override val position: SerializableOffset,
@@ -106,10 +106,9 @@ data class WaitNode(
     }
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        // The core logic is handled in the GraphExecutor, which will decide whether to trigger or not.
-        // By default, we just pass through the 'fail' output.
-        val nextNodeId = findNextNodeId(graph, "out.fail")
-        return ExecuteResult(nextNodeId)
+        val triggerNodeId = findNextNodeId(graph, "out.trigger")
+        val failNodeId = findNextNodeId(graph, "out.fail")
+        return ExecuteResult(triggerNodeId, alternativeNextNodeId = failNodeId)
     }
 }
 
@@ -119,6 +118,6 @@ fun getAvailableUtilityNodes(): List<Node> {
         SetPuppetNode(id = "", position = SerializableOffset(0f, 0f)),
         ResetSetNode(id = "", position = SerializableOffset(0f, 0f)),
         DelayTimerNode(id = "", position = SerializableOffset(0f, 0f)),
-        WaitNode(id = "", position = SerializableOffset(0f, 0f))
+        TriggerOnWaitNode(id = "", position = SerializableOffset(0f, 0f))
     )
 }
