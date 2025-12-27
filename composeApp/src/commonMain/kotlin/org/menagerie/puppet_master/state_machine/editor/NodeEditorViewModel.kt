@@ -3,6 +3,13 @@ package org.menagerie.puppet_master.state_machine.editor
 import androidx.compose.animation.core.copy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.IntSize
 import cafe.adriel.voyager.core.model.ScreenModel
 import cafe.adriel.voyager.core.model.screenModelScope
@@ -12,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.state_machine.GoThroughStateNode
@@ -54,6 +62,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     val activeWires: StateFlow<Set<Wire>> = _activeWires.asStateFlow()
     private var simulationJob: Job? = null
     private var graphExecutor: GraphExecutor? = null
+    private val _lastPressedKey = MutableStateFlow<Hotkey?>(null)
 
     fun toggleHighlightMode() {
         _highlightMode.value = !_highlightMode.value
@@ -102,12 +111,31 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         }
     }
 
+    fun onKeyEvent(keyEvent: KeyEvent) {
+        val hotkey = Hotkey(
+            keyEvent.key.keyCode,
+            keyEvent.isShiftPressed,
+            keyEvent.isCtrlPressed,
+            keyEvent.isAltPressed,
+        )
+        if (keyEvent.type == KeyEventType.KeyDown) {
+            _lastPressedKey.value = hotkey
+        } else if (keyEvent.type == KeyEventType.KeyUp) {
+            if (_lastPressedKey.value?.shallowEquals(hotkey) == true) {
+                _lastPressedKey.value = null
+            }
+        }
+    }
+
     private fun startSimulation() {
         _isSimulating.value = true
         graphExecutor = GraphExecutor(_nodeGraph.value)
         simulationJob = screenModelScope.launch {
             while (_isSimulating.value) {
-                val context = GraphExecutionContext(0f, null)
+                val context = GraphExecutionContext(
+                    microphoneVolume = mainViewModel.audioLevel.value,
+                    hotKeyPressed = _lastPressedKey.value
+                )
                 graphExecutor?.tick(context)
                 _activeNodes.value = graphExecutor?.getActiveNodes() ?: emptySet()
                 _activeWires.value = graphExecutor?.getActiveWires() ?: emptySet()
@@ -123,6 +151,8 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         _activeWires.value = emptySet()
         graphExecutor?.reset()
     }
+
+
 
     fun onWireDragStart(nodeId: String, handleId: String) {
         _wireDragInfo.value = WireDragInfo(nodeId, handleId)
@@ -350,6 +380,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         var updatedNodes = currentGraph.nodes
 
         if (wire.fromNodeId == currentGraph.startNodeId) {
+            // Re-prioritize remaining children of the start node
             val remainingChildren = updatedWires
                 .filter { it.fromNodeId == currentGraph.startNodeId }
                 .mapNotNull { currentGraph.nodes[it.toNodeId] }
@@ -381,6 +412,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             currentGraph.copy(nodes = newNodes, wires = newWires)
         }
 
+        // if the deleted node was connected to the start node, re-prioritize
         if (wiresForNode.any { it.fromNodeId == currentGraph.startNodeId }) {
             val remainingChildren = newGraph.wires
                 .filter { it.fromNodeId == newGraph.startNodeId }
@@ -439,6 +471,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
         commitGraphUpdate(currentGraph.copy(nodes = newNodes))
     }
+
 
     fun updateHandlePosition(nodeId: String, handleId: String, position: Offset) {
         val key = "$nodeId-$handleId"

@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.navigation
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -23,6 +24,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,8 +32,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -40,6 +51,7 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.state_machine.editor.NodeCanvas
@@ -57,6 +69,11 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
         val handlePositions by editorViewModel.handlePositions.collectAsState()
         val highlightMode by editorViewModel.highlightMode.collectAsState()
         val isSimulating by editorViewModel.isSimulating.collectAsState()
+        val focusRequester = remember { FocusRequester() }
+
+        LaunchedEffect(Unit) {
+            focusRequester.requestFocus()
+        }
 
         Scaffold(
             topBar = {
@@ -90,7 +107,14 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                 )
             }
         ) { innerPadding ->
-            Row(Modifier.fillMaxSize().padding(innerPadding)) {
+            Row(
+                Modifier.fillMaxSize().padding(innerPadding)
+                    .focusRequester(focusRequester).focusable()
+                    .onKeyEvent { keyEvent ->
+                        editorViewModel.onKeyEvent(keyEvent)
+                        true
+                    }
+            ) {
                 NodePalette(
                     modifier = Modifier.width(250.dp).fillMaxHeight(),
                     editorViewModel = editorViewModel

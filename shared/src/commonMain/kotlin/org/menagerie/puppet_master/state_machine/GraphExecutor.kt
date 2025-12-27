@@ -105,7 +105,6 @@ class GraphExecutor(private val graph: NodeGraph) {
                         } else {
                             toggledOnNodes.add(action.nodeId)
                         }
-                        lastProcessedHotkey = context.hotKeyPressed
                         // Execution continues
                     }
                     is GraphAction.RequestDelay -> {
@@ -149,76 +148,79 @@ class GraphExecutor(private val graph: NodeGraph) {
         activeNodes.clear()
         activeWires.clear()
 
-        // Process pending continuations
-        val now = System.currentTimeMillis()
-        val readyContinuations = pendingContinuations.filter { it.resumeTime <= now }
-        if (readyContinuations.isNotEmpty()) {
-            pendingContinuations.removeAll(readyContinuations)
-            for (continuation in readyContinuations) {
-                graph.nodes[continuation.nodeId]?.let { node ->
-                    activeNodes.add(node.id)
-                    val action = executeFromNode(node, continuation.context)
-                    if (action != null) {
-                        if (action is GraphAction.SetGraphStart) {
-                            overrideStartNodeId = action.nodeId
-                            return tick(context) // Restart tick
+        try {
+            // Process pending continuations
+            val now = System.currentTimeMillis()
+            val readyContinuations = pendingContinuations.filter { it.resumeTime <= now }
+            if (readyContinuations.isNotEmpty()) {
+                pendingContinuations.removeAll(readyContinuations)
+                for (continuation in readyContinuations) {
+                    graph.nodes[continuation.nodeId]?.let { node ->
+                        activeNodes.add(node.id)
+                        val action = executeFromNode(node, continuation.context)
+                        if (action != null) {
+                            if (action is GraphAction.SetGraphStart) {
+                                overrideStartNodeId = action.nodeId
+                                return tick(context) // Restart tick
+                            }
+                            if (action is GraphAction.ResetGraphStart) {
+                                overrideStartNodeId = null
+                            }
+                            return action
                         }
-                        if (action is GraphAction.ResetGraphStart) {
-                            overrideStartNodeId = null
-                        }
-                        return action
                     }
                 }
             }
-        }
 
-        val startNodeId = overrideStartNodeId ?: graph.startNodeId
-        val startNode = startNodeId?.let { graph.nodes[it] }
+            val startNodeId = overrideStartNodeId ?: graph.startNodeId
+            val startNode = startNodeId?.let { graph.nodes[it] }
 
-        if (startNode == null) {
-            if (startNodeId != null) {
-                println("GraphExecutor: Start node with id $startNodeId not found in graph.")
-            } else {
-                println("GraphExecutor: No start node defined for the graph.")
-            }
-            return null // Can't execute without a starting node.
-        }
-        
-        activeNodes.add(startNode.id)
-
-        val childrenOfStart = graph.wires
-            .filter { it.fromNodeId == startNode.id }
-            .mapNotNull { wire -> graph.nodes[wire.toNodeId]?.let { node -> wire to node } }
-            .sortedBy { it.second.branchPriority }
-
-        var executionContext = context.copy(
-            toggledOnNodes = toggledOnNodes,
-            lastProcessedHotkey = lastProcessedHotkey
-        )
-        if (startNode is StartNode) {
-            executionContext = executionContext.copy(puppetId = startNode.puppetId)
-        }
-
-        for ((wire, childNode) in childrenOfStart) {
-            activeWires.add(wire)
-            activeNodes.add(childNode.id)
-            val action = executeFromNode(childNode, executionContext)
-            if (action != null) {
-                if (action is GraphAction.SetGraphStart) {
-                    overrideStartNodeId = action.nodeId
-                    return tick(context) // Restart tick
+            if (startNode == null) {
+                if (startNodeId != null) {
+                    println("GraphExecutor: Start node with id $startNodeId not found in graph.")
+                } else {
+                    println("GraphExecutor: No start node defined for the graph.")
                 }
-                if (action is GraphAction.ResetGraphStart) {
-                    overrideStartNodeId = null
-                    return null // Stop execution for this tick
-                }
-                return action
+                return null // Can't execute without a starting node.
             }
-        }
 
-        // Update the hotkey at the very end of the tick.
-        lastProcessedHotkey = context.hotKeyPressed
-        return null
+            activeNodes.add(startNode.id)
+
+            val childrenOfStart = graph.wires
+                .filter { it.fromNodeId == startNode.id }
+                .mapNotNull { wire -> graph.nodes[wire.toNodeId]?.let { node -> wire to node } }
+                .sortedBy { it.second.branchPriority }
+
+            var executionContext = context.copy(
+                toggledOnNodes = toggledOnNodes,
+                lastProcessedHotkey = lastProcessedHotkey
+            )
+            if (startNode is StartNode) {
+                executionContext = executionContext.copy(puppetId = startNode.puppetId)
+            }
+
+            for ((wire, childNode) in childrenOfStart) {
+                activeWires.add(wire)
+                activeNodes.add(childNode.id)
+                val action = executeFromNode(childNode, executionContext)
+                if (action != null) {
+                    if (action is GraphAction.SetGraphStart) {
+                        overrideStartNodeId = action.nodeId
+                        return tick(context) // Restart tick
+                    }
+                    if (action is GraphAction.ResetGraphStart) {
+                        overrideStartNodeId = null
+                        return null // Stop execution for this tick
+                    }
+                    return action
+                }
+            }
+
+            return null
+        } finally {
+            // Update the hotkey at the very end of the tick.
+            lastProcessedHotkey = context.hotKeyPressed
+        }
     }
 
     /**
