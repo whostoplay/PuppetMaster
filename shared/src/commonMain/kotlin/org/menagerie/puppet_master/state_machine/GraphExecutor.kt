@@ -54,27 +54,37 @@ class GraphExecutor(private val graph: NodeGraph) {
 
         while (currentNode != null) {
             val resumeTime = delayedNodes[currentNode.id]
-            if (resumeTime != null) {
-                if (System.currentTimeMillis() >= resumeTime) {
-                    delayedNodes.remove(currentNode.id)
-                    if (currentNode is GoThroughStateNode) {
-                        val nextNodeId = currentNode.findNextNodeId(graph, "out")
-                        if (nextNodeId != null) {
-                            val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
-                            wire?.let { activeWires.add(it) }
-                            activeNodes.add(nextNodeId)
-                            currentNode = graph.nodes[nextNodeId]
-                            continue
-                        } else {
-                            break
-                        }
-                    }
-                } else {
+            if (resumeTime != null) { // Node is in delayedNodes
+                if (System.currentTimeMillis() < resumeTime) {
+                    // Still waiting, for any kind of delayed node.
                     return null
                 }
+
+                // Time is up.
+                if (currentNode is GoThroughStateNode) {
+                    // For GoThroughStateNode, we don't remove it from delayedNodes. We just try to move to the next node.
+                    val nextNodeId = currentNode.findNextNodeId(graph, "out")
+                    if (nextNodeId != null) {
+                        val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
+                        wire?.let { activeWires.add(it) }
+                        activeNodes.add(nextNodeId)
+                        currentNode = graph.nodes[nextNodeId]
+                        continue // loop to process next node
+                    } else {
+                        // It's a terminal GoThroughStateNode, delay is over.
+                        // We do nothing and just stop this branch.
+                        // Because it's still in delayedNodes, next tick will also pass through here and stop.
+                        return null
+                    }
+                }
+
+                // For other types of delayed nodes (e.g. from RequestDelay), we remove them so they can be re-triggered.
+                delayedNodes.remove(currentNode.id)
             }
 
+            // This part is for nodes NOT in delayedNodes, or for nodes whose delay just finished and were removed.
             if (currentNode is GoThroughStateNode) {
+                // This will only be reached if the node was not in delayedNodes.
                 delayedNodes[currentNode.id] = System.currentTimeMillis() + currentNode.delay
                 val finalPuppetId = currentNode.puppetId ?: executionContext.puppetId
                 return GraphAction.SetState(currentNode.stateName, finalPuppetId)
