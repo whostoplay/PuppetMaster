@@ -443,7 +443,7 @@ private fun calculateHighlightInfo(graph: NodeGraph): Map<String, HighlightInfo>
         Color.Yellow,
         Color(0xFFFFA500), // Orange
         Color(0xFF800080), // Purple
-        Color(0xFFA52A2A), // Brown
+        Color(0xFF552C1A), // Brown
         Color(0xFFFFC0CB), // Pink
         Color.LightGray
     )

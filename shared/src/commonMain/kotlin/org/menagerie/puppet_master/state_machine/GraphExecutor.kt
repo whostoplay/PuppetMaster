@@ -90,7 +90,7 @@ class GraphExecutor(private val graph: NodeGraph) {
 
                 val result = currentNode.execute(context, graph) // Now we can rely on the node's own logic
                 val nextNodeId = if (counter >= thresholdTicks) {
-                    waitNodeCounters.remove(currentNode.id) // Reset counter
+                    //Make sure not to reset the timer on success, only when another node triggers instead. This prevents single frame calls.
                     result.nextNodeId // This will be the "trigger" path
                 } else {
                     waitNodeCounters[currentNode.id] = counter
