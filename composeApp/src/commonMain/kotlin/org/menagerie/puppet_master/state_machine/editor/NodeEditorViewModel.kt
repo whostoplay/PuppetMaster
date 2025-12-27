@@ -5,12 +5,19 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntSize
 import cafe.adriel.voyager.core.model.ScreenModel
+import cafe.adriel.voyager.core.model.screenModelScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.state_machine.GoThroughStateNode
+import org.menagerie.puppet_master.state_machine.GraphAction
+import org.menagerie.puppet_master.state_machine.GraphExecutionContext
+import org.menagerie.puppet_master.state_machine.GraphExecutor
 import org.menagerie.puppet_master.state_machine.Handle
 import org.menagerie.puppet_master.state_machine.Node
 import org.menagerie.puppet_master.state_machine.NodeGraph
@@ -38,6 +45,16 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     private val _highlightMode = MutableStateFlow(false)
     val highlightMode: StateFlow<Boolean> = _highlightMode.asStateFlow()
 
+    // Simulation Mode
+    private val _isSimulating = MutableStateFlow(false)
+    val isSimulating: StateFlow<Boolean> = _isSimulating.asStateFlow()
+    private val _activeNodes = MutableStateFlow<Set<String>>(emptySet())
+    val activeNodes: StateFlow<Set<String>> = _activeNodes.asStateFlow()
+    private val _activeWires = MutableStateFlow<Set<Wire>>(emptySet())
+    val activeWires: StateFlow<Set<Wire>> = _activeWires.asStateFlow()
+    private var simulationJob: Job? = null
+    private var graphExecutor: GraphExecutor? = null
+
     fun toggleHighlightMode() {
         _highlightMode.value = !_highlightMode.value
     }
@@ -63,12 +80,48 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         val startNode = graph.startNodeId?.let { graph.nodes[it] }
 
         if (graph.startNodeId != null && (startNode == null || startNode !is StartNode)) {
-            // The startNodeId is invalid (points to nothing or not a StartNode).
-            // This can happen when loading old graphs. Let's clean it up.
             val correctedGraph = graph.copy(startNodeId = null)
-            _nodeGraph.value = correctedGraph
-            mainViewModel.updateNodeGraph(correctedGraph)
+            commitGraphUpdate(correctedGraph)
         }
+    }
+
+    private fun commitGraphUpdate(newGraph: NodeGraph) {
+        _nodeGraph.value = newGraph
+        mainViewModel.updateNodeGraph(newGraph)
+        if (_isSimulating.value) {
+            stopSimulation()
+            startSimulation()
+        }
+    }
+
+    fun toggleSimulation() {
+        if (isSimulating.value) {
+            stopSimulation()
+        } else {
+            startSimulation()
+        }
+    }
+
+    private fun startSimulation() {
+        _isSimulating.value = true
+        graphExecutor = GraphExecutor(_nodeGraph.value)
+        simulationJob = screenModelScope.launch {
+            while (_isSimulating.value) {
+                val context = GraphExecutionContext(0f, null)
+                graphExecutor?.tick(context)
+                _activeNodes.value = graphExecutor?.getActiveNodes() ?: emptySet()
+                _activeWires.value = graphExecutor?.getActiveWires() ?: emptySet()
+                delay(100)
+            }
+        }
+    }
+
+    private fun stopSimulation() {
+        _isSimulating.value = false
+        simulationJob?.cancel()
+        _activeNodes.value = emptySet()
+        _activeWires.value = emptySet()
+        graphExecutor?.reset()
     }
 
     fun onWireDragStart(nodeId: String, handleId: String) {
@@ -97,7 +150,6 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
                 addWire(currentDragInfo.fromNodeId, currentDragInfo.fromHandleId, targetNode.id, handle.id)
             }
         }
-        mainViewModel.updateNodeGraph(nodeGraph.value)
     }
 
     private fun findHandleAt(position: Offset): Pair<Node, Handle>? {
@@ -137,11 +189,14 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     fun onNodeDragEnd() {
         _draggedNodeInfo.value = null
         mainViewModel.updateNodeGraph(nodeGraph.value)
+        if (_isSimulating.value) {
+            stopSimulation()
+            startSimulation()
+        }
     }
 
     fun addNode(templateNode: Node) {
         if (templateNode is StartNode && _nodeGraph.value.startNodeId != null) {
-            // Prevent adding more than one start node
             return
         }
 
@@ -179,8 +234,8 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             _nodeGraph.value.copy(nodes = newNodes)
         }
 
-        _nodeGraph.value = newGraph
         lastInteractedNodeId = newNode.id
+        commitGraphUpdate(newGraph)
     }
 
     private fun isOccupied(newRect: Rect): Boolean {
@@ -218,7 +273,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
                 toNodeId = node1Id
                 toHandleId = handle1Id
             } else {
-                return // Invalid connection (e.g. input-to-input)
+                return
             }
         }
 
@@ -254,9 +309,8 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             propagatePuppetId(toNodeId, puppetId, newNodes)
         }
 
-        _nodeGraph.value = currentGraph.copy(nodes = newNodes, wires = newWires)
-
         lastInteractedNodeId = toNodeId
+        commitGraphUpdate(currentGraph.copy(nodes = newNodes, wires = newWires))
     }
 
     private fun getPuppetIdFromGraph(nodeId: String): String? {
@@ -296,7 +350,6 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         var updatedNodes = currentGraph.nodes
 
         if (wire.fromNodeId == currentGraph.startNodeId) {
-            // Re-prioritize remaining children of the start node
             val remainingChildren = updatedWires
                 .filter { it.fromNodeId == currentGraph.startNodeId }
                 .mapNotNull { currentGraph.nodes[it.toNodeId] }
@@ -309,8 +362,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             updatedNodes = newNodesMap
         }
 
-        _nodeGraph.value = currentGraph.copy(nodes = updatedNodes, wires = updatedWires)
-        mainViewModel.updateNodeGraph(_nodeGraph.value)
+        commitGraphUpdate(currentGraph.copy(nodes = updatedNodes, wires = updatedWires))
     }
 
     fun deleteNode(nodeId: String) {
@@ -329,7 +381,6 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             currentGraph.copy(nodes = newNodes, wires = newWires)
         }
 
-        // if the deleted node was connected to the start node, re-prioritize
         if (wiresForNode.any { it.fromNodeId == currentGraph.startNodeId }) {
             val remainingChildren = newGraph.wires
                 .filter { it.fromNodeId == newGraph.startNodeId }
@@ -343,10 +394,9 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             newGraph = newGraph.copy(nodes = updatedNodes)
         }
 
-        _nodeGraph.value = newGraph
-        mainViewModel.updateNodeGraph(newGraph)
+        commitGraphUpdate(newGraph)
     }
-    
+
     fun updateCanvasSize(newSize: IntSize) {
         _canvasSize.value = newSize
     }
@@ -365,9 +415,8 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             propagatePuppetId(node.id, puppetId, newNodes)
         }
 
-        _nodeGraph.value = _nodeGraph.value.copy(nodes = newNodes)
         lastInteractedNodeId = node.id
-        mainViewModel.updateNodeGraph(nodeGraph.value)
+        commitGraphUpdate(_nodeGraph.value.copy(nodes = newNodes))
     }
 
     fun swapNodePriorities(node1Id: String, node2Id: String) {
@@ -388,10 +437,8 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             this[node2Id] = updatedNode2
         }
 
-        _nodeGraph.value = currentGraph.copy(nodes = newNodes)
-        mainViewModel.updateNodeGraph(_nodeGraph.value)
+        commitGraphUpdate(currentGraph.copy(nodes = newNodes))
     }
-
 
     fun updateHandlePosition(nodeId: String, handleId: String, position: Offset) {
         val key = "$nodeId-$handleId"

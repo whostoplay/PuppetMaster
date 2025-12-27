@@ -13,6 +13,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +56,7 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
         val wireDragInfo by editorViewModel.wireDragInfo.collectAsState()
         val handlePositions by editorViewModel.handlePositions.collectAsState()
         val highlightMode by editorViewModel.highlightMode.collectAsState()
+        val isSimulating by editorViewModel.isSimulating.collectAsState()
 
         Scaffold(
             topBar = {
@@ -75,6 +78,13 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                                 onCheckedChange = { editorViewModel.toggleHighlightMode() },
                                 modifier = Modifier.padding(start = 8.dp)
                             )
+                        }
+                        IconButton(onClick = { editorViewModel.toggleSimulation() }) {
+                            if (isSimulating) {
+                                Icon(Icons.Default.Stop, contentDescription = "Stop Simulation")
+                            } else {
+                                Icon(Icons.Default.PlayArrow, contentDescription = "Start Simulation")
+                            }
                         }
                     }
                 )
@@ -162,7 +172,8 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                         NodeCanvas(
                             mainViewModel = mainViewModel,
                             editorViewModel = editorViewModel,
-                            highlightMode = highlightMode
+                            highlightMode = highlightMode,
+                            isSimulating = isSimulating
                         )
                     }
                 }

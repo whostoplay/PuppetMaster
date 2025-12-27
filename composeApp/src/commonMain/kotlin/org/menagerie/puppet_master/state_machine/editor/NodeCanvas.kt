@@ -1,5 +1,11 @@
 package org.menagerie.puppet_master.state_machine.editor
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -28,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -58,13 +65,27 @@ fun NodeCanvas(
     modifier: Modifier = Modifier,
     mainViewModel: MainViewModel,
     editorViewModel: NodeEditorViewModel,
-    highlightMode: Boolean
+    highlightMode: Boolean,
+    isSimulating: Boolean
 ) {
     val graph by editorViewModel.nodeGraph.collectAsState()
     val handlePositions by editorViewModel.handlePositions.collectAsState()
     val wireDragInfo by editorViewModel.wireDragInfo.collectAsState()
     val draggedWireEndPosition by editorViewModel.draggedWireEndPosition.collectAsState()
     var canvasCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+    val activeNodes by editorViewModel.activeNodes.collectAsState()
+    val activeWires by editorViewModel.activeWires.collectAsState()
+
+    val infiniteTransition = rememberInfiniteTransition()
+    val phase by infiniteTransition.animateFloat(
+        initialValue = 40f,
+        targetValue = 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        )
+    )
 
     val highlightData by remember(graph, highlightMode) {
         mutableStateOf(if (highlightMode) calculateHighlightInfo(graph) else emptyMap())
@@ -96,11 +117,15 @@ fun NodeCanvas(
                     canvasCoordinates?.let {
                         val fromPosLocal = fromPosAbsolute - it.localToRoot(Offset.Zero)
                         val toPosLocal = toPosAbsolute - it.localToRoot(Offset.Zero)
+
+                        val isWireActive = isSimulating && activeWires.contains(wire)
+
                         drawLine(
-                            color = Color.Gray,
+                            color = if (isWireActive) Color.Yellow else Color.Gray,
                             start = fromPosLocal,
                             end = toPosLocal,
-                            strokeWidth = 2f
+                            strokeWidth = if (isWireActive) 4f else 2f,
+                            pathEffect = if (isWireActive) PathEffect.dashPathEffect(floatArrayOf(20f, 20f), phase) else null
                         )
                     }
                 }
@@ -137,6 +162,7 @@ fun NodeCanvas(
 
         graph.nodes.values.forEach { node ->
             val highlightInfo = highlightData[node.id]
+            val isNodeActive = isSimulating && activeNodes.contains(node.id)
 
             Box(
                 modifier = Modifier
@@ -144,6 +170,17 @@ fun NodeCanvas(
                         val offset = node.position.toOffset()
                         IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
                     }
+                    .then(
+                        if (isNodeActive) {
+                            Modifier.border(
+                                width = 2.dp,
+                                color = Color.Yellow,
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                        } else {
+                            Modifier
+                        }
+                    )
             ) {
                 val content: @Composable () -> Unit = {
                     when (node) {
