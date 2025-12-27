@@ -38,6 +38,7 @@ class GraphExecutor(private val graph: NodeGraph) {
 
     private val activeNodes = mutableSetOf<NodeId>()
     private val activeWires = mutableSetOf<Wire>()
+    private val waitNodeCounters = mutableMapOf<NodeId, Int>()
 
     fun getActiveNodes(): Set<NodeId> = activeNodes.toSet()
     fun getActiveWires(): Set<Wire> = activeWires.toSet()
@@ -87,6 +88,31 @@ class GraphExecutor(private val graph: NodeGraph) {
                 return result.action
             }
 
+            // Special handling for WaitNode
+            if (currentNode is WaitNode) {
+                val thresholdTicks = (currentNode.waitMillis / 16)
+                val counter = waitNodeCounters.getOrDefault(currentNode.id, 0) + 1
+                val nextNodeId: NodeId?
+
+                if (counter >= thresholdTicks) {
+                    waitNodeCounters.remove(currentNode.id) // Reset counter
+                    nextNodeId = currentNode.findNextNodeId(graph, "out.trigger")
+                } else {
+                    waitNodeCounters[currentNode.id] = counter
+                    nextNodeId = currentNode.findNextNodeId(graph, "out.fail")
+                }
+
+                if (nextNodeId != null) {
+                    val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
+                    wire?.let { activeWires.add(it) }
+                    activeNodes.add(nextNodeId)
+                    currentNode = graph.nodes[nextNodeId]
+                    continue // Continue to the next node in the loop
+                } else {
+                    break // End of branch
+                }
+            }
+            
             val result = currentNode.execute(executionContext, graph)
 
             if (result.action != null) {
@@ -126,7 +152,7 @@ class GraphExecutor(private val graph: NodeGraph) {
             }
 
             if (result.nextNodeId != null) {
-                val wire = graph.wires.find { it.fromNodeId == currentNode!!.id && it.toNodeId == result.nextNodeId }
+                val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == result.nextNodeId }
                 wire?.let { activeWires.add(it) }
                 activeNodes.add(result.nextNodeId)
                 currentNode = graph.nodes[result.nextNodeId]
@@ -218,6 +244,14 @@ class GraphExecutor(private val graph: NodeGraph) {
 
             return null
         } finally {
+            // Reset counters for any WaitNodes that were not visited this tick
+            val allWaitNodes = graph.nodes.values.filterIsInstance<WaitNode>()
+            for (waitNode in allWaitNodes) {
+                if (waitNode.id !in activeNodes) {
+                    waitNodeCounters.remove(waitNode.id)
+                }
+            }
+
             // Update the hotkey at the very end of the tick.
             lastProcessedHotkey = context.hotKeyPressed
         }
@@ -233,5 +267,6 @@ class GraphExecutor(private val graph: NodeGraph) {
         pendingContinuations.clear()
         activeNodes.clear()
         activeWires.clear()
+        waitNodeCounters.clear()
     }
 }

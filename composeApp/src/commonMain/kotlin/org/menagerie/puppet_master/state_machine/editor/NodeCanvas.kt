@@ -54,6 +54,7 @@ import org.menagerie.puppet_master.state_machine.editor.views.SetPuppetNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.SetStateNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.StartNodeView
 import org.menagerie.puppet_master.state_machine.editor.views.VolumeThresholdNodeView
+import org.menagerie.puppet_master.state_machine.editor.views.WaitNodeView
 import org.menagerie.puppet_master.toOffset
 import kotlin.math.roundToInt
 
@@ -416,6 +417,12 @@ private fun RenderUtilityNode(node: UtilityNode, editorViewModel: NodeEditorView
         }
         is DelayTimerNode -> {
             DelayTimerNodeView(
+                node = node,
+                editorViewModel = editorViewModel
+            )
+        }
+        is WaitNode -> {
+            WaitNodeView(
                 node = node,
                 editorViewModel = editorViewModel
             )

@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -30,6 +31,7 @@ import org.menagerie.puppet_master.state_machine.DelayTimerNode
 import org.menagerie.puppet_master.state_machine.ResetSetNode
 import org.menagerie.puppet_master.state_machine.SetPuppetMode
 import org.menagerie.puppet_master.state_machine.SetPuppetNode
+import org.menagerie.puppet_master.state_machine.WaitNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 
 @Composable
@@ -137,6 +139,43 @@ fun DelayTimerNodeView(
                     editorViewModel.updateNode(node.copy(delay = sliderPosition.toLong()))
                 },
                 valueRange = 0f..10000f,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+    }
+}
+
+@Composable
+fun WaitNodeView(
+    node: WaitNode,
+    editorViewModel: NodeEditorViewModel,
+) {
+    var sliderPosition by remember { mutableFloatStateOf(node.waitMillis.toFloat()) }
+
+    LaunchedEffect(node.waitMillis) {
+        sliderPosition = node.waitMillis.toFloat()
+    }
+
+    NodeView(
+        node = node,
+        title = "Wait For",
+        editorViewModel = editorViewModel
+    ) {
+        Column(
+            modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text("Time: ${sliderPosition.toLong() / 1000f} s", color = Color.White)
+            Slider(
+                value = sliderPosition,
+                onValueChange = {
+                    sliderPosition = it
+                },
+                onValueChangeFinished = {
+                    editorViewModel.updateNode(node.copy(waitMillis = sliderPosition.toLong()))
+                },
+                valueRange = 100f..10000f,
                 modifier = Modifier.fillMaxWidth()
             )
         }
