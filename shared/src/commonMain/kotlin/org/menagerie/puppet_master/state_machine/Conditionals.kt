@@ -25,8 +25,11 @@ data class VolumeThresholdNode(
     }
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        val handleId = if (context.microphoneVolume > threshold) "true" else "false"
-        val nextNodeId = findNextNodeId(graph, handleId)
+        val nextNodeId = if (context.microphoneVolume > threshold) {
+            findNextNodeId(graph, "true")
+        } else {
+            null
+        }
         return ExecuteResult(nextNodeId)
     }
 }
@@ -52,8 +55,11 @@ data class HotKeyNode(
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
         if (mode) { // Hold mode
-            val handleId = if (context.hotKeyPressed?.shallowEquals(hotkey) == true) "true" else "false"
-            val nextNodeId = findNextNodeId(graph, handleId)
+            val nextNodeId = if (context.hotKeyPressed?.shallowEquals(hotkey) == true) {
+                findNextNodeId(graph, "true")
+            } else {
+                null
+            }
             return ExecuteResult(nextNodeId)
         } else { // Toggle mode
             val keyWasPressed = context.hotKeyPressed?.shallowEquals(hotkey) == true &&
@@ -63,8 +69,11 @@ data class HotKeyNode(
 
             val shouldBeOn = if (keyWasPressed) !isCurrentlyOn else isCurrentlyOn
 
-            val handleId = if (shouldBeOn) "true" else "false"
-            val nextNodeId = findNextNodeId(graph, handleId)
+            val nextNodeId = if (shouldBeOn) {
+                findNextNodeId(graph, "true")
+            } else {
+                null
+            }
 
             return ExecuteResult(
                 nextNodeId = nextNodeId,

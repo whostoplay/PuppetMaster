@@ -93,7 +93,7 @@ sealed interface Node {
 @Serializable
 sealed interface ConditionalNode : Node {
     override val inputs: List<InputHandle> get() = listOf(InputHandle("in"))
-    override val outputs: List<OutputHandle> get() = listOf(OutputHandle("true"), OutputHandle("false"))
+    override val outputs: List<OutputHandle> get() = listOf(OutputHandle("true"))
 }
 
 /**
