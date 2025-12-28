@@ -15,7 +15,8 @@ data class SetPuppetNode(
     val puppetId: String? = null,
     val mode: SetPuppetMode = SetPuppetMode.SWITCH,
     override val position: SerializableOffset,
-    override val size: SerializableSize = SerializableSize(250f, 220f), // Increased height for toggle
+    override val size: SerializableSize = SerializableSize(250f, 220f),
+    override val expandedSize: SerializableSize? = null,
     override val branchPriority: Int = 0
 ) : UtilityNode {
 
@@ -43,6 +44,7 @@ data class ResetSetNode(
     override val id: NodeId,
     override val position: SerializableOffset,
     override val size: SerializableSize = SerializableSize(150f, 100f),
+    override val expandedSize: SerializableSize? = null,
     override val branchPriority: Int = 0
 ) : UtilityNode {
     // This is a terminal node for its branch.
@@ -68,6 +70,7 @@ data class DelayTimerNode(
     val delay: Long = 1000, // Delay in milliseconds
     override val position: SerializableOffset,
     override val size: SerializableSize = SerializableSize(180f, 120f),
+    override val expandedSize: SerializableSize? = null,
     override val branchPriority: Int = 0
 ) : UtilityNode {
 
@@ -91,6 +94,7 @@ data class TriggerOnWaitNode(
     val waitMillis: Long = 1000, // Time to wait in milliseconds before triggering
     override val position: SerializableOffset,
     override val size: SerializableSize = SerializableSize(180f, 120f),
+    override val expandedSize: SerializableSize? = null,
     override val branchPriority: Int = 0
 ) : UtilityNode {
     // This node will only pass if the wait time has been met.

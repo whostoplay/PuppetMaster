@@ -205,6 +205,14 @@ class PuppetStateController(
         }
     }
 
+    fun setStateByNameWithEffect(stateName: String, effect: SpecialEffect?) {
+        val puppet = dataManager.activePuppet.value ?: return
+        val stateToSet = puppet.states.find { it.name == stateName }
+        if (stateToSet != null) {
+            _activeState.value = stateToSet.copy(appliedEffect = effect)
+        }
+    }
+
     private fun returnToIdle() {
         if (_activeState.value?.name != "idle") {
             returnToIdleJob?.cancel()

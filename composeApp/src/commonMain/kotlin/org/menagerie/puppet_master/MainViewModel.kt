@@ -237,7 +237,11 @@ class MainViewModel(context: Any) : ScreenModel {
                                     setActivePuppet(puppetId)
                                 }
                             }
-                            stateController.setStateByName(action.stateName)
+                            if(action.effect != null) {
+                                stateController.setStateByNameWithEffect(action.stateName, action.effect)
+                            } else {
+                                stateController.setStateByName(action.stateName)
+                            }
                         }
                         kotlinx.coroutines.delay(16) // roughly 60 fps
                     }

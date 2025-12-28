@@ -16,6 +16,7 @@ data class StartNode(
     override val position: SerializableOffset,
     override val branchPriority: Int = 0,
     override val size: SerializableSize = SerializableSize(180f, 120f),
+    override val expandedSize: SerializableSize? = null,
     override val inputs: List<InputHandle> = emptyList(),
     override val outputs: List<OutputHandle> = listOf(OutputHandle("out"))
 ) : Node {
@@ -43,7 +44,8 @@ data class SetStateNode(
     override val position: SerializableOffset,
     val stateName: String, // e.g., "IDLE", "TALK"
     override val branchPriority: Int = 0,
-    override val size: SerializableSize = SerializableSize(300f, 250f)
+    override val size: SerializableSize = SerializableSize(300f, 250f),
+    override val expandedSize: SerializableSize? = null,
 ) : StateNode {
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
 

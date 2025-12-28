@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.state_machine
 
 import org.menagerie.puppet_master.Hotkey
+import org.menagerie.puppet_master.SpecialEffect
 
 /**
  * A data container that provides the live values that a graph needs to execute its logic.
@@ -18,7 +19,7 @@ data class GraphExecutionContext(
  * Represents an action that the UI should take based on the graph's execution.
  */
 sealed interface GraphAction {
-    data class SetState(val stateName: String, val puppetId: String? = null) : GraphAction
+    data class SetState(val stateName: String, val puppetId: String? = null, val effect: SpecialEffect? = null) : GraphAction
     data class SetGraphStart(val nodeId: NodeId) : GraphAction
     object ResetGraphStart : GraphAction
     // This is an internal action for the executor to handle, requested by a node
@@ -52,6 +53,7 @@ class GraphExecutor(private val graph: NodeGraph) {
     private fun executeFromNode(startNode: Node, context: GraphExecutionContext): GraphAction? {
         var currentNode: Node? = startNode
         var executionContext = context
+        var branchEffect: SpecialEffect? = null
 
         while (currentNode != null) {
             val resumeTime = delayedNodes[currentNode.id]
@@ -83,12 +85,26 @@ class GraphExecutor(private val graph: NodeGraph) {
                 delayedNodes.remove(currentNode.id)
             }
 
+            if (currentNode is WithEffectNode) {
+                branchEffect = currentNode.effect
+                val nextNodeId = currentNode.findNextNodeId(graph, "out")
+                if (nextNodeId != null) {
+                    val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
+                    wire?.let { activeWires.add(it) }
+                    activeNodes.add(nextNodeId)
+                    currentNode = graph.nodes[nextNodeId]
+                    continue
+                } else {
+                    break
+                }
+            }
+            
             // This part is for nodes NOT in delayedNodes, or for nodes whose delay just finished and were removed.
             if (currentNode is GoThroughStateNode) {
                 // This will only be reached if the node was not in delayedNodes.
                 delayedNodes[currentNode.id] = System.currentTimeMillis() + currentNode.delay
                 val finalPuppetId = currentNode.puppetId ?: executionContext.puppetId
-                return GraphAction.SetState(currentNode.stateName, finalPuppetId)
+                return GraphAction.SetState(currentNode.stateName, finalPuppetId, branchEffect)
             }
 
             if (currentNode is DelayTimerNode) {
@@ -148,6 +164,7 @@ class GraphExecutor(private val graph: NodeGraph) {
 
             if (result.action != null) {
                 when (val action = result.action) {
+                    is GraphAction.SetState -> return action.copy(effect = branchEffect)
                     is GraphAction.SetGraphStart -> {
                         overrideStartNodeId = action.nodeId
                         return action

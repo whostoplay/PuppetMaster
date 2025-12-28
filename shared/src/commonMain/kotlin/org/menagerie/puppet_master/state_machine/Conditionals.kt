@@ -15,7 +15,8 @@ data class VolumeThresholdNode(
     override val branchPriority: Int = 0,
     val threshold: Float = 0.5f,
     val sensitivity: Float = 1.0f,
-    override val size: SerializableSize = SerializableSize(200f, 200f)
+    override val size: SerializableSize = SerializableSize(200f, 200f),
+    override val expandedSize: SerializableSize? = null
 ) : ConditionalNode {
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
@@ -44,7 +45,8 @@ data class HotKeyNode(
     override val branchPriority: Int = 0,
     val hotkey: Hotkey = Hotkey(-1),
     val mode: Boolean = false, // Corresponds to Hotkey.hold
-    override val size: SerializableSize = SerializableSize(250f, 200f)
+    override val size: SerializableSize = SerializableSize(250f, 200f),
+    override val expandedSize: SerializableSize? = null
 ) : ConditionalNode {
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)

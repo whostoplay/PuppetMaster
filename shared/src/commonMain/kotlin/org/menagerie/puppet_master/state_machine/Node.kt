@@ -21,6 +21,7 @@ val nodeSerializersModule = SerializersModule {
         subclass(GoThroughStateNode::class)
         subclass(DelayTimerNode::class)
         subclass(TriggerOnWaitNode::class)
+        subclass(WithEffectNode::class)
     }
 }
 
@@ -58,6 +59,7 @@ sealed interface Node {
     val inputs: List<InputHandle>
     val outputs: List<OutputHandle>
     val size: SerializableSize
+    val expandedSize: SerializableSize?
     val branchPriority: Int
 
     /**

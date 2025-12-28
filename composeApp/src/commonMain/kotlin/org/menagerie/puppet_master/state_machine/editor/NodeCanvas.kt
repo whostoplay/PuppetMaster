@@ -382,10 +382,13 @@ private fun RenderBehaviouralNode(
     val troupe by mainViewModel.troupe.collectAsState()
     val puppets = troupe?.puppets ?: emptyList()
     val idleImage by mainViewModel.idleImage.collectAsState()
+    val graph by editorViewModel.nodeGraph.collectAsState()
+    val startNode = graph.nodes[graph.startNodeId] as? StartNode
+    val contextualPuppetId = startNode?.puppetId
 
     when (node) {
         is GoThroughStateNode -> {
-            val puppet = puppets.find { it.name == node.puppetId }
+            val puppet = puppets.find { it.name == (node.puppetId ?: contextualPuppetId) }
             val puppetStates = puppet?.states ?: emptyList()
             val stateInfo = puppetStates.find { it.name == node.stateName }
 
@@ -399,6 +402,22 @@ private fun RenderBehaviouralNode(
                     editorViewModel = editorViewModel,
                     uploadsDir = mainViewModel.uploadsDir,
                     canvasCoordinates = canvasCoordinates
+                )
+            }
+        }
+
+        is WithEffectNode -> {
+            val puppet = puppets.find { it.name == (node.puppetId ?: contextualPuppetId) }
+            val puppetStates = puppet?.states ?: emptyList()
+            val stateInfo = puppetStates.find { it.name == "idle" }
+            idleImage?.let { bitmap ->
+                WithEffectNodeView(
+                    node = node,
+                    editorViewModel = editorViewModel,
+                    canvasCoordinates = canvasCoordinates,
+                    puppetState = stateInfo,
+                    idleImage = bitmap,
+                    uploadsDir = mainViewModel.uploadsDir
                 )
             }
         }

@@ -41,10 +41,11 @@ fun NodeView(
     title: String,
     editorViewModel: NodeEditorViewModel,
     canvasCoordinates: LayoutCoordinates,
+    expanded: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
-    val size = node.size.toSize()
+    val size = if (expanded) node.expandedSize?.toSize() ?: node.size.toSize() else node.size.toSize()
     val widthInDp = with(density) { size.width.toDp() }
     val heightInDp = with(density) { size.height.toDp() }
 
