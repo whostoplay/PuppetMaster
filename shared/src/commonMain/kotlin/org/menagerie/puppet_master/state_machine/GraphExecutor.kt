@@ -40,6 +40,7 @@ class GraphExecutor(private val graph: NodeGraph) {
     private val activeWires = mutableSetOf<Wire>()
     private val waitNodeTimers = mutableMapOf<NodeId, Long>()
     private val delayedNodes = mutableMapOf<NodeId, Long>()
+    private val delayTimerNodeTimers = mutableMapOf<NodeId, Long>()
 
     fun getActiveNodes(): Set<NodeId> = activeNodes.toSet()
     fun getActiveWires(): Set<Wire> = activeWires.toSet()
@@ -88,6 +89,29 @@ class GraphExecutor(private val graph: NodeGraph) {
                 delayedNodes[currentNode.id] = System.currentTimeMillis() + currentNode.delay
                 val finalPuppetId = currentNode.puppetId ?: executionContext.puppetId
                 return GraphAction.SetState(currentNode.stateName, finalPuppetId)
+            }
+
+            if (currentNode is DelayTimerNode) {
+                val now = System.currentTimeMillis()
+                val triggerTime = delayTimerNodeTimers.getOrPut(currentNode.id) { now + currentNode.delay }
+
+                if (now >= triggerTime) {
+                    // Timer is done, continue to the next node.
+                    val nextNodeId = currentNode.findNextNodeId(graph, "out")
+                    if (nextNodeId != null) {
+                        val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
+                        wire?.let { activeWires.add(it) }
+                        activeNodes.add(nextNodeId)
+                        currentNode = graph.nodes[nextNodeId]
+                        continue
+                    } else {
+                        // No next node, branch ends.
+                        break
+                    }
+                } else {
+                    // Still waiting for the timer to finish. Stop this branch.
+                    return null
+                }
             }
 
             if (currentNode is SetPuppetNode) {
@@ -220,7 +244,7 @@ class GraphExecutor(private val graph: NodeGraph) {
                 }
 
                 // If action is null, check if the branch is just paused.
-                if (activeNodes.any { delayedNodes.containsKey(it) }) {
+                if (activeNodes.any { delayedNodes.containsKey(it) || delayTimerNodeTimers.containsKey(it) }) {
                     // A higher-priority branch is waiting, so don't process any lower-priority branches.
                     return null
                 }
@@ -232,6 +256,13 @@ class GraphExecutor(private val graph: NodeGraph) {
             for (waitNode in allWaitNodes) {
                 if (waitNode.id !in activeNodes) {
                     waitNodeTimers.remove(waitNode.id)
+                }
+            }
+
+            val allDelayTimerNodes = graph.nodes.values.filterIsInstance<DelayTimerNode>()
+            for (delayTimerNode in allDelayTimerNodes) {
+                if (delayTimerNode.id !in activeNodes) {
+                    delayTimerNodeTimers.remove(delayTimerNode.id)
                 }
             }
             lastProcessedHotkey = context.hotKeyPressed
@@ -249,5 +280,6 @@ class GraphExecutor(private val graph: NodeGraph) {
         activeWires.clear()
         waitNodeTimers.clear()
         delayedNodes.clear()
+        delayTimerNodeTimers.clear()
     }
 }

@@ -81,8 +81,7 @@ data class DelayTimerNode(
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
         val nextNodeId = findNextNodeId(graph, "out")
-        val action = nextNodeId?.let { GraphAction.RequestDelay(it, delay) }
-        return ExecuteResult(null, action)
+        return ExecuteResult(nextNodeId)
     }
 }
 
