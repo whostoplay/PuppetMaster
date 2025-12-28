@@ -51,6 +51,7 @@ import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.localisation.Strings
@@ -71,8 +72,14 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
         val isSimulating by editorViewModel.isSimulating.collectAsState()
         val focusRequester = remember { FocusRequester() }
 
+        val horizontalScrollState = rememberScrollState()
+        val verticalScrollState = rememberScrollState()
+
         LaunchedEffect(Unit) {
             focusRequester.requestFocus()
+            launch {
+                verticalScrollState.scrollTo(verticalScrollState.maxValue / 2)
+            }
         }
 
         Scaffold(
@@ -124,9 +131,6 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                 var boxCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                 val gridSize = 40f
                 val canvasSize = 30000.dp
-
-                val horizontalScrollState = rememberScrollState()
-                val verticalScrollState = rememberScrollState()
 
                 Box(
                     modifier = Modifier

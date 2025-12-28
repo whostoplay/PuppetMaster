@@ -231,7 +231,8 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         }
 
         val spawnOffset = templateNode.size.toSize().width + 50f
-        val basePosition = _nodeGraph.value.nodes[lastInteractedNodeId]?.position?.toOffset() ?: Offset(50f, 50f)
+        val basePosition = _nodeGraph.value.nodes[lastInteractedNodeId ?: _nodeGraph.value.startNodeId]?.position?.toOffset()
+            ?: Offset(50f, 15000f) // Fallback to middle-left
         var targetPosition = basePosition.copy(x = basePosition.x + spawnOffset)
         var verticalOffset = 0f
         var offsetMultiplier = 1

@@ -1,6 +1,8 @@
 package org.menagerie.puppet_master.state_machine
 
 import kotlinx.serialization.Serializable
+import org.menagerie.puppet_master.SerializableOffset
+import java.util.UUID
 
 /**
  * Represents a wire connecting two nodes in the graph.
@@ -24,7 +26,14 @@ data class NodeGraph(
 ) {
     companion object {
         fun createInitialGraph(): NodeGraph {
-            return NodeGraph()
+            val startNode = StartNode(
+                id = UUID.randomUUID().toString(),
+                position = SerializableOffset(50f, 15000f) // Middle-left
+            )
+            return NodeGraph(
+                nodes = mapOf(startNode.id to startNode),
+                startNodeId = startNode.id
+            )
         }
     }
 }
