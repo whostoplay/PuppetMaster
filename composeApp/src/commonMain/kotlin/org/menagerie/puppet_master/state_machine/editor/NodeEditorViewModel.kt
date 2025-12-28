@@ -50,7 +50,8 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     private var lastInteractedNodeId: String? = null
 
     // Graph State
-    private val _nodeGraph = MutableStateFlow(mainViewModel.troupe.value?.nodeGraph ?: NodeGraph.createInitialGraph())
+    private val _nodeGraph =
+        MutableStateFlow(mainViewModel.troupe.value?.nodeGraph ?: NodeGraph.createInitialGraph())
     val nodeGraph: StateFlow<NodeGraph> = _nodeGraph.asStateFlow()
 
     // Highlight Mode
@@ -73,70 +74,105 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     val arrangement: StateFlow<Arrangement> = _arrangement.asStateFlow()
 
     fun cycleArrangement() {
-        _arrangement.value = when (arrangement.value) {
+        val nextArrangement = when (arrangement.value) {
             Arrangement.SHUFFLE -> Arrangement.UP
             Arrangement.UP -> Arrangement.DOWN
             Arrangement.DOWN -> Arrangement.SHUFFLE
         }
+
+        setArrangement(nextArrangement)
     }
+
+        private fun setArrangement(newArrangement: Arrangement) {
+            _arrangement.value = newArrangement
+            if (newArrangement == Arrangement.SHUFFLE) return
+
+            val currentGraph = _nodeGraph.value
+            val newNodes = currentGraph.nodes.toMutableMap()
+
+            val nodesByParent = currentGraph.wires.groupBy { it.fromNodeId }
+
+            for ((_, wires) in nodesByParent) {
+                val siblings = wires.mapNotNull { currentGraph.nodes[it.toNodeId] }
+                if (siblings.size <= 1) continue
+
+                val sortedSiblings = when (newArrangement) {
+                    Arrangement.UP -> siblings.sortedBy { it.position.y }
+                    Arrangement.DOWN -> siblings.sortedByDescending { it.position.y }
+                    Arrangement.SHUFFLE -> return
+                }
+
+                sortedSiblings.forEachIndexed { index, node ->
+                    if (node.branchPriority != index) {
+                        newNodes[node.id] = node.copyNodeWithNewPriority(index)
+                    }
+                }
+            }
+            commitGraphUpdate(currentGraph.copy(nodes = newNodes))
+        }
 
     fun sortNodes() {
         val currentGraph = _nodeGraph.value
-        val startNode = currentGraph.startNodeId?.let { currentGraph.nodes[it] }
-        if (currentGraph.nodes.isEmpty() || startNode == null) return
-
-        val basePosition = startNode.position.toOffset()
-
-        val nodeDepths = mutableMapOf<String, Int>()
-        val nodesToProcess = mutableListOf<Pair<String, Int>>()
-
-        currentGraph.startNodeId?.let {
-            nodesToProcess.add(it to 0)
-            nodeDepths[it] = 0
-        }
-
-        var head = 0
-        while (head < nodesToProcess.size) {
-            val (currentNodeId, currentDepth) = nodesToProcess[head++]
-
-            val children = currentGraph.wires
-                .filter { it.fromNodeId == currentNodeId }
-                .map { it.toNodeId }
-
-            for (childId in children) {
-                if (childId !in nodeDepths) {
-                    nodeDepths[childId] = currentDepth + 1
-                    nodesToProcess.add(childId to currentDepth + 1)
-                }
-            }
-        }
-
-        val nodesByDepth = nodeDepths.entries
-            .groupBy({ it.value }, { it.key })
-            .toSortedMap()
+        val startNode = currentGraph.startNodeId?.let { currentGraph.nodes[it] } ?: return
 
         val newNodes = currentGraph.nodes.toMutableMap()
-        var currentX = basePosition.x
+        val processedNodes = mutableSetOf<String>()
+        val nodeColumnX = mutableMapOf<Int, Float>()
 
-        val maxColumnWidth = nodesByDepth.values.maxOfOrNull { column ->
-            column.maxOfOrNull { nodeId -> currentGraph.nodes[nodeId]?.size?.width?.toFloat() ?: 0f } ?: 0f
-        } ?: 0f
+        fun calculateColumnWidths(parentId: String, depth: Int) {
+            if (parentId in processedNodes) return
+            processedNodes.add(parentId)
 
-        for ((depth, nodeIds) in nodesByDepth) {
-            var currentY = basePosition.y
-            val sortedNodes = nodeIds.mapNotNull { currentGraph.nodes[it] }.sortedBy { it.branchPriority }
-            val arrangedNodes = if (arrangement.value == Arrangement.UP) sortedNodes.reversed() else sortedNodes
+            val parentNode = newNodes[parentId] ?: return
+            val parentWidth = parentNode.size.width.toFloat()
+            val currentX = nodeColumnX[depth-1] ?: parentNode.position.toOffset().x
 
-            for (node in arrangedNodes) {
-                val newPosition = Offset(currentX, currentY)
-                newNodes[node.id] = node.copyNode(node.id, newPosition.toSerializableOffset())
-                currentY += (node.size.height.toFloat() + 20f)
+            nodeColumnX[depth] = maxOf(nodeColumnX.getOrDefault(depth, 0f), currentX + parentWidth + 50f)
+
+            val children = currentGraph.wires
+                .filter { it.fromNodeId == parentId }
+                .mapNotNull { newNodes[it.toNodeId] }
+                .distinctBy { it.id }
+
+            children.forEach { child ->
+                calculateColumnWidths(child.id, depth + 1)
             }
-            currentX += maxColumnWidth + 50f
         }
 
+        calculateColumnWidths(startNode.id, 0)
+        processedNodes.clear()
+
+        fun sortChildrenOf(parentId: String, depth: Int) {
+            if (parentId in processedNodes) return
+            processedNodes.add(parentId)
+
+            val parentNode = newNodes[parentId] ?: return
+            val children = currentGraph.wires
+                .filter { it.fromNodeId == parentId }
+                .mapNotNull { newNodes[it.toNodeId] }
+                .distinctBy { it.id }
+
+            if (children.isEmpty()) return
+
+            val sortedChildren = children.sortedBy { it.branchPriority }
+            val arrangedChildren = if (arrangement.value == Arrangement.DOWN) sortedChildren.reversed() else sortedChildren
+
+            val parentPosition = parentNode.position.toOffset()
+
+            var currentY = parentPosition.y
+            val currentX = nodeColumnX[depth] ?: (parentPosition.x + parentNode.size.width + 50f)
+
+            for (childNode in arrangedChildren) {
+                newNodes[childNode.id] = childNode.copyNode(childNode.id, Offset(currentX, currentY).toSerializableOffset())
+                currentY += childNode.size.height + 20f
+                sortChildrenOf(childNode.id, depth + 1)
+            }
+        }
+
+        sortChildrenOf(startNode.id, 0)
         commitGraphUpdate(currentGraph.copy(nodes = newNodes))
     }
+
 
     fun toggleHighlightMode() {
         _highlightMode.value = !_highlightMode.value
@@ -292,6 +328,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
     fun onNodeDragEnd() {
         _draggedNodeInfo.value = null
+        setArrangement(arrangement.value)
         mainViewModel.updateNodeGraph(nodeGraph.value)
         if (_isSimulating.value) {
             stopSimulation()

@@ -18,8 +18,8 @@ import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -92,7 +92,7 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                     },
                     actions = {
                         IconButton(onClick = { editorViewModel.sortNodes() }) {
-                            Icon(Icons.Default.SortByAlpha, contentDescription = "Sort Nodes")
+                            Icon(Icons.Default.SwapVert, contentDescription = "Sort Nodes")
                         }
                         IconButton(onClick = { editorViewModel.cycleArrangement() }) {
                             when (arrangement) {
