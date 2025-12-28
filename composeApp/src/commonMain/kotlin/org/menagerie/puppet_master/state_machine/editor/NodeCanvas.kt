@@ -24,7 +24,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -38,6 +40,7 @@ import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.state_machine.*
 import org.menagerie.puppet_master.state_machine.editor.views.*
 import org.menagerie.puppet_master.toOffset
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 data class HighlightInfo(val color: Color, val number: Int)
@@ -115,12 +118,23 @@ fun NodeCanvas(
                 if (fromPos != null && toPos != null) {
                     val isWireActive = isSimulating && activeWires.contains(wire)
 
-                    drawLine(
+                    val path = Path().apply {
+                        moveTo(fromPos.x, fromPos.y)
+                        val controlPoint1 = Offset(fromPos.x + 100, fromPos.y)
+                        val controlPoint2 = Offset(toPos.x - 100, toPos.y)
+                        cubicTo(controlPoint1.x, controlPoint1.y, controlPoint2.x, controlPoint2.y, toPos.x, toPos.y)
+                    }
+
+                    drawPath(
+                        path = path,
                         color = if (isWireActive) Color.Yellow else Color.Gray,
-                        start = fromPos,
-                        end = toPos,
-                        strokeWidth = if (isWireActive) 4f else 2f,
-                        pathEffect = if (isWireActive) PathEffect.dashPathEffect(floatArrayOf(20f, 20f), phase) else null
+                        style = Stroke(
+                            width = if (isWireActive) 4f else 2f,
+                            pathEffect = if (isWireActive) PathEffect.dashPathEffect(
+                                floatArrayOf(20f, 20f),
+                                phase
+                            ) else null
+                        )
                     )
                 }
             }
@@ -130,11 +144,23 @@ fun NodeCanvas(
                     val startPos =
                         handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
                     if (startPos != null) {
-                        drawLine(
+                        val path = Path().apply {
+                            moveTo(startPos.x, startPos.y)
+                            val controlPoint1 = Offset(startPos.x + 100, startPos.y)
+                            val controlPoint2 = Offset(endPos.x - 100, endPos.y)
+                            cubicTo(
+                                controlPoint1.x,
+                                controlPoint1.y,
+                                controlPoint2.x,
+                                controlPoint2.y,
+                                endPos.x,
+                                endPos.y
+                            )
+                        }
+                        drawPath(
+                            path = path,
                             color = Color.White,
-                            start = startPos,
-                            end = endPos,
-                            strokeWidth = 2f
+                            style = Stroke(width = 2f)
                         )
                     }
                 }
@@ -280,12 +306,34 @@ private fun findWireAt(
         val toPos = handlePositions["${wire.toNodeId}-${wire.toHandleId}"]
 
         if (fromPos != null && toPos != null) {
-            val dist = distanceToSegment(position, fromPos, toPos)
+            val dist = distanceToCubicBezier(position, fromPos, Offset(fromPos.x + 100, fromPos.y), Offset(toPos.x - 100, toPos.y), toPos)
             dist < 10f // 10px tolerance
         } else {
             false
         }
     }
+}
+
+private fun distanceToCubicBezier(p: Offset, p0: Offset, p1: Offset, p2: Offset, p3: Offset): Float {
+    var minDistance = Float.MAX_VALUE
+    var previousPoint = p0
+    val steps = 100
+
+    for (i in 1..steps) {
+        val t = i.toFloat() / steps
+        val point = (1 - t).toFloat().pow(3) * p0 +
+                3 * (1 - t).toFloat().pow(2) * t * p1 +
+                3 * (1 - t).toFloat() * t.pow(2) * p2 +
+                t.toFloat().pow(3) * p3
+
+        val distance = distanceToSegment(p, previousPoint, point)
+        if (distance < minDistance) {
+            minDistance = distance
+        }
+        previousPoint = point
+    }
+
+    return minDistance
 }
 
 private fun distanceToSegment(p: Offset, v: Offset, w: Offset): Float {
@@ -476,3 +524,5 @@ private fun calculateHighlightInfo(graph: NodeGraph): Map<String, HighlightInfo>
 
     return highlights
 }
+
+operator fun Float.times(offset: Offset): Offset = offset * this
