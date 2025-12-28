@@ -93,8 +93,8 @@ data class TriggerOnWaitNode(
     override val size: SerializableSize = SerializableSize(180f, 120f),
     override val branchPriority: Int = 0
 ) : UtilityNode {
-    // This node can either pass (trigger) or fail
-    override val outputs: List<OutputHandle> = listOf(OutputHandle("out.trigger"), OutputHandle("out.fail"))
+    // This node will only pass if the wait time has been met.
+    override val outputs: List<OutputHandle> = listOf(OutputHandle("out"))
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node {
         return copy(id = id, position = position)
@@ -105,9 +105,9 @@ data class TriggerOnWaitNode(
     }
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        val triggerNodeId = findNextNodeId(graph, "out.trigger")
-        val failNodeId = findNextNodeId(graph, "out.fail")
-        return ExecuteResult(triggerNodeId, alternativeNextNodeId = failNodeId)
+        // The actual logic is in the executor. This just specifies what to do on trigger.
+        val nextNodeId = findNextNodeId(graph, "out")
+        return ExecuteResult(nextNodeId)
     }
 }
 
