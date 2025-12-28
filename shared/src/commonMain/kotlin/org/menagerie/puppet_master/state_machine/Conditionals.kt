@@ -14,7 +14,8 @@ data class VolumeThresholdNode(
     override val position: SerializableOffset,
     override val branchPriority: Int = 0,
     val threshold: Float = 0.5f,
-    override val size: SerializableSize = SerializableSize(200f, 120f)
+    val sensitivity: Float = 1.0f,
+    override val size: SerializableSize = SerializableSize(200f, 200f)
 ) : ConditionalNode {
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)

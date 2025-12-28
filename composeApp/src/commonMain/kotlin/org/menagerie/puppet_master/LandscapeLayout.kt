@@ -87,6 +87,7 @@ fun LandscapeLayout(
     val thresholds by viewModel.thresholds.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     val selectedState by viewModel.selectedState.collectAsState()
+    val sensitivity by viewModel.sensitivity.collectAsState()
 
     Row(
         modifier = Modifier.fillMaxSize(),
@@ -128,14 +129,16 @@ fun LandscapeLayout(
                 if (isListening) {
                     VolumeIndicator(
                         level = rawAudioLevel,
-                        modifier = Modifier.fillMaxWidth().padding(8.dp).size(20.dp),
+                        modifier = Modifier.fillMaxWidth().padding(8.dp),
                         thresholds = thresholds,
                         onAddThreshold = {
                             viewModel.addThreshold(it)
                             viewModel.showStateAssignmentDialog(it)
                         },
                         onUpdateThreshold = viewModel::updateThreshold,
-                        onThresholdSelected = { viewModel.showStateAssignmentDialog(it) }
+                        onThresholdSelected = { viewModel.showStateAssignmentDialog(it) },
+                        sensitivity = sensitivity,
+                        onSensitivityChange = { viewModel.onSensitivityChange(it) }
                     )
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))

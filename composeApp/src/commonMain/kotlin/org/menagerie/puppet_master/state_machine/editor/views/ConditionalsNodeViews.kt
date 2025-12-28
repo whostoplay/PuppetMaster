@@ -5,10 +5,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.unit.dp
@@ -26,7 +24,7 @@ fun VolumeThresholdNodeView(
     editorViewModel: NodeEditorViewModel,
     canvasCoordinates: LayoutCoordinates
 ) {
-    var currentLevel by remember { mutableFloatStateOf(0f) } // This would be fed by a real audio stream
+    val rawAudioLevel by editorViewModel.mainViewModel.rawAudioLevel.collectAsState()
 
     NodeView(
         node = node,
@@ -36,10 +34,14 @@ fun VolumeThresholdNodeView(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             VolumeIndicator(
-                level = currentLevel,
+                level = rawAudioLevel,
                 threshold = node.threshold,
                 onThresholdChange = onThresholdChanged,
-                modifier = Modifier.height(30.dp).fillMaxWidth()
+                sensitivity = node.sensitivity,
+                onSensitivityChange = { newSensitivity ->
+                    editorViewModel.updateNode(node.copy(sensitivity = newSensitivity))
+                },
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

@@ -151,6 +151,9 @@ class MainViewModel(context: Any) : ScreenModel {
     private val _isAudienceCheckForced = MutableStateFlow(false)
     val isAudienceCheckForced: StateFlow<Boolean> = _isAudienceCheckForced.asStateFlow()
 
+    private val _sensitivity = MutableStateFlow(1.0f)
+    val sensitivity: StateFlow<Float> = _sensitivity.asStateFlow()
+
     private val client = HttpClient {
         install(WebSockets) {
             contentConverter = KotlinxWebsocketSerializationConverter(Json { isLenient = true; ignoreUnknownKeys = true; encodeDefaults = true; allowStructuredMapKeys = true })
@@ -746,5 +749,9 @@ class MainViewModel(context: Any) : ScreenModel {
     fun updateNodeGraph(nodeGraph: NodeGraph) {
         dataManager.updateNodeGraph(nodeGraph)
         graphExecutor = GraphExecutor(nodeGraph)
+    }
+
+    fun onSensitivityChange(newSensitivity: Float) {
+        _sensitivity.value = newSensitivity
     }
 }
