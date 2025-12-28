@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.AnimationState
@@ -42,11 +43,13 @@ fun GoThroughStateNodeView(
     idleImage: ImageBitmap,
     editorViewModel: NodeEditorViewModel,
     uploadsDir: String,
+    canvasCoordinates: LayoutCoordinates
 ) {
     NodeView(
         node = node,
         title = "Go Through State",
-        editorViewModel = editorViewModel
+        editorViewModel = editorViewModel,
+        canvasCoordinates = canvasCoordinates
     ) {
         Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
             if (node.puppetId == null) {

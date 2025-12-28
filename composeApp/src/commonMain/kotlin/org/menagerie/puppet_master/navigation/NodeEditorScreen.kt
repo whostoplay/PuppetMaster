@@ -179,23 +179,23 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                             }
 
                             // Draw Ghost Wire for wire creation
-                            wireDragInfo?.let { dragInfo ->
-                                val startPosAbsolute = handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
-                                if (startPosAbsolute != null) {
-                                    boxCoordinates?.let {
-                                        val startPosLocal = startPosAbsolute - it.localToRoot(Offset.Zero) + Offset(
-                                            horizontalScrollState.value.toFloat(),
-                                            verticalScrollState.value.toFloat()
-                                        )
-                                        drawLine(
-                                            color = Color.Yellow,
-                                            start = startPosLocal,
-                                            end = pointerPosition,
-                                            strokeWidth = 3f
-                                        )
-                                    }
-                                }
-                            }
+//                            wireDragInfo?.let { dragInfo ->
+//                                val startPosAbsolute = handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
+//                                if (startPosAbsolute != null) {
+//                                    boxCoordinates?.let {
+//                                        val startPosLocal = startPosAbsolute - it.localToRoot(Offset.Zero) + Offset(
+//                                            horizontalScrollState.value.toFloat(),
+//                                            verticalScrollState.value.toFloat()
+//                                        )
+//                                        drawLine(
+//                                            color = Color.Yellow,
+//                                            start = startPosLocal,
+//                                            end = pointerPosition,
+//                                            strokeWidth = 3f
+//                                        )
+//                                    }
+//                                }
+//                            }
                         }
                         NodeCanvas(
                             mainViewModel = mainViewModel,

@@ -19,13 +19,16 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.center
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.toOffset
 import org.menagerie.puppet_master.state_machine.Handle
 import org.menagerie.puppet_master.state_machine.Node
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
@@ -37,6 +40,7 @@ fun NodeView(
     node: Node,
     title: String,
     editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates,
     content: @Composable () -> Unit
 ) {
     val density = LocalDensity.current
@@ -85,7 +89,7 @@ fun NodeView(
                                 verticalArrangement = Arrangement.SpaceEvenly
                             ) {
                                 node.inputs.forEach { handle ->
-                                    HandleView(node.id, handle, editorViewModel)
+                                    HandleView(node.id, handle, editorViewModel, canvasCoordinates)
                                 }
                             }
                         }
@@ -104,7 +108,7 @@ fun NodeView(
                                 verticalArrangement = Arrangement.SpaceEvenly
                             ) {
                                 node.outputs.forEach { handle ->
-                                    HandleView(node.id, handle, editorViewModel)
+                                    HandleView(node.id, handle, editorViewModel, canvasCoordinates)
                                 }
                             }
                         }
@@ -116,12 +120,20 @@ fun NodeView(
 }
 
 @Composable
-fun HandleView(nodeId: String, handle: Handle, editorViewModel: NodeEditorViewModel) {
+fun HandleView(
+    nodeId: String,
+    handle: Handle,
+    editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates
+) {
     val handleId = handle.id
     Canvas(modifier = Modifier
         .size(20.dp)
         .onGloballyPositioned { coordinates ->
-            editorViewModel.updateHandlePosition(nodeId, handleId, coordinates.boundsInRoot().center)
+            val handlePositionInCanvas = canvasCoordinates.windowToLocal(
+                coordinates.localToWindow(Offset.Zero)
+            ) + coordinates.size.center.toOffset()
+            editorViewModel.updateHandlePosition(nodeId, handleId, handlePositionInCanvas)
         }
         .pointerInput(nodeId, handleId) {
             detectDragGestures(

@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.state_machine.StartNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
@@ -29,11 +30,13 @@ import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 fun StartNodeView(
     node: StartNode,
     editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates
 ) {
     NodeView(
         node = node,
         title = "Start Node",
-        editorViewModel = editorViewModel
+        editorViewModel = editorViewModel,
+        canvasCoordinates = canvasCoordinates
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth(),

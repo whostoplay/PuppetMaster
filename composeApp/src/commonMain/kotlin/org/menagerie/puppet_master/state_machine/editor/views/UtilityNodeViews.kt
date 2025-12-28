@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.state_machine.DelayTimerNode
 import org.menagerie.puppet_master.state_machine.ResetSetNode
@@ -38,11 +39,13 @@ import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 fun SetPuppetNodeView(
     node: SetPuppetNode,
     editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates
 ) {
     NodeView(
         node = node,
         title = "Set Puppet",
-        editorViewModel = editorViewModel
+        editorViewModel = editorViewModel,
+        canvasCoordinates = canvasCoordinates
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
@@ -92,11 +95,13 @@ fun SetPuppetNodeView(
 fun ResetSetNodeView(
     node: ResetSetNode,
     editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates
 ) {
     NodeView(
         node = node,
         title = "Reset Start",
-        editorViewModel = editorViewModel
+        editorViewModel = editorViewModel,
+        canvasCoordinates = canvasCoordinates
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
@@ -112,6 +117,7 @@ fun ResetSetNodeView(
 fun DelayTimerNodeView(
     node: DelayTimerNode,
     editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates
 ) {
     var sliderPosition by remember { mutableStateOf(node.delay.toFloat()) }
 
@@ -122,7 +128,8 @@ fun DelayTimerNodeView(
     NodeView(
         node = node,
         title = "Delay Timer",
-        editorViewModel = editorViewModel
+        editorViewModel = editorViewModel,
+        canvasCoordinates = canvasCoordinates
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth(),
@@ -149,6 +156,7 @@ fun DelayTimerNodeView(
 fun TriggerOnWaitNodeView(
     node: TriggerOnWaitNode,
     editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates
 ) {
     var sliderPosition by remember { mutableFloatStateOf(node.waitMillis.toFloat()) }
 
@@ -159,7 +167,8 @@ fun TriggerOnWaitNodeView(
     NodeView(
         node = node,
         title = "Trigger on Wait",
-        editorViewModel = editorViewModel
+        editorViewModel = editorViewModel,
+        canvasCoordinates = canvasCoordinates
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 8.dp).fillMaxWidth(),

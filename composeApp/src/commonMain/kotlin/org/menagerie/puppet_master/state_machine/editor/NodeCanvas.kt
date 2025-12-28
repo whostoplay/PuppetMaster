@@ -100,7 +100,7 @@ fun NodeCanvas(
                     detectTapGestures(
                         onLongPress = { offset ->
                             val wire =
-                                findWireAt(offset, graph.wires, handlePositions, canvasCoordinates)
+                                findWireAt(offset, graph.wires, handlePositions)
                             if (wire != null) {
                                 editorViewModel.deleteWire(wire)
                             }
@@ -109,24 +109,19 @@ fun NodeCanvas(
                 }
         ) {
             graph.wires.forEach { wire ->
-                val fromPosAbsolute = handlePositions["${wire.fromNodeId}-${wire.fromHandleId}"]
-                val toPosAbsolute = handlePositions["${wire.toNodeId}-${wire.toHandleId}"]
+                val fromPos = handlePositions["${wire.fromNodeId}-${wire.fromHandleId}"]
+                val toPos = handlePositions["${wire.toNodeId}-${wire.toHandleId}"]
 
-                if (fromPosAbsolute != null && toPosAbsolute != null) {
-                    canvasCoordinates?.let {
-                        val fromPosLocal = fromPosAbsolute - it.localToRoot(Offset.Zero)
-                        val toPosLocal = toPosAbsolute - it.localToRoot(Offset.Zero)
+                if (fromPos != null && toPos != null) {
+                    val isWireActive = isSimulating && activeWires.contains(wire)
 
-                        val isWireActive = isSimulating && activeWires.contains(wire)
-
-                        drawLine(
-                            color = if (isWireActive) Color.Yellow else Color.Gray,
-                            start = fromPosLocal,
-                            end = toPosLocal,
-                            strokeWidth = if (isWireActive) 4f else 2f,
-                            pathEffect = if (isWireActive) PathEffect.dashPathEffect(floatArrayOf(20f, 20f), phase) else null
-                        )
-                    }
+                    drawLine(
+                        color = if (isWireActive) Color.Yellow else Color.Gray,
+                        start = fromPos,
+                        end = toPos,
+                        strokeWidth = if (isWireActive) 4f else 2f,
+                        pathEffect = if (isWireActive) PathEffect.dashPathEffect(floatArrayOf(20f, 20f), phase) else null
+                    )
                 }
             }
 
@@ -135,16 +130,12 @@ fun NodeCanvas(
                     val startPos =
                         handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
                     if (startPos != null) {
-                        canvasCoordinates?.let { coords ->
-                            val startPosLocal = startPos - coords.localToRoot(Offset.Zero)
-                            val endPosLocal = endPos - coords.localToRoot(Offset.Zero)
-                            drawLine(
-                                color = Color.White,
-                                start = startPosLocal,
-                                end = endPosLocal,
-                                strokeWidth = 2f
-                            )
-                        }
+                        drawLine(
+                            color = Color.White,
+                            start = startPos,
+                            end = endPos,
+                            strokeWidth = 2f
+                        )
                     }
                 }
             }
@@ -173,12 +164,14 @@ fun NodeCanvas(
                     )
             ) {
                 val content: @Composable () -> Unit = {
-                    when (node) {
-                        is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel)
-                        is ConditionalNode -> RenderConditionalNode(node, editorViewModel)
-                        is BehaviouralNode -> RenderBehaviouralNode(node, mainViewModel, editorViewModel)
-                        is StartNode -> StartNodeView(node, editorViewModel)
-                        is UtilityNode -> RenderUtilityNode(node, editorViewModel)
+                    canvasCoordinates?.let {
+                        when (node) {
+                            is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel, it)
+                            is ConditionalNode -> RenderConditionalNode(node, editorViewModel, it)
+                            is BehaviouralNode -> RenderBehaviouralNode(node, mainViewModel, editorViewModel, it)
+                            is StartNode -> StartNodeView(node, editorViewModel, it)
+                            is UtilityNode -> RenderUtilityNode(node, editorViewModel, it)
+                        }
                     }
                 }
 
@@ -279,15 +272,12 @@ private fun BranchPriorityDropdown(
 
 private fun findWireAt(
     position: Offset,
-    wires: List<org.menagerie.puppet_master.state_machine.Wire>,
-    handlePositions: Map<String, Offset>,
-    canvasCoordinates: LayoutCoordinates?
-): org.menagerie.puppet_master.state_machine.Wire? {
-    if (canvasCoordinates == null) return null
-
+    wires: List<Wire>,
+    handlePositions: Map<String, Offset>
+): Wire? {
     return wires.find { wire ->
-        val fromPos = handlePositions["${wire.fromNodeId}-${wire.fromHandleId}"]?.let { it - canvasCoordinates.localToRoot(Offset.Zero) }
-        val toPos = handlePositions["${wire.toNodeId}-${wire.toHandleId}"]?.let { it - canvasCoordinates.localToRoot(Offset.Zero) }
+        val fromPos = handlePositions["${wire.fromNodeId}-${wire.fromHandleId}"]
+        val toPos = handlePositions["${wire.toNodeId}-${wire.toHandleId}"]
 
         if (fromPos != null && toPos != null) {
             val dist = distanceToSegment(position, fromPos, toPos)
@@ -309,7 +299,7 @@ private fun distanceToSegment(p: Offset, v: Offset, w: Offset): Float {
 
 
 @Composable
-private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, editorViewModel: NodeEditorViewModel) {
+private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, editorViewModel: NodeEditorViewModel, canvasCoordinates: LayoutCoordinates) {
     val troupe by editorViewModel.mainViewModel.troupe.collectAsState()
     val puppets = troupe?.puppets ?: emptyList()
     val idleImage by editorViewModel.mainViewModel.idleImage.collectAsState()
@@ -327,7 +317,8 @@ private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, edito
                 onStateNameChanged = { editorViewModel.updateNode(node.copy(stateName = it)) },
                 idleImage = bitmap,
                 editorViewModel = editorViewModel,
-                uploadsDir = mainViewModel.uploadsDir
+                uploadsDir = mainViewModel.uploadsDir,
+                canvasCoordinates = canvasCoordinates
             )
         }
     }
@@ -337,7 +328,8 @@ private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, edito
 private fun RenderBehaviouralNode(
     node: BehaviouralNode,
     mainViewModel: MainViewModel,
-    editorViewModel: NodeEditorViewModel
+    editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates
 ) {
     val troupe by mainViewModel.troupe.collectAsState()
     val puppets = troupe?.puppets ?: emptyList()
@@ -357,7 +349,8 @@ private fun RenderBehaviouralNode(
                     onStateNameChanged = { editorViewModel.updateNode(node.copy(stateName = it)) },
                     idleImage = bitmap,
                     editorViewModel = editorViewModel,
-                    uploadsDir = mainViewModel.uploadsDir
+                    uploadsDir = mainViewModel.uploadsDir,
+                    canvasCoordinates = canvasCoordinates
                 )
             }
         }
@@ -365,7 +358,7 @@ private fun RenderBehaviouralNode(
 }
 
 @Composable
-private fun RenderConditionalNode(node: ConditionalNode, editorViewModel: NodeEditorViewModel) {
+private fun RenderConditionalNode(node: ConditionalNode, editorViewModel: NodeEditorViewModel, canvasCoordinates: LayoutCoordinates) {
     when (node) {
         is VolumeThresholdNode -> {
             VolumeThresholdNodeView(
@@ -373,7 +366,8 @@ private fun RenderConditionalNode(node: ConditionalNode, editorViewModel: NodeEd
                 onThresholdChanged = { newThreshold ->
                     editorViewModel.updateNode(node.copy(threshold = newThreshold))
                 },
-                editorViewModel = editorViewModel
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates
             )
         }
 
@@ -383,37 +377,42 @@ private fun RenderConditionalNode(node: ConditionalNode, editorViewModel: NodeEd
                 onHotKeyChanged = { newHotKey ->
                     editorViewModel.updateNode(node.copy(hotkey = newHotKey, mode = newHotKey.hold))
                 },
-                editorViewModel = editorViewModel
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates
             )
         }
     }
 }
 
 @Composable
-private fun RenderUtilityNode(node: UtilityNode, editorViewModel: NodeEditorViewModel) {
+private fun RenderUtilityNode(node: UtilityNode, editorViewModel: NodeEditorViewModel, canvasCoordinates: LayoutCoordinates) {
     when (node) {
         is SetPuppetNode -> {
             SetPuppetNodeView(
                 node = node,
-                editorViewModel = editorViewModel
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates
             )
         }
         is ResetSetNode -> {
             ResetSetNodeView(
                 node = node,
-                editorViewModel = editorViewModel
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates
             )
         }
         is DelayTimerNode -> {
             DelayTimerNodeView(
                 node = node,
-                editorViewModel = editorViewModel
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates
             )
         }
         is TriggerOnWaitNode -> {
             TriggerOnWaitNodeView(
                 node = node,
-                editorViewModel = editorViewModel
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates
             )
         }
     }
