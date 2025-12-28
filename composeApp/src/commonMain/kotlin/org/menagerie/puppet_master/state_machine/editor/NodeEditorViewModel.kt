@@ -309,16 +309,14 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
         val newNodes = currentGraph.nodes.toMutableMap()
 
-        if (fromNodeId == currentGraph.startNodeId) {
-            val toNode = newNodes[toNodeId]
-            if (toNode != null) {
-                val children = currentGraph.wires
-                    .filter { it.fromNodeId == fromNodeId }
-                    .mapNotNull { currentGraph.nodes[it.toNodeId] }
+        val toNode = newNodes[toNodeId]
+        if (toNode != null) {
+            val siblings = currentGraph.wires
+                .filter { it.fromNodeId == fromNodeId && it.fromHandleId == fromHandleId }
+                .mapNotNull { currentGraph.nodes[it.toNodeId] }
 
-                val maxPriority = children.maxOfOrNull { it.branchPriority } ?: -1
-                newNodes[toNodeId] = toNode.copyNodeWithNewPriority(maxPriority + 1)
-            }
+            val maxPriority = siblings.maxOfOrNull { it.branchPriority } ?: -1
+            newNodes[toNodeId] = toNode.copyNodeWithNewPriority(maxPriority + 1)
         }
 
         val newWire = Wire(fromNodeId, fromHandleId, toNodeId, toHandleId)
@@ -374,26 +372,32 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         }
     }
 
+    private fun rePrioritizeSiblings(fromNodeId: String, fromHandleId: String, graph: NodeGraph): NodeGraph {
+        val siblings = graph.wires
+            .filter { it.fromNodeId == fromNodeId && it.fromHandleId == fromHandleId }
+            .mapNotNull { graph.nodes[it.toNodeId] }
+            .sortedBy { it.branchPriority }
+
+        if (siblings.isEmpty()) return graph
+
+        val newNodes = graph.nodes.toMutableMap()
+        var changed = false
+        siblings.forEachIndexed { index, node ->
+            if (node.branchPriority != index) {
+                newNodes[node.id] = node.copyNodeWithNewPriority(index)
+                changed = true
+            }
+        }
+
+        return if (changed) graph.copy(nodes = newNodes) else graph
+    }
+
     fun deleteWire(wire: Wire) {
         val currentGraph = _nodeGraph.value
         val updatedWires = currentGraph.wires - wire
-        var updatedNodes = currentGraph.nodes
-
-        if (wire.fromNodeId == currentGraph.startNodeId) {
-            // Re-prioritize remaining children of the start node
-            val remainingChildren = updatedWires
-                .filter { it.fromNodeId == currentGraph.startNodeId }
-                .mapNotNull { currentGraph.nodes[it.toNodeId] }
-                .sortedBy { it.branchPriority }
-
-            val newNodesMap = currentGraph.nodes.toMutableMap()
-            remainingChildren.forEachIndexed { index, node ->
-                newNodesMap[node.id] = node.copyNodeWithNewPriority(priority = index)
-            }
-            updatedNodes = newNodesMap
-        }
-
-        commitGraphUpdate(currentGraph.copy(nodes = updatedNodes, wires = updatedWires))
+        val graphWithUpdatedWires = currentGraph.copy(wires = updatedWires)
+        val reprioritizedGraph = rePrioritizeSiblings(wire.fromNodeId, wire.fromHandleId, graphWithUpdatedWires)
+        commitGraphUpdate(reprioritizedGraph)
     }
 
     fun deleteNode(nodeId: String) {
@@ -412,18 +416,9 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             currentGraph.copy(nodes = newNodes, wires = newWires)
         }
 
-        // if the deleted node was connected to the start node, re-prioritize
-        if (wiresForNode.any { it.fromNodeId == currentGraph.startNodeId }) {
-            val remainingChildren = newGraph.wires
-                .filter { it.fromNodeId == newGraph.startNodeId }
-                .mapNotNull { newGraph.nodes[it.toNodeId] }
-                .sortedBy { it.branchPriority }
-
-            val updatedNodes = newGraph.nodes.toMutableMap()
-            remainingChildren.forEachIndexed { index, childNode ->
-                updatedNodes[childNode.id] = childNode.copyNodeWithNewPriority(priority = index)
-            }
-            newGraph = newGraph.copy(nodes = updatedNodes)
+        val parentWires = wiresForNode.filter { it.toNodeId == nodeId }
+        parentWires.forEach { parentWire ->
+            newGraph = rePrioritizeSiblings(parentWire.fromNodeId, parentWire.fromHandleId, newGraph)
         }
 
         commitGraphUpdate(newGraph)
@@ -451,24 +446,34 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         commitGraphUpdate(_nodeGraph.value.copy(nodes = newNodes))
     }
 
-    fun swapNodePriorities(node1Id: String, node2Id: String) {
+    fun swapNodePriorities(nodeIdToMove: String, targetNodeId: String) {
         val currentGraph = _nodeGraph.value
-        val node1 = currentGraph.nodes[node1Id]
-        val node2 = currentGraph.nodes[node2Id]
+        val nodeToMove = currentGraph.nodes[nodeIdToMove] ?: return
 
-        if (node1 == null || node2 == null) return
+        // Find siblings of the node to move.
+        val parentWire = currentGraph.wires.find { it.toNodeId == nodeIdToMove } ?: return
+        val siblings = currentGraph.wires
+            .filter { it.fromNodeId == parentWire.fromNodeId && it.fromHandleId == parentWire.fromHandleId }
+            .mapNotNull { currentGraph.nodes[it.toNodeId] }
+            .sortedBy { it.branchPriority }
+            .map { it.id }
+            .toMutableList()
 
-        val priority1 = node1.branchPriority
-        val priority2 = node2.branchPriority
+        val fromIndex = siblings.indexOf(nodeIdToMove)
+        val toIndex = siblings.indexOf(targetNodeId)
 
-        val updatedNode1 = node1.copyNodeWithNewPriority(priority = priority2)
-        val updatedNode2 = node2.copyNodeWithNewPriority(priority = priority1)
+        if (fromIndex == -1 || toIndex == -1) return
 
-        val newNodes = currentGraph.nodes.toMutableMap().apply {
-            this[node1Id] = updatedNode1
-            this[node2Id] = updatedNode2
+        val item = siblings.removeAt(fromIndex)
+        siblings.add(toIndex, item)
+
+        val newNodes = currentGraph.nodes.toMutableMap()
+        siblings.forEachIndexed { index, nodeId ->
+            val node = newNodes[nodeId]
+            if (node != null && node.branchPriority != index) {
+                newNodes[nodeId] = node.copyNodeWithNewPriority(index)
+            }
         }
-
         commitGraphUpdate(currentGraph.copy(nodes = newNodes))
     }
 

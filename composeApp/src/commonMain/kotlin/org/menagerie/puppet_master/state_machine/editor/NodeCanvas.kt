@@ -1,11 +1,6 @@
 package org.menagerie.puppet_master.state_machine.editor
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -24,12 +19,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -46,15 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.state_machine.*
-import org.menagerie.puppet_master.state_machine.editor.views.DelayTimerNodeView
-import org.menagerie.puppet_master.state_machine.editor.views.GoThroughStateNodeView
-import org.menagerie.puppet_master.state_machine.editor.views.HotKeyNodeView
-import org.menagerie.puppet_master.state_machine.editor.views.ResetSetNodeView
-import org.menagerie.puppet_master.state_machine.editor.views.SetPuppetNodeView
-import org.menagerie.puppet_master.state_machine.editor.views.SetStateNodeView
-import org.menagerie.puppet_master.state_machine.editor.views.StartNodeView
-import org.menagerie.puppet_master.state_machine.editor.views.TriggerOnWaitNodeView
-import org.menagerie.puppet_master.state_machine.editor.views.VolumeThresholdNodeView
+import org.menagerie.puppet_master.state_machine.editor.views.*
 import org.menagerie.puppet_master.toOffset
 import kotlin.math.roundToInt
 
@@ -90,6 +72,22 @@ fun NodeCanvas(
 
     val highlightData by remember(graph, highlightMode) {
         mutableStateOf(if (highlightMode) calculateHighlightInfo(graph) else emptyMap())
+    }
+
+    val siblingMap by remember(graph) {
+        mutableStateOf(
+            graph.nodes.values.associate { node ->
+                val parentWire = graph.wires.find { it.toNodeId == node.id }
+                val siblings = if (parentWire != null) {
+                    graph.wires
+                        .filter { it.fromNodeId == parentWire.fromNodeId && it.fromHandleId == parentWire.fromHandleId }
+                        .mapNotNull { graph.nodes[it.toNodeId] }
+                } else {
+                    emptyList()
+                }
+                node.id to siblings
+            }
+        )
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -152,15 +150,6 @@ fun NodeCanvas(
             }
         }
 
-        val childrenOfStart = remember(graph.nodes) {
-            val children = graph.startNodeId?.let { startId ->
-                graph.wires.filter { it.fromNodeId == startId }
-                    .mapNotNull { graph.nodes[it.toNodeId] }
-            } ?: emptyList()
-            Pair(children, children.map { it.branchPriority })
-        }.first
-
-
         graph.nodes.values.forEach { node ->
             val highlightInfo = highlightData[node.id]
             val isNodeActive = isSimulating && activeNodes.contains(node.id)
@@ -210,14 +199,14 @@ fun NodeCanvas(
                         content()
                     }
 
-                    val isChildOfStart = childrenOfStart.any { it.id == node.id }
-                    if (isChildOfStart) {
+                    val siblings = siblingMap[node.id] ?: emptyList()
+                    if (siblings.size > 1) {
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
                                 .offset(x = 12.dp, y = (-12).dp)
                         ) {
-                            BranchPriorityDropdown(node, childrenOfStart, editorViewModel)
+                            BranchPriorityDropdown(node, siblings, editorViewModel)
                         }
                     } else {
                         Text(
@@ -243,15 +232,15 @@ fun NodeCanvas(
 @Composable
 private fun BranchPriorityDropdown(
     node: Node,
-    childrenOfStart: List<Node>,
+    siblings: List<Node>,
     editorViewModel: NodeEditorViewModel
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val sortedChildren = childrenOfStart.sortedBy { it.branchPriority }
+    val sortedSiblings = siblings.sortedBy { it.branchPriority }
 
 
-    val items = (1..sortedChildren.size).toList()
-    val currentNodeIndex = sortedChildren.indexOfFirst { it.id == node.id }
+    val items = (1..sortedSiblings.size).toList()
+    val currentNodeIndex = sortedSiblings.indexOfFirst { it.id == node.id }
 
     Box {
         Row(
@@ -275,7 +264,7 @@ private fun BranchPriorityDropdown(
                     DropdownMenuItem(
                         text = { Text(priorityNum.toString()) },
                         onClick = {
-                            val nodeToSwapWith = sortedChildren[newIndex]
+                            val nodeToSwapWith = sortedSiblings[newIndex]
 
                             editorViewModel.swapNodePriorities(node.id, nodeToSwapWith.id)
 
@@ -467,13 +456,18 @@ private fun calculateHighlightInfo(graph: NodeGraph): Map<String, HighlightInfo>
     while (parentsToProcess.isNotEmpty()) {
         val nextLevelParents = mutableListOf<String>()
         for (parentId in parentsToProcess) {
-            val children = graph.wires.filter { it.fromNodeId == parentId }.map { it.toNodeId }.filter { it !in visited }
+            val children = graph.wires
+                .filter { it.fromNodeId == parentId }
+                .mapNotNull { graph.nodes[it.toNodeId] }
+                .filter { it.id !in visited }
+                .sortedBy { it.branchPriority }
+
             if (children.isNotEmpty()) {
                 val color = colors[colorIndex % colors.size]
-                children.forEachIndexed { index, childId ->
-                    highlights[childId] = HighlightInfo(color, index + 1)
-                    visited.add(childId)
-                    nextLevelParents.add(childId)
+                children.forEachIndexed { index, childNode ->
+                    highlights[childNode.id] = HighlightInfo(color, index + 1)
+                    visited.add(childNode.id)
+                    nextLevelParents.add(childNode.id)
                 }
                 colorIndex++
             }
