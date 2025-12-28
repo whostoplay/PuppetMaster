@@ -41,6 +41,10 @@ import java.util.UUID
 data class WireDragInfo(val fromNodeId: String, val fromHandleId: String)
 data class NodeDragInfo(val nodeId: String)
 
+enum class Arrangement {
+    SHUFFLE, UP, DOWN
+}
+
 class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
     private var lastInteractedNodeId: String? = null
@@ -63,6 +67,76 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     private var simulationJob: Job? = null
     private var graphExecutor: GraphExecutor? = null
     private val _lastPressedKey = MutableStateFlow<Hotkey?>(null)
+
+    // Arrangement
+    private val _arrangement = MutableStateFlow(Arrangement.SHUFFLE)
+    val arrangement: StateFlow<Arrangement> = _arrangement.asStateFlow()
+
+    fun cycleArrangement() {
+        _arrangement.value = when (arrangement.value) {
+            Arrangement.SHUFFLE -> Arrangement.UP
+            Arrangement.UP -> Arrangement.DOWN
+            Arrangement.DOWN -> Arrangement.SHUFFLE
+        }
+    }
+
+    fun sortNodes() {
+        val currentGraph = _nodeGraph.value
+        val startNode = currentGraph.startNodeId?.let { currentGraph.nodes[it] }
+        if (currentGraph.nodes.isEmpty() || startNode == null) return
+
+        val basePosition = startNode.position.toOffset()
+
+        val nodeDepths = mutableMapOf<String, Int>()
+        val nodesToProcess = mutableListOf<Pair<String, Int>>()
+
+        currentGraph.startNodeId?.let {
+            nodesToProcess.add(it to 0)
+            nodeDepths[it] = 0
+        }
+
+        var head = 0
+        while (head < nodesToProcess.size) {
+            val (currentNodeId, currentDepth) = nodesToProcess[head++]
+
+            val children = currentGraph.wires
+                .filter { it.fromNodeId == currentNodeId }
+                .map { it.toNodeId }
+
+            for (childId in children) {
+                if (childId !in nodeDepths) {
+                    nodeDepths[childId] = currentDepth + 1
+                    nodesToProcess.add(childId to currentDepth + 1)
+                }
+            }
+        }
+
+        val nodesByDepth = nodeDepths.entries
+            .groupBy({ it.value }, { it.key })
+            .toSortedMap()
+
+        val newNodes = currentGraph.nodes.toMutableMap()
+        var currentX = basePosition.x
+
+        val maxColumnWidth = nodesByDepth.values.maxOfOrNull { column ->
+            column.maxOfOrNull { nodeId -> currentGraph.nodes[nodeId]?.size?.width?.toFloat() ?: 0f } ?: 0f
+        } ?: 0f
+
+        for ((depth, nodeIds) in nodesByDepth) {
+            var currentY = basePosition.y
+            val sortedNodes = nodeIds.mapNotNull { currentGraph.nodes[it] }.sortedBy { it.branchPriority }
+            val arrangedNodes = if (arrangement.value == Arrangement.UP) sortedNodes.reversed() else sortedNodes
+
+            for (node in arrangedNodes) {
+                val newPosition = Offset(currentX, currentY)
+                newNodes[node.id] = node.copyNode(node.id, newPosition.toSerializableOffset())
+                currentY += (node.size.height.toFloat() + 20f)
+            }
+            currentX += maxColumnWidth + 50f
+        }
+
+        commitGraphUpdate(currentGraph.copy(nodes = newNodes))
+    }
 
     fun toggleHighlightMode() {
         _highlightMode.value = !_highlightMode.value

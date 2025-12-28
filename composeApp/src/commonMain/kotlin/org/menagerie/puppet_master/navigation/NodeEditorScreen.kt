@@ -14,7 +14,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Shuffle
+import androidx.compose.material.icons.filled.SortByAlpha
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -36,13 +40,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isAltPressed
-import androidx.compose.ui.input.key.isCtrlPressed
-import androidx.compose.ui.input.key.isShiftPressed
-import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -52,9 +50,9 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import kotlinx.coroutines.launch
-import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.localisation.Strings
+import org.menagerie.puppet_master.state_machine.editor.Arrangement
 import org.menagerie.puppet_master.state_machine.editor.NodeCanvas
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 import org.menagerie.puppet_master.state_machine.editor.NodePalette
@@ -70,6 +68,7 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
         val handlePositions by editorViewModel.handlePositions.collectAsState()
         val highlightMode by editorViewModel.highlightMode.collectAsState()
         val isSimulating by editorViewModel.isSimulating.collectAsState()
+        val arrangement by editorViewModel.arrangement.collectAsState()
         val focusRequester = remember { FocusRequester() }
 
         val horizontalScrollState = rememberScrollState()
@@ -92,6 +91,16 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                         }
                     },
                     actions = {
+                        IconButton(onClick = { editorViewModel.sortNodes() }) {
+                            Icon(Icons.Default.SortByAlpha, contentDescription = "Sort Nodes")
+                        }
+                        IconButton(onClick = { editorViewModel.cycleArrangement() }) {
+                            when (arrangement) {
+                                Arrangement.SHUFFLE -> Icon(Icons.Default.Shuffle, contentDescription = "Shuffle")
+                                Arrangement.UP -> Icon(Icons.Default.ArrowUpward, contentDescription = "Up")
+                                Arrangement.DOWN -> Icon(Icons.Default.ArrowDownward, contentDescription = "Down")
+                            }
+                        }
                         Row(
                             modifier = Modifier.padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -177,25 +186,6 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                                     strokeWidth = 1f
                                 )
                             }
-
-                            // Draw Ghost Wire for wire creation
-//                            wireDragInfo?.let { dragInfo ->
-//                                val startPosAbsolute = handlePositions["${dragInfo.fromNodeId}-${dragInfo.fromHandleId}"]
-//                                if (startPosAbsolute != null) {
-//                                    boxCoordinates?.let {
-//                                        val startPosLocal = startPosAbsolute - it.localToRoot(Offset.Zero) + Offset(
-//                                            horizontalScrollState.value.toFloat(),
-//                                            verticalScrollState.value.toFloat()
-//                                        )
-//                                        drawLine(
-//                                            color = Color.Yellow,
-//                                            start = startPosLocal,
-//                                            end = pointerPosition,
-//                                            strokeWidth = 3f
-//                                        )
-//                                    }
-//                                }
-//                            }
                         }
                         NodeCanvas(
                             mainViewModel = mainViewModel,
