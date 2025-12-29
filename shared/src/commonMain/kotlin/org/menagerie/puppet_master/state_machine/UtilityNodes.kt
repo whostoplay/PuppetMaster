@@ -69,7 +69,7 @@ data class DelayTimerNode(
     override val id: NodeId,
     val delay: Long = 1000, // Delay in milliseconds
     override val position: SerializableOffset,
-    override val size: SerializableSize = SerializableSize(180f, 120f),
+    override val size: SerializableSize = SerializableSize(200f, 120f),
     override val expandedSize: SerializableSize? = null,
     override val branchPriority: Int = 0
 ) : UtilityNode {

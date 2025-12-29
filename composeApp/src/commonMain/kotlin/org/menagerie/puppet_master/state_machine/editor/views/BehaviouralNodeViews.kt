@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -194,9 +195,11 @@ fun WithEffectNodeView(
     ) {
         Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, contentDescription = "Expand")
                 }
+                Spacer(modifier = Modifier.weight(1f))
             }
 
             if (expanded) {
@@ -217,7 +220,6 @@ fun WithEffectNodeView(
                 // Glow
                 node.effect.glowIntensity?.let {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Glow Intensity: $it")
                         Box(
                             modifier = Modifier
                                 .size(20.dp)
@@ -225,6 +227,8 @@ fun WithEffectNodeView(
                                 .background(Color(node.effect.glowColor ?: 0xFFFFFFFF.toInt()))
                                 .clickable { showGlowColorPicker = true }
                         )
+                        Spacer(modifier = Modifier.weight(.125f))
+                        Text("Glow Intensity: $it")
                     }
                     Slider(
                         value = it,

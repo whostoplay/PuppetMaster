@@ -10,7 +10,7 @@ import org.menagerie.puppet_master.SpecialEffect
 data class GoThroughStateNode(
     override val id: NodeId,
     override val position: SerializableOffset,
-    override val size: SerializableSize = SerializableSize(250f, 300f),
+    override val size: SerializableSize = SerializableSize(250f, 310f),
     override val expandedSize: SerializableSize? = null,
     val stateName: String = "",
     val delay: Long = 100, // Milliseconds
@@ -41,7 +41,7 @@ data class WithEffectNode(
     override val id: NodeId,
     override val position: SerializableOffset,
     override val size: SerializableSize = SerializableSize(250f, 225f),
-    override val expandedSize: SerializableSize? = SerializableSize(250f, 800f),
+    override val expandedSize: SerializableSize? = SerializableSize(275f, 750f),
     val effect: SpecialEffect = SpecialEffect(),
     override val branchPriority: Int = 0,
     val puppetId: String? = null

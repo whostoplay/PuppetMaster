@@ -15,7 +15,7 @@ data class VolumeThresholdNode(
     override val branchPriority: Int = 0,
     val threshold: Float = 0.5f,
     val sensitivity: Float = 1.0f,
-    override val size: SerializableSize = SerializableSize(200f, 200f),
+    override val size: SerializableSize = SerializableSize(200f, 180f),
     override val expandedSize: SerializableSize? = null
 ) : ConditionalNode {
 

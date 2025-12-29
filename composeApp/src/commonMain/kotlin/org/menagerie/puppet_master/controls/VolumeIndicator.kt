@@ -93,6 +93,7 @@ fun VolumeIndicator(
                 Box(modifier = Modifier.align(Alignment.Center).width(1.dp).fillMaxHeight().background(Color.Red))
             }
         }
+        Text("Sensitivity:")
         Slider(
             value = sensitivity,
             onValueChange = onSensitivityChange,
@@ -192,6 +193,7 @@ fun VolumeIndicator(
                 }
             }
         }
+        Text("Sensitivity:")
         Slider(
             value = sensitivity,
             onValueChange = onSensitivityChange,
