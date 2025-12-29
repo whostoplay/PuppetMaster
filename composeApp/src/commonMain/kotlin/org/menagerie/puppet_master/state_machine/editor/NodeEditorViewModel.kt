@@ -47,7 +47,8 @@ enum class Arrangement {
 
 class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
-    private var lastInteractedNodeId: String? = null
+    private val _lastInteractedNodeId = MutableStateFlow<String?>(null)
+    val lastInteractedNodeId: StateFlow<String?> = _lastInteractedNodeId.asStateFlow()
 
     // Graph State
     private val _nodeGraph =
@@ -312,13 +313,15 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         graphExecutor?.reset()
     }
 
-
+    fun bringNodeToFront(nodeId: String) {
+        _lastInteractedNodeId.value = nodeId
+    }
 
     fun onWireDragStart(nodeId: String, handleId: String) {
         _wireDragInfo.value = WireDragInfo(nodeId, handleId)
         val startPosition = _handlePositions.value["$nodeId-$handleId"]
         _draggedWireEndPosition.value = startPosition
-        lastInteractedNodeId = nodeId
+        _lastInteractedNodeId.value = nodeId
     }
 
     fun onWireDrag(dragAmount: Offset) {
@@ -360,7 +363,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
 
     fun onNodeDragStart(nodeId: String) {
         _draggedNodeInfo.value = NodeDragInfo(nodeId)
-        lastInteractedNodeId = nodeId
+        _lastInteractedNodeId.value = nodeId
     }
 
     fun onNodeDrag(dragAmount: SerializableOffset) {
@@ -426,7 +429,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             _nodeGraph.value.copy(nodes = newNodes)
         }
 
-        lastInteractedNodeId = newNode.id
+        _lastInteractedNodeId.value = newNode.id
         commitGraphUpdate(newGraph)
     }
 
@@ -499,7 +502,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             propagatePuppetId(toNodeId, puppetId, newNodes)
         }
 
-        lastInteractedNodeId = toNodeId
+        _lastInteractedNodeId.value = toNodeId
         commitGraphUpdate(currentGraph.copy(nodes = newNodes, wires = newWires))
     }
 
@@ -604,7 +607,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             propagatePuppetId(node.id, puppetId, newNodes)
         }
 
-        lastInteractedNodeId = node.id
+        _lastInteractedNodeId.value = node.id
         commitGraphUpdate(_nodeGraph.value.copy(nodes = newNodes))
     }
 

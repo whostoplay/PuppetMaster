@@ -55,6 +55,7 @@ fun NodeCanvas(
     isSimulating: Boolean
 ) {
     val graph by editorViewModel.nodeGraph.collectAsState()
+    val topNodeId by editorViewModel.lastInteractedNodeId.collectAsState()
     val handlePositions by editorViewModel.handlePositions.collectAsState()
     val wireDragInfo by editorViewModel.wireDragInfo.collectAsState()
     val draggedWireEndPosition by editorViewModel.draggedWireEndPosition.collectAsState()
@@ -122,7 +123,14 @@ fun NodeCanvas(
                         moveTo(fromPos.x, fromPos.y)
                         val controlPoint1 = Offset(fromPos.x + 100, fromPos.y)
                         val controlPoint2 = Offset(toPos.x - 100, toPos.y)
-                        cubicTo(controlPoint1.x, controlPoint1.y, controlPoint2.x, controlPoint2.y, toPos.x, toPos.y)
+                        cubicTo(
+                            controlPoint1.x,
+                            controlPoint1.y,
+                            controlPoint2.x,
+                            controlPoint2.y,
+                            toPos.x,
+                            toPos.y
+                        )
                     }
 
                     drawPath(
@@ -167,81 +175,107 @@ fun NodeCanvas(
             }
         }
 
-        graph.nodes.values.forEach { node ->
+        val nodesToRender = graph.nodes.values.sortedBy { node ->
+            if (node.id == topNodeId) 1 else 0
+        }
+
+        nodesToRender.forEach { node ->
             val highlightInfo = highlightData[node.id]
             val isNodeActive = isSimulating && activeNodes.contains(node.id)
-
-            Box(
-                modifier = Modifier
-                    .offset {
-                        val offset = node.position.toOffset()
-                        IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
-                    }
-                    .then(
-                        if (isNodeActive) {
-                            Modifier.border(
-                                width = 2.dp,
-                                color = Color.Yellow,
-                                shape = RoundedCornerShape(8.dp)
+            key(node.id) {
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            val offset = node.position.toOffset()
+                            IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
+                        }.pointerInput(node.id) {
+                            detectTapGestures(
+                                onPress = { editorViewModel.bringNodeToFront(node.id) }
                             )
-                        } else {
-                            Modifier
                         }
-                    )
-            ) {
-                val content: @Composable () -> Unit = {
-                    canvasCoordinates?.let {
-                        when (node) {
-                            is StateNode -> RenderStateNode(node, mainViewModel, editorViewModel, it)
-                            is ConditionalNode -> RenderConditionalNode(node, editorViewModel, it)
-                            is BehaviouralNode -> RenderBehaviouralNode(node, mainViewModel, editorViewModel, it)
-                            is StartNode -> StartNodeView(node, editorViewModel, it)
-                            is UtilityNode -> RenderUtilityNode(node, editorViewModel, it)
+                        .then(
+                            if (isNodeActive) {
+                                Modifier.border(
+                                    width = 2.dp,
+                                    color = Color.Yellow,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                            } else {
+                                Modifier
+                            }
+                        )
+                ) {
+                    val content: @Composable () -> Unit = {
+                        canvasCoordinates?.let {
+                            when (node) {
+                                is StateNode -> RenderStateNode(
+                                    node,
+                                    mainViewModel,
+                                    editorViewModel,
+                                    it
+                                )
+
+                                is ConditionalNode -> RenderConditionalNode(
+                                    node,
+                                    editorViewModel,
+                                    it
+                                )
+
+                                is BehaviouralNode -> RenderBehaviouralNode(
+                                    node,
+                                    mainViewModel,
+                                    editorViewModel,
+                                    it
+                                )
+
+                                is StartNode -> StartNodeView(node, editorViewModel, it)
+                                is UtilityNode -> RenderUtilityNode(node, editorViewModel, it)
+                            }
                         }
                     }
-                }
 
-                if (highlightMode && highlightInfo != null) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = highlightInfo.color.copy(alpha = 0.2f),
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .border(
-                                width = 2.dp,
-                                color = highlightInfo.color,
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(8.dp)
-                    ) {
-                        content()
-                    }
-
-                    val siblings = siblingMap[node.id] ?: emptyList()
-                    if (siblings.size > 1) {
+                    if (highlightMode && highlightInfo != null) {
                         Box(
                             modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 12.dp, y = (-12).dp)
+                                .background(
+                                    color = highlightInfo.color.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                    width = 2.dp,
+                                    color = highlightInfo.color,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(8.dp)
                         ) {
-                            BranchPriorityDropdown(node, siblings, editorViewModel)
+                            content()
+                        }
+
+                        val siblings = siblingMap[node.id] ?: emptyList()
+                        if (siblings.size > 1) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 12.dp, y = (-12).dp)
+                            ) {
+                                BranchPriorityDropdown(node, siblings, editorViewModel)
+                            }
+                        } else {
+                            Text(
+                                text = highlightInfo.number.toString(),
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 12.dp, y = (-12).dp),
+                                color = Color.White,
+                                style = TextStyle(
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp
+                                )
+                            )
                         }
                     } else {
-                        Text(
-                            text = highlightInfo.number.toString(),
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 12.dp, y = (-12).dp),
-                            color = Color.White,
-                            style = TextStyle(
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        )
+                        content()
                     }
-                } else {
-                    content()
                 }
             }
         }
