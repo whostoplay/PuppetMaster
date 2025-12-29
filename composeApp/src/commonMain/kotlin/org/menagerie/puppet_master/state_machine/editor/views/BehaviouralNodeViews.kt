@@ -194,14 +194,6 @@ fun WithEffectNodeView(
         expanded = expanded
     ) {
         Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                Spacer(modifier = Modifier.weight(1f))
-                IconButton(onClick = { expanded = !expanded }) {
-                    Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, contentDescription = "Expand")
-                }
-                Spacer(modifier = Modifier.weight(1f))
-            }
-
             if (expanded) {
                 // Vibration
                 Text("Vibration Distance: ${node.effect.vibrationDistance}")
@@ -283,6 +275,13 @@ fun WithEffectNodeView(
                         )
                     }
                 }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, contentDescription = "Expand")
+                }
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
     }

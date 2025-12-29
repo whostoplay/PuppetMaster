@@ -116,63 +116,113 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         val startNode = currentGraph.startNodeId?.let { currentGraph.nodes[it] } ?: return
 
         val newNodes = currentGraph.nodes.toMutableMap()
+        val nodeDepths = mutableMapOf<String, Int>()
+        val nodeChildren = currentGraph.wires.groupBy { it.fromNodeId }
+            .mapValues { entry -> entry.value.map { it.toNodeId }.distinct() }
+
+        // 1. Calculate MAX depths for all nodes to handle complex DAGs
+        val queue = ArrayDeque<Pair<String, Int>>()
+        // Initialize all depths to -1 to indicate they haven't been optimally set
+        currentGraph.nodes.keys.forEach { nodeDepths[it] = -1 }
+
+        queue.add(startNode.id to 0)
+        nodeDepths[startNode.id] = 0
+
+        while (queue.isNotEmpty()) {
+            val (currentNodeId, currentDepth) = queue.removeFirst()
+
+            nodeChildren[currentNodeId]?.forEach { childId ->
+                // A child's depth should be the max of its current calculated depth
+                // and the new path's depth. This ensures it's placed at the furthest column it belongs to.
+                if (currentDepth + 1 > nodeDepths[childId]!!) {
+                    nodeDepths[childId] = currentDepth + 1
+                    queue.add(childId to currentDepth + 1)
+                }
+            }
+        }
+
+        // 2. Calculate column X positions
+        val columnWidths = mutableMapOf<Int, Float>()
+        for ((nodeId, depth) in nodeDepths) {
+            if (depth == -1) continue // Skip nodes unreachable from start
+            val node = newNodes[nodeId] ?: continue
+            val currentWidth = columnWidths.getOrDefault(depth, 0f)
+            columnWidths[depth] = maxOf(currentWidth, node.size.width.toFloat())
+        }
+
+        val columnX = mutableMapOf<Int, Float>()
+        var accumulatedX = startNode.position.toOffset().x
+        for (depth in 0..(nodeDepths.values.maxOrNull() ?: 0)) {
+            columnX[depth] = accumulatedX
+            accumulatedX += (columnWidths.getOrDefault(depth, 0f) + 80f) // Add spacing
+        }
+
+        // 3. Position nodes recursively
+        val columnYTrackers = mutableMapOf<Int, Float>()
         val processedNodes = mutableSetOf<String>()
-        val nodeColumnX = mutableMapOf<Int, Float>()
+        val branchHeightCache = mutableMapOf<String, Float>()
 
-        fun calculateColumnWidths(parentId: String, depth: Int) {
-            if (parentId in processedNodes) return
-            processedNodes.add(parentId)
+        fun getNodeBranchHeight(nodeId: String): Float {
+            if (branchHeightCache.containsKey(nodeId)) return branchHeightCache[nodeId]!!
+            val node = newNodes[nodeId] ?: return 0f
+            val children = nodeChildren[nodeId]?.mapNotNull { newNodes[it] } ?: emptyList()
 
-            val parentNode = newNodes[parentId] ?: return
-            val parentWidth = parentNode.size.width.toFloat()
-            val currentX = nodeColumnX[depth-1] ?: parentNode.position.toOffset().x
+            if (children.isEmpty()) {
+                branchHeightCache[nodeId] = node.size.height.toFloat()
+                return node.size.height.toFloat()
+            }
+            // Sum of children's branch heights plus spacing
+            val height = children.sumOf { getNodeBranchHeight(it.id).toDouble() }.toFloat() + (children.size - 1) * 20f
+            branchHeightCache[nodeId] = height
+            return height
+        }
 
-            nodeColumnX[depth] = maxOf(nodeColumnX.getOrDefault(depth, 0f), currentX + parentWidth + 50f)
+        fun positionNodesRecursively(nodeId: String, yPos: Float) {
+            // Because nodes can have multiple parents, we must prevent reprocessing.
+            if (nodeId in processedNodes) return
+            processedNodes.add(nodeId)
 
-            val children = currentGraph.wires
-                .filter { it.fromNodeId == parentId }
-                .mapNotNull { newNodes[it.toNodeId] }
-                .distinctBy { it.id }
+            val node = newNodes[nodeId] ?: return
+            val depth = nodeDepths[nodeId] ?: return
+            if (depth == -1) return // Skip unreachable node
 
-            children.forEach { child ->
-                calculateColumnWidths(child.id, depth + 1)
+            val nodeX = columnX[depth] ?: 0f
+            val nodeHeight = node.size.height.toFloat()
+
+            // Update node's own position
+            newNodes[nodeId] = node.copyNode(node.id, Offset(nodeX, yPos).toSerializableOffset())
+
+            val children = (nodeChildren[nodeId]?.mapNotNull { newNodes[it] } ?: emptyList())
+                .sortedBy { it.branchPriority }
+            val arrangedChildren = if (arrangement.value == Arrangement.DOWN) children.reversed() else children
+
+            if (arrangedChildren.isEmpty()) return
+
+            val totalBranchHeight = arrangedChildren.sumOf { getNodeBranchHeight(it.id).toDouble() }.toFloat() + (arrangedChildren.size - 1) * 20f
+            var nextY = yPos + (nodeHeight / 2f) - (totalBranchHeight / 2f)
+
+            for (child in arrangedChildren) {
+                val childDepth = nodeDepths[child.id] ?: continue
+                val childBranchHeight = getNodeBranchHeight(child.id)
+                val childCenterY = nextY + (childBranchHeight / 2f)
+                val childTopY = childCenterY - (child.size.height.toFloat() / 2f)
+
+                // Use the greater of the calculated Y or the last known Y for that column to prevent overlaps
+                val finalY = maxOf(childTopY, columnYTrackers.getOrDefault(childDepth, Float.NEGATIVE_INFINITY))
+
+                // Since a node can be a child of multiple parents, we only recurse if it hasn't been placed yet.
+                // Its position will be determined by its first parent in the traversal.
+                positionNodesRecursively(child.id, finalY)
+
+                val newOccupiedY = finalY + childBranchHeight + 20f
+                columnYTrackers[childDepth] = newOccupiedY
+                nextY += childBranchHeight + 20f
             }
         }
 
-        calculateColumnWidths(startNode.id, 0)
-        processedNodes.clear()
-
-        fun sortChildrenOf(parentId: String, depth: Int) {
-            if (parentId in processedNodes) return
-            processedNodes.add(parentId)
-
-            val parentNode = newNodes[parentId] ?: return
-            val children = currentGraph.wires
-                .filter { it.fromNodeId == parentId }
-                .mapNotNull { newNodes[it.toNodeId] }
-                .distinctBy { it.id }
-
-            if (children.isEmpty()) return
-
-            val sortedChildren = children.sortedBy { it.branchPriority }
-            val arrangedChildren = if (arrangement.value == Arrangement.DOWN) sortedChildren.reversed() else sortedChildren
-
-            val parentPosition = parentNode.position.toOffset()
-
-            var currentY = parentPosition.y
-            val currentX = nodeColumnX[depth] ?: (parentPosition.x + parentNode.size.width + 50f)
-
-            for (childNode in arrangedChildren) {
-                newNodes[childNode.id] = childNode.copyNode(childNode.id, Offset(currentX, currentY).toSerializableOffset())
-                currentY += childNode.size.height + 20f
-                sortChildrenOf(childNode.id, depth + 1)
-            }
-        }
-
-        sortChildrenOf(startNode.id, 0)
+        positionNodesRecursively(startNode.id, startNode.position.toOffset().y)
         commitGraphUpdate(currentGraph.copy(nodes = newNodes))
     }
-
 
     fun toggleHighlightMode() {
         _highlightMode.value = !_highlightMode.value
