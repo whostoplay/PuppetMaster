@@ -662,6 +662,10 @@ class MainViewModel(context: Any) : ScreenModel {
         dataManager.renameTroupe(newName)
     }
 
+    fun renamePuppet(newName: String) {
+        dataManager.renamePuppet(newName)
+    }
+
     fun loadTroupeFromFile(filePath: String) {
         dataManager.loadTroupeFromFile(filePath)
     }

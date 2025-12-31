@@ -110,6 +110,7 @@ fun LandscapeLayout(
                     onImportPuppet = { onShowPuppetImportPickerChange(true) },
                     onExportPuppet = { onShowPuppetExportSaverChange(true) },
                     onRenameTroupe = viewModel::renameTroupe,
+                    onRenamePuppet = viewModel::renamePuppet,
                     onLoadTroupe = { onShowTroupeLoadPickerChange(true) },
                     onNewTroupeCreated = viewModel::createNewTroupe,
                     onActiveChange = { onHover(LandscapeLayout.PUPPET_CONTROLS_ID, it) },

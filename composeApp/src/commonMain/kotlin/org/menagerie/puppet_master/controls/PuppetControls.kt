@@ -43,6 +43,7 @@ import org.menagerie.puppet_master.localisation.Strings
  * @param troupe The current [PuppetTroupe], or null if no troupe is loaded.
  * @param activePuppet The currently active [PuppetCharacter], or null if none is selected.
  * @param onPuppetSelected Callback invoked with the name of the puppet when a puppet is selected.
+ * @param onRenamePuppet Callback to rename the active puppet.
  * @param onPuppetCreated Callback invoked when a new puppet is created. It provides the new puppet's name and an optional new troupe name.
  * @param onImportPuppet Callback to trigger the import of a puppet.
  * @param onExportPuppet Callback to trigger the export of the active puppet, providing its name.
@@ -59,6 +60,7 @@ fun PuppetControls(
     troupe: PuppetTroupe?,
     activePuppet: PuppetCharacter?,
     onPuppetSelected: (String) -> Unit,
+    onRenamePuppet: (newName: String) -> Unit,
     onPuppetCreated: (newPuppetName: String, newTroupeName: String?) -> Unit,
     onImportPuppet: () -> Unit,
     onExportPuppet: (puppetName: String) -> Unit,
@@ -74,6 +76,11 @@ fun PuppetControls(
     var showNameTroupeDialog by remember { mutableStateOf(false) }
     var showRenameTroupeDialog by remember { mutableStateOf(false) }
 
+    var puppetName by remember { mutableStateOf(activePuppet?.name ?: "") }
+    LaunchedEffect(activePuppet) {
+        puppetName = activePuppet?.name ?: ""
+    }
+
     val textFieldInteractionSource = remember { MutableInteractionSource() }
     val menuInteractionSource = remember { MutableInteractionSource() }
     val isTextFieldHovered by textFieldInteractionSource.collectIsHoveredAsState()
@@ -81,14 +88,15 @@ fun PuppetControls(
     val isHovered = isTextFieldHovered || isMenuHovered
 
     var isNewPuppetNameFocused by remember { mutableStateOf(false) }
+    var isPuppetNameFocused by remember { mutableStateOf(false) }
 
-    val isPanelActive = isHovered || isNewPuppetNameFocused || puppetExpanded
+    val isPanelActive = isHovered || isNewPuppetNameFocused || puppetExpanded || isPuppetNameFocused
 
     LaunchedEffect(isPanelActive) {
         onActiveChange(isPanelActive)
     }
-    LaunchedEffect(isNewPuppetNameFocused) {
-        onFocusChange(isNewPuppetNameFocused)
+    LaunchedEffect(isNewPuppetNameFocused, isPuppetNameFocused) {
+        onFocusChange(isNewPuppetNameFocused || isPuppetNameFocused)
     }
 
     if (showNameTroupeDialog) {
@@ -127,12 +135,32 @@ fun PuppetControls(
                 modifier = Modifier
                     .fillMaxWidth()
                     .menuAnchor()
-                    .hoverable(textFieldInteractionSource),
-                value = activePuppet?.name ?: "", onValueChange = {},
-                label = { Text(Strings.getString(Strings.Keys.ACTIVE_PUPPET_LABEL)) },
-                readOnly = true,
+                    .hoverable(textFieldInteractionSource)
+                    .onFocusChanged {
+                        isPuppetNameFocused = it.isFocused
+                    },
+                value = puppetName,
+                onValueChange = { puppetName = it },
+                label = {
+                    Text(
+                        Strings.getString(
+                            if (isPuppetNameFocused) Strings.Keys.RENAME_PUPPET_LABEL else Strings.Keys.ACTIVE_PUPPET_LABEL
+                        )
+                    )
+                },
+                readOnly = activePuppet == null,
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = puppetExpanded) },
                 colors = ExposedDropdownMenuDefaults.textFieldColors(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(
+                    onDone = {
+                        if (activePuppet != null && puppetName != activePuppet.name) {
+                            onRenamePuppet(puppetName)
+                        }
+                        rootFocusRequester.requestFocus()
+                    }
+                )
             )
             ExposedDropdownMenu(
                 expanded = puppetExpanded,

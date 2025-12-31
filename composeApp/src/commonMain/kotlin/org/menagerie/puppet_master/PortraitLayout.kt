@@ -104,6 +104,7 @@ fun PortraitLayout(
                     onImportPuppet = { onShowPuppetImportPickerChange(true) },
                     onExportPuppet = { onShowPuppetExportSaverChange(true) },
                     onRenameTroupe = viewModel::renameTroupe,
+                    onRenamePuppet = viewModel::renamePuppet,
                     onLoadTroupe = { onShowTroupeLoadPickerChange(true) },
                     onNewTroupeCreated = viewModel::createNewTroupe,
                     onActiveChange = { onHover(PortraitLayout.PUPPET_CONTROLS_ID, it) },

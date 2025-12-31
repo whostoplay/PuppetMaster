@@ -436,6 +436,28 @@ actual class PuppetDataManager actual constructor(private val scope: CoroutineSc
         }
     }
 
+    actual fun renamePuppet(newName :String) {
+        if (_troupe.value?.puppets?.any { it.name == newName } == true) return
+
+        _activePuppet.value?.let { activePuppet ->
+            _troupe.value?.let { currentTroupe ->
+                val oldName = activePuppet.name
+                val updatedPuppet = activePuppet.copy(name = newName, lastUpdated = System.currentTimeMillis())
+
+                val newPuppets = currentTroupe.puppets.map {
+                    if (it.name == oldName) updatedPuppet else it
+                }
+
+                val newTroupe = currentTroupe.copy(
+                    puppets = newPuppets,
+                    activePuppetName = newName
+                )
+
+                saveTroupe(newTroupe)
+            }
+        }
+    }
+
     actual fun connectAndSync(serverIp: String) {
         scope.launch {
             _connectionState.value = ConnectionState.CONNECTING

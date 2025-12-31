@@ -125,9 +125,16 @@ expect class PuppetDataManager(scope: CoroutineScope, context: Any) {
     /**
      * Renames the current troupe.
      *
-     * @param newName The new name for the troupe.
+     * @param newName The new name for the troupe. Overwrites old .troupe files if name already exists.
      */
     fun renameTroupe(newName: String)
+
+    /**
+     * Renames the current puppet.
+     *
+     * @param newName the new name for the puppet. Must be Unique.
+     */
+    fun renamePuppet(newName: String)
 
     /**
      * Loads a troupe from a specific file path (e.g., a `.troupe` ZIP archive).

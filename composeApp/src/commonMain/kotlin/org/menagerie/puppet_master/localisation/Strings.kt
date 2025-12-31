@@ -38,6 +38,7 @@ object Strings {
 
         //region PuppetControls
         const val ACTIVE_PUPPET_LABEL = "ACTIVE_PUPPET_LABEL"
+        const val RENAME_PUPPET_LABEL = "RENAME_PUPPET_LABEL"
         const val NEW_PUPPET_NAME_PLACEHOLDER = "NEW_PUPPET_NAME_PLACEHOLDER"
         const val CREATE_BUTTON = "CREATE_BUTTON"
         const val LOAD_TROUPE_BUTTON = "LOAD_TROUPE_BUTTON"
