@@ -1,43 +1,42 @@
 package org.menagerie.puppet_master.state_machine.editor
 
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
 
 @Composable
 actual fun ContextMenuWrapper(
-    items: () -> List<ContextMenuItem>,
-    content: @Composable () -> Unit
-) {
-    var isContextMenuVisible by remember { mutableStateOf(false) }
+    editorViewModel: NodeEditorViewModel,
+    content: @Composable () -> Unit) {
+    val contextMenuPosition by editorViewModel.contextMenuPosition.collectAsState()
 
-    Box(
-        modifier = Modifier.pointerInput(Unit) {
-            detectTapGestures(onLongPress = { isContextMenuVisible = true })
-        }
-    ) {
+    Box {
         content()
-        DropdownMenu(
-            expanded = isContextMenuVisible,
-            onDismissRequest = { isContextMenuVisible = false }
-        ) {
-            items().forEach { item ->
-                DropdownMenuItem(
-                    onClick = {
-                        item.onClick()
-                        isContextMenuVisible = false
-                    },
-                    text = { Text(item.label) },
-                )
+
+        contextMenuPosition?.let { position ->
+            Popup(
+                offset = IntOffset(position.x.toInt(), position.y.toInt()),
+                onDismissRequest = { editorViewModel.closeContextMenu() }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .width(250.dp)
+                        .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
+                ) {
+                    NodePalette(editorViewModel = editorViewModel)
+                }
             }
         }
     }

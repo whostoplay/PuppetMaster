@@ -53,6 +53,7 @@ import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.state_machine.editor.Arrangement
+import org.menagerie.puppet_master.state_machine.editor.ContextMenuWrapper
 import org.menagerie.puppet_master.state_machine.editor.NodeCanvas
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 import org.menagerie.puppet_master.state_machine.editor.NodePalette
@@ -81,118 +82,125 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
             }
         }
 
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(Strings.getString(Strings.Keys.STATE_GRAPH_BUTTON)) },
-                    navigationIcon = {
-                        IconButton(onClick = { navigator.pop() }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = Strings.getString(Strings.Keys.BACK_BUTTON_CONTENT_DESCRIPTION))
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { editorViewModel.sortNodes() }) {
-                            Icon(Icons.Default.SwapVert, contentDescription = "Sort Nodes")
-                        }
-                        IconButton(onClick = { editorViewModel.cycleArrangement() }) {
-                            when (arrangement) {
-                                Arrangement.SHUFFLE -> Icon(Icons.Default.Shuffle, contentDescription = "Shuffle")
-                                Arrangement.UP -> Icon(Icons.Default.ArrowUpward, contentDescription = "Up")
-                                Arrangement.DOWN -> Icon(Icons.Default.ArrowDownward, contentDescription = "Down")
+        ContextMenuWrapper(editorViewModel) {
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = { Text(Strings.getString(Strings.Keys.STATE_GRAPH_BUTTON)) },
+                        navigationIcon = {
+                            IconButton(onClick = { navigator.pop() }) {
+                                Icon(
+                                    Icons.Default.ArrowBack,
+                                    contentDescription = Strings.getString(Strings.Keys.BACK_BUTTON_CONTENT_DESCRIPTION)
+                                )
                             }
-                        }
-                        Row(
-                            modifier = Modifier.padding(horizontal = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = Strings.getString(Strings.Keys.HIGHLIGHT_ON))
-                            Switch(
-                                checked = highlightMode,
-                                onCheckedChange = { editorViewModel.toggleHighlightMode() },
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-                        IconButton(onClick = { editorViewModel.toggleSimulation() }) {
-                            if (isSimulating) {
-                                Icon(Icons.Default.Stop, contentDescription = "Stop Simulation")
-                            } else {
-                                Icon(Icons.Default.PlayArrow, contentDescription = "Start Simulation")
+                        },
+                        actions = {
+                            IconButton(onClick = { editorViewModel.sortNodes() }) {
+                                Icon(Icons.Default.SwapVert, contentDescription = "Sort Nodes")
                             }
-                        }
-                    }
-                )
-            }
-        ) { innerPadding ->
-            Row(
-                Modifier.fillMaxSize().padding(innerPadding)
-                    .focusRequester(focusRequester).focusable()
-                    .onKeyEvent { keyEvent ->
-                        editorViewModel.onKeyEvent(keyEvent)
-                        true
-                    }
-            ) {
-                NodePalette(
-                    modifier = Modifier.width(250.dp).fillMaxHeight(),
-                    editorViewModel = editorViewModel
-                )
-
-                var pointerPosition by remember { mutableStateOf(Offset.Zero) }
-                var boxCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-                val gridSize = 40f
-                val canvasSize = 30000.dp
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .onGloballyPositioned { boxCoordinates = it }
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    val change = event.changes.first()
-                                    pointerPosition = change.position + Offset(
-                                        horizontalScrollState.value.toFloat(),
-                                        verticalScrollState.value.toFloat()
-                                    )
-
-                                    val wasDraggingWire = wireDragInfo != null
-                                    val isPointerUp = event.changes.any { !it.pressed }
-
-                                    if (wasDraggingWire && isPointerUp) {
-                                        editorViewModel.onWireDragEnd()
-                                    }
+                            IconButton(onClick = { editorViewModel.cycleArrangement() }) {
+                                when (arrangement) {
+                                    Arrangement.SHUFFLE -> Icon(Icons.Default.Shuffle, contentDescription = "Shuffle")
+                                    Arrangement.UP -> Icon(Icons.Default.ArrowUpward, contentDescription = "Up")
+                                    Arrangement.DOWN -> Icon(Icons.Default.ArrowDownward, contentDescription = "Down")
+                                }
+                            }
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(text = Strings.getString(Strings.Keys.HIGHLIGHT_ON))
+                                Switch(
+                                    checked = highlightMode,
+                                    onCheckedChange = { editorViewModel.toggleHighlightMode() },
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+                            IconButton(onClick = { editorViewModel.toggleSimulation() }) {
+                                if (isSimulating) {
+                                    Icon(Icons.Default.Stop, contentDescription = "Stop Simulation")
+                                } else {
+                                    Icon(Icons.Default.PlayArrow, contentDescription = "Start Simulation")
                                 }
                             }
                         }
-                        .horizontalScroll(horizontalScrollState)
-                        .verticalScroll(verticalScrollState)
-                ) {
-                    Box(Modifier.size(canvasSize)) {
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            // Draw Grid
-                            for (x in 0..size.width.toInt() step gridSize.toInt()) {
-                                drawLine(
-                                    color = Color.DarkGray,
-                                    start = Offset(x.toFloat(), 0f),
-                                    end = Offset(x.toFloat(), size.height),
-                                    strokeWidth = 1f
-                                )
-                            }
-                            for (y in 0..size.height.toInt() step gridSize.toInt()) {
-                                drawLine(
-                                    color = Color.DarkGray,
-                                    start = Offset(0f, y.toFloat()),
-                                    end = Offset(size.width, y.toFloat()),
-                                    strokeWidth = 1f
-                                )
-                            }
+                    )
+                }
+            ) { innerPadding ->
+                Row(
+                    Modifier.fillMaxSize().padding(innerPadding)
+                        .focusRequester(focusRequester).focusable()
+                        .onKeyEvent { keyEvent ->
+                            editorViewModel.onKeyEvent(keyEvent)
+                            true
                         }
-                        NodeCanvas(
-                            mainViewModel = mainViewModel,
-                            editorViewModel = editorViewModel,
-                            highlightMode = highlightMode,
-                            isSimulating = isSimulating
-                        )
+                ) {
+                    NodePalette(
+                        modifier = Modifier.width(250.dp).fillMaxHeight(),
+                        editorViewModel = editorViewModel
+                    )
+
+                    var pointerPosition by remember { mutableStateOf(Offset.Zero) }
+                    var boxCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+                    val gridSize = 40f
+                    val canvasSize = 30000.dp
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .onGloballyPositioned { boxCoordinates = it }
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.first()
+                                        pointerPosition = change.position + Offset(
+                                            horizontalScrollState.value.toFloat(),
+                                            verticalScrollState.value.toFloat()
+                                        )
+
+                                        val wasDraggingWire = wireDragInfo != null
+                                        val isPointerUp = event.changes.any { !it.pressed }
+
+                                        if (wasDraggingWire && isPointerUp) {
+                                            editorViewModel.onWireDragEnd()
+                                        }
+
+                                        //TODO close context menu if we tap outside it
+                                    }
+                                }
+                            }
+                            .horizontalScroll(horizontalScrollState)
+                            .verticalScroll(verticalScrollState)
+                    ) {
+                        Box(Modifier.size(canvasSize)) {
+                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                // Draw Grid
+                                for (x in 0..size.width.toInt() step gridSize.toInt()) {
+                                    drawLine(
+                                        color = Color.DarkGray,
+                                        start = Offset(x.toFloat(), 0f),
+                                        end = Offset(x.toFloat(), size.height),
+                                        strokeWidth = 1f
+                                    )
+                                }
+                                for (y in 0..size.height.toInt() step gridSize.toInt()) {
+                                    drawLine(
+                                        color = Color.DarkGray,
+                                        start = Offset(0f, y.toFloat()),
+                                        end = Offset(size.width, y.toFloat()),
+                                        strokeWidth = 1f
+                                    )
+                                }
+                            }
+                            NodeCanvas(
+                                mainViewModel = mainViewModel,
+                                editorViewModel = editorViewModel,
+                                highlightMode = highlightMode,
+                                isSimulating = isSimulating
+                            )
+                        }
                     }
                 }
             }

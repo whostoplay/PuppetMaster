@@ -1,6 +1,5 @@
 package org.menagerie.puppet_master.state_machine.editor
 
-import androidx.compose.animation.core.copy
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.key.KeyEvent
@@ -23,7 +22,6 @@ import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.MainViewModel
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.state_machine.GoThroughStateNode
-import org.menagerie.puppet_master.state_machine.GraphAction
 import org.menagerie.puppet_master.state_machine.GraphExecutionContext
 import org.menagerie.puppet_master.state_machine.GraphExecutor
 import org.menagerie.puppet_master.state_machine.Handle
@@ -73,6 +71,11 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
     // Arrangement
     private val _arrangement = MutableStateFlow(Arrangement.SHUFFLE)
     val arrangement: StateFlow<Arrangement> = _arrangement.asStateFlow()
+
+    // Menus
+    private val _contextMenuPosition = MutableStateFlow<Offset?>(null)
+    val contextMenuPosition: StateFlow<Offset?> = _contextMenuPosition.asStateFlow()
+    private var wireDragInfoForMenu: WireDragInfo? = null
 
     fun cycleArrangement() {
         val nextArrangement = when (arrangement.value) {
@@ -342,6 +345,9 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             if (targetNode.id != currentDragInfo.fromNodeId) {
                 addWire(currentDragInfo.fromNodeId, currentDragInfo.fromHandleId, targetNode.id, handle.id)
             }
+        } else {
+            wireDragInfoForMenu = currentDragInfo
+            _contextMenuPosition.value = endPosition
         }
     }
 
@@ -394,39 +400,69 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
             return
         }
 
-        val spawnOffset = templateNode.size.toSize().width + 50f
-        val basePosition = _nodeGraph.value.nodes[lastInteractedNodeId ?: _nodeGraph.value.startNodeId]?.position?.toOffset()
-            ?: Offset(50f, 15000f) // Fallback to middle-left
-        var targetPosition = basePosition.copy(x = basePosition.x + spawnOffset)
-        var verticalOffset = 0f
-        var offsetMultiplier = 1
+        val contextMenuPos = _contextMenuPosition.value
+        val wasWireDragged = wireDragInfoForMenu != null
+        val finalPosition: Offset
 
-        while (isOccupied(Rect(targetPosition, templateNode.size.toSize()))) {
-            verticalOffset = (templateNode.size.toSize().height + 20f) * offsetMultiplier
-            targetPosition = targetPosition.copy(y = basePosition.y + verticalOffset)
-            if (isOccupied(Rect(targetPosition, templateNode.size.toSize()))) {
-                targetPosition = targetPosition.copy(y = basePosition.y - verticalOffset)
+        if (contextMenuPos != null) {
+            finalPosition = contextMenuPos
+            closeContextMenu()
+        } else {
+            val spawnOffset = templateNode.size.toSize().width + 50f
+            val basePosition = _nodeGraph.value.nodes[lastInteractedNodeId.value ?: _nodeGraph.value.startNodeId]?.position?.toOffset()
+                ?: Offset(50f, 15000f) // Fallback to middle-left
+            var targetPosition = basePosition.copy(x = basePosition.x + spawnOffset)
+            var verticalOffset = 0f
+            var offsetMultiplier = 1
+
+            while (isOccupied(Rect(targetPosition, templateNode.size.toSize()))) {
+                verticalOffset = (templateNode.size.toSize().height + 20f) * offsetMultiplier
+                targetPosition = targetPosition.copy(y = basePosition.y + verticalOffset)
+                if (isOccupied(Rect(targetPosition, templateNode.size.toSize()))) {
+                    targetPosition = targetPosition.copy(y = basePosition.y - verticalOffset)
+                }
+                offsetMultiplier++
             }
-            offsetMultiplier++
+
+            val canvasWidth = _canvasSize.value.width
+            val nodeWidth = templateNode.size.toSize().width
+            if (canvasWidth > 0 && targetPosition.x + nodeWidth > canvasWidth) {
+                targetPosition = targetPosition.copy(x = canvasWidth - nodeWidth - 20f)
+            }
+            finalPosition = targetPosition
         }
 
-        val canvasWidth = _canvasSize.value.width
-        val nodeWidth = templateNode.size.toSize().width
-        if (canvasWidth > 0 && targetPosition.x + nodeWidth > canvasWidth) {
-            targetPosition = targetPosition.copy(x = canvasWidth - nodeWidth - 20f)
-        }
 
         val newNode = templateNode.copyNode(
             id = UUID.randomUUID().toString(),
-            position = targetPosition.toSerializableOffset()
+            position = finalPosition.toSerializableOffset()
         )
 
         val newNodes = _nodeGraph.value.nodes.toMutableMap()
         newNodes[newNode.id] = newNode
-        val newGraph = if (newNode is StartNode) {
+        var newGraph = if (newNode is StartNode) {
             _nodeGraph.value.copy(nodes = newNodes, startNodeId = newNode.id)
         } else {
             _nodeGraph.value.copy(nodes = newNodes)
+        }
+
+        if (wasWireDragged) {
+            wireDragInfoForMenu?.let { dragInfo ->
+                val fromNode = newGraph.nodes[dragInfo.fromNodeId]
+                val toNode = newNode
+
+                if (fromNode != null) {
+                    val fromHandle = fromNode.outputs.find { it.id == dragInfo.fromHandleId }
+                    val toHandle = toNode.inputs.firstOrNull()
+
+                    if (fromHandle != null && toHandle != null) {
+                        val newWire = Wire(dragInfo.fromNodeId, fromHandle.id, toNode.id, toHandle.id)
+                        val newWires = newGraph.wires + newWire
+                        newGraph = newGraph.copy(wires = newWires)
+                    }
+                }
+                wireDragInfoForMenu = null
+            }
         }
 
         _lastInteractedNodeId.value = newNode.id
@@ -649,4 +685,9 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         newPositions[key] = position
         _handlePositions.value = newPositions
     }
+
+    fun closeContextMenu() {
+        _contextMenuPosition.value = null
+    }
+
 }
