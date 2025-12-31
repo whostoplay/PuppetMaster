@@ -37,9 +37,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.ActiveSpecialEffect
-import org.menagerie.puppet_master.AnimationState
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.controls.ColorGrid
@@ -110,7 +108,7 @@ fun GoThroughStateNodeView(
                         uploadsDir = uploadsDir,
                         backgroundColor = Color.Transparent,
                         serverIp = "",
-                        animationState = AnimationState(),
+                        activeSpecialEffect = null,
                         isAudienceCheckForced = false,
                         window = null,
                         displayedImageName = puppetState?.imageName,
@@ -143,7 +141,6 @@ fun WithEffectNodeView(
     uploadsDir: String
 ) {
     var expanded by remember { mutableStateOf(false) }
-    var animationState by remember { mutableStateOf(AnimationState()) }
     var activePreviewEffect by remember { mutableStateOf<ActiveSpecialEffect?>(null) }
     var showGlowColorPicker by remember { mutableStateOf(false) }
 
@@ -163,28 +160,6 @@ fun WithEffectNodeView(
         activePreviewEffect = activePreviewEffect?.copyWithPreservedStartTime(node.effect)
             ?: ActiveSpecialEffect(node.effect)
     }
-
-    LaunchedEffect(activePreviewEffect) {
-        if (activePreviewEffect != null) {
-            while (true) {
-                val effect = activePreviewEffect ?: break
-                val offset = effect.getVibrationOffset(1920f / 20f)
-                animationState = AnimationState(
-                    rotation = effect.getRotation(),
-                    scaleX = effect.getScaleX(),
-                    scaleY = effect.getScaleY(),
-                    translationX = offset.x,
-                    translationY = offset.y,
-                    glowColor = effect.getGlowColor(),
-                    glowIntensity = effect.getGlow()
-                )
-                delay(16) // roughly 60 fps
-            }
-        } else {
-            animationState = AnimationState()
-        }
-    }
-
 
     NodeView(
         node = node,
@@ -266,7 +241,7 @@ fun WithEffectNodeView(
                             uploadsDir = uploadsDir,
                             backgroundColor = Color.Transparent,
                             serverIp = "",
-                            animationState = animationState,
+                            activeSpecialEffect = activePreviewEffect,
                             isAudienceCheckForced = false,
                             window = null,
                             displayedImageName = puppetState.imageName,

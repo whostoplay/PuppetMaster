@@ -2,6 +2,7 @@ package org.menagerie.puppet_master
 
 import kotlinx.serialization.Serializable
 import kotlin.math.PI
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
@@ -113,6 +114,52 @@ class ActiveSpecialEffect(
 
         return SerializableOffset(normalizedX * offset, normalizedY * offset)
     }
+
+    /**
+     * Calculates the current offset based on the follow path effect.
+     * @return A [SerializableOffset] representing the calculated X and Y offsets.
+     */
+    fun getPathOffset(): SerializableOffset {
+        val followPath = effect.followPath ?: return SerializableOffset(0f, 0f)
+        if (followPath.points.isEmpty()) {
+            return SerializableOffset(0f, 0f)
+        }
+
+        val elapsedTime = (System.currentTimeMillis() - startTime) % followPath.duration
+        val progress = elapsedTime.toFloat() / followPath.duration
+
+        val totalPathLength = (0 until followPath.points.size - 1)
+            .map { i ->
+                val p1 = followPath.points[i]
+                val p2 = followPath.points[i + 1]
+                val dx = p1.x - p2.x
+                val dy = p1.y - p2.y
+                // sqrt now takes a Float and returns a Float, keeping types simple.
+                sqrt(dx * dx + dy * dy)
+            }
+            .sum()
+
+        var distanceCovered = totalPathLength * progress
+        var currentSegment = 0
+        while (currentSegment < followPath.points.size - 1) {
+            val p1 = followPath.points[currentSegment]
+            val p2 = followPath.points[currentSegment + 1]
+            val segmentLength = sqrt((p2.x - p1.x).pow(2) + (p2.y - p1.y).pow(2)).toFloat()
+            if (distanceCovered <= segmentLength) {
+                val segmentProgress = distanceCovered / segmentLength
+                val x = p1.x + (p2.x - p1.x) * segmentProgress
+                val y = p1.y + (p2.y - p1.y) * segmentProgress
+                return SerializableOffset(x, y)
+            }
+            distanceCovered -= segmentLength
+            currentSegment++
+        }
+
+        // Default to the last point if progress is 1.0
+        val lastPoint = followPath.points.last()
+        return SerializableOffset(lastPoint.x, lastPoint.y)
+    }
+
 
     /**
      * Creates a new [ActiveSpecialEffect] with the same start time as the current one.

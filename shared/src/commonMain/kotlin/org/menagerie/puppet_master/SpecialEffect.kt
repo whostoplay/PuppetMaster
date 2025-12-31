@@ -15,6 +15,7 @@ import kotlinx.serialization.Serializable
  * @property scaleSpeed The speed at which the puppet scales.
  * @property spinSpeed The speed at which the puppet spins.
  * @property spinDirection The direction of the spin (1 for clockwise, -1 for counter-clockwise).
+ * @property followPath An optional path for the puppet to follow.
  */
 @Serializable
 data class SpecialEffect(
@@ -27,5 +28,6 @@ data class SpecialEffect(
     val scaleY: Float = 1f,
     val scaleSpeed: Float = 0f,
     val spinSpeed: Float = 0f,
-    val spinDirection: Int = 1
+    val spinDirection: Int = 1,
+    val followPath: FollowPath? = null
 )

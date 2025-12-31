@@ -169,17 +169,13 @@ class MainViewModel(context: Any) : ScreenModel {
     private var serverStateJob: Job? = null
     private var clientControlSocketJob: Job? = null
 
-    val animationState: StateFlow<AnimationState>
-        get() = _animationState
-    private val _animationState = MutableStateFlow(AnimationState())
-    private var animationJob: Job? = null
     private var effectStartTime = 0L
 
     private val _normalizedMousePosition = MutableStateFlow<SerializableOffset?>(null)
     val normalizedMousePosition: StateFlow<SerializableOffset?> = _normalizedMousePosition.asStateFlow()
 
     val activeState: StateFlow<PuppetStateInfo?>
-    private var activeSpecialEffect: ActiveSpecialEffect? = null
+    val activeSpecialEffect: StateFlow<ActiveSpecialEffect?>
     val displayedImageName: StateFlow<String?>
     private var graphExecutor: GraphExecutor? = null
     private val _lastPressedKey = MutableStateFlow<Hotkey?>(null)
@@ -280,50 +276,16 @@ class MainViewModel(context: Any) : ScreenModel {
             }
         }.stateIn(screenModelScope, SharingStarted.Lazily, localDisplayedImageName.value)
 
-        screenModelScope.launch {
-            activeState.collect { state ->
-                val newEffect = state?.appliedEffect
-                if (newEffect != activeSpecialEffect?.effect) {
-                    val startTime = if (operatingMode.value == OperatingMode.ONLINE && !isPublishing.value) {
-                        serverState.value?.effectStartTime
-                    } else {
-                        System.currentTimeMillis()
-                    }
-                    updateSpecialEffect(state, startTime)
-                }
+        activeSpecialEffect = activeState.map { state ->
+            val newEffect = state?.appliedEffect
+            val startTime = if (operatingMode.value == OperatingMode.ONLINE && !isPublishing.value) {
+                serverState.value?.effectStartTime
+            } else {
+                System.currentTimeMillis()
             }
-        }
-    }
+            newEffect?.let { ActiveSpecialEffect(it, startTime ?: System.currentTimeMillis()) }
+        }.stateIn(screenModelScope, SharingStarted.Lazily, null)
 
-    private fun updateSpecialEffect(state: PuppetStateInfo?, startTime: Long? = null) {
-        animationJob?.cancel()
-        activeSpecialEffect = state?.appliedEffect?.let { ActiveSpecialEffect(it, startTime ?: System.currentTimeMillis()) }
-
-        if (activeSpecialEffect != null) {
-            effectStartTime = startTime ?: System.currentTimeMillis()
-            animationJob = screenModelScope.launch {
-                while (true) {
-                    _animationState.value = calculateAnimationState()
-                    kotlinx.coroutines.delay(16) // roughly 60 fps
-                }
-            }
-        } else {
-            _animationState.value = AnimationState()
-        }
-    }
-
-    private fun calculateAnimationState(): AnimationState {
-        val effect = activeSpecialEffect ?: return AnimationState()
-        val offset = effect.getVibrationOffset(1920f / 20f)
-        return AnimationState(
-            rotation = effect.getRotation(),
-            scaleX = effect.getScaleX(),
-            scaleY = effect.getScaleY(),
-            translationX = offset.x,
-            translationY = offset.y,
-            glowColor = effect.getGlowColor(),
-            glowIntensity = effect.getGlow()
-        )
     }
 
     fun onKeyEvent(keyEvent: KeyEvent) {
@@ -416,7 +378,6 @@ class MainViewModel(context: Any) : ScreenModel {
             serverStateJob?.cancel()
             clientControlSocketJob?.cancel()
             stateController.onOffline()
-            updateSpecialEffect(null)
         } else { // ONLINE
             if (_isPublishing.value) {
                 setPublishing(false)

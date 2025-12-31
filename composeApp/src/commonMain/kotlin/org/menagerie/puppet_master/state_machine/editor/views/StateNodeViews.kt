@@ -25,9 +25,12 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.AnimationState
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
+import org.menagerie.puppet_master.SpecialEffect
+import org.menagerie.puppet_master.controls.SpecialEffectsUI
 import org.menagerie.puppet_master.previews.LivePreview
 import org.menagerie.puppet_master.state_machine.SetStateNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
@@ -90,12 +93,12 @@ fun SetStateNodeView(
                         uploadsDir = uploadsDir,
                         backgroundColor = Color.Transparent,
                         serverIp = "",
-                        animationState = AnimationState(),
                         isAudienceCheckForced = false,
                         window = null,
                         displayedImageName = puppetState?.imageName,
                         idleImage = idleImage,
-                        onFocusPointUpdate = {}
+                        onFocusPointUpdate = {},
+                        activeSpecialEffect = ActiveSpecialEffect(SpecialEffect())
                     )
                 }
             }

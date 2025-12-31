@@ -237,8 +237,8 @@
             const scaleX = currentAnimationState.scaleX;
             const scaleY = currentAnimationState.scaleY;
             rotation = currentAnimationState.rotation;
-            const translationX = currentAnimationState.translationX;
-            const translationY = currentAnimationState.translationY;
+            const translationX = currentAnimationState.translationX + currentAnimationState.pathTranslationX;
+            const translationY = currentAnimationState.translationY + currentAnimationState.pathTranslationY;
 
             puppetElement.style.transform = 'scale(' + scaleX + ', ' + scaleY + ') rotate(' + rotation + 'deg) translate(' + translationX + 'px, ' + translationY + 'px)';
 

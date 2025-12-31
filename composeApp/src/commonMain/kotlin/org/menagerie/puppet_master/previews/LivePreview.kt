@@ -30,6 +30,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.delay
+import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.AnimationState
 import org.menagerie.puppet_master.Constants
 import org.menagerie.puppet_master.Eye
@@ -55,7 +57,7 @@ import kotlin.random.Random
  * @param uploadsDir The directory where uploaded images are stored.
  * @param backgroundColor The background color of the preview.
  * @param serverIp The IP address of the server (if in online mode).
- * @param animationState The current animation state for special effects.
+ * @param activeSpecialEffect The current animation state for special effects.
  * @param isAudienceCheckForced Whether to force an audience check.
  * @param window The window object, used for tracking the global pointer position.
  * @param displayedImageName The name of the image to be displayed.
@@ -70,7 +72,7 @@ fun LivePreview(
     uploadsDir: String,
     backgroundColor: Color,
     serverIp: String,
-    animationState: AnimationState,
+    activeSpecialEffect: ActiveSpecialEffect?,
     isAudienceCheckForced: Boolean,
     window: Any?,
     displayedImageName: String?,
@@ -84,6 +86,31 @@ fun LivePreview(
     val mousePosition = rememberGlobalPointerPosition(window)
 
     val eyeState = puppetState?.eyeState
+
+    var animationState by remember { mutableStateOf(AnimationState()) }
+
+    LaunchedEffect(activeSpecialEffect) {
+        if (activeSpecialEffect != null) {
+            while (true) {
+                val vibrationOffset = activeSpecialEffect.getVibrationOffset(1920f / 20f)
+                val pathOffset = activeSpecialEffect.getPathOffset()
+                animationState = AnimationState(
+                    rotation = activeSpecialEffect.getRotation(),
+                    scaleX = activeSpecialEffect.getScaleX(),
+                    scaleY = activeSpecialEffect.getScaleY(),
+                    translationX = vibrationOffset.x,
+                    translationY = vibrationOffset.y,
+                    pathTranslationX = pathOffset.x,
+                    pathTranslationY = pathOffset.y,
+                    glowColor = activeSpecialEffect.getGlowColor(),
+                    glowIntensity = activeSpecialEffect.getGlow()
+                )
+                delay(16) // roughly 60 fps
+            }
+        } else {
+            animationState = AnimationState()
+        }
+    }
 
     fun getImageUrl(imageName: String?): String? {
         return when {
@@ -203,8 +230,8 @@ fun LivePreview(
             scaleX = animationState.scaleX,
             scaleY = animationState.scaleY,
             rotationZ = animationState.rotation,
-            translationX = animationState.translationX,
-            translationY = animationState.translationY,
+            translationX = animationState.translationX + animationState.pathTranslationX,
+            translationY = animationState.translationY + animationState.pathTranslationY,
             shadowElevation = glowIntensity * 30f,
             ambientShadowColor = glowColor,
             spotShadowColor = glowColor

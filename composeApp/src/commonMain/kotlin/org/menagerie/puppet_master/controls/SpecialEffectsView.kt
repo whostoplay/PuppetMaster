@@ -202,7 +202,7 @@ fun SpecialEffectsUI(
                         uploadsDir = uploadsDir,
                         backgroundColor = backgroundColor,
                         serverIp = "",
-                        animationState = animationState,
+                        activeSpecialEffect = ActiveSpecialEffect(activeEffect?: SpecialEffect())  ,
                         window = window,
                         isAudienceCheckForced = false,
                         displayedImageName = idleState.imageName,

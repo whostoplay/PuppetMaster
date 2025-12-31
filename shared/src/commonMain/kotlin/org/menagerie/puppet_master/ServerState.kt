@@ -30,6 +30,8 @@ data class CalibrationData(val topLeft: SerializableOffset, val bottomRight: Ser
  * @property scaleY The vertical scaling factor.
  * @property translationX The horizontal translation offset.
  * @property translationY The vertical translation offset.
+ * @property pathTranslationX The horizontal translation offset from the follow path effect.
+ * @property pathTranslationY The vertical translation offset from the follow path effect.
  * @property glowColor The ARGB color of the glow effect as an Int.
  * @property glowIntensity The intensity of the glow effect, where < 1.0 results in darkening.
  */
@@ -40,6 +42,8 @@ data class AnimationState(
     val scaleY: Float = 1f,
     val translationX: Float = 0f,
     val translationY: Float = 0f,
+    val pathTranslationX: Float = 0f,
+    val pathTranslationY: Float = 0f,
     val glowColor: Int = 0xFFFFFFFF.toInt(),
     val glowIntensity: Float = 1f
 )

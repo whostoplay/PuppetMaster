@@ -66,7 +66,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val displayedImageName by viewModel.displayedImageName.collectAsState()
     val activeState by viewModel.activeState.collectAsState()
     val isBlinking by viewModel.isBlinking.collectAsState()
-    val animationState by viewModel.animationState.collectAsState()
+    val activeSpecialEffect by viewModel.activeSpecialEffect.collectAsState()
     val idleImage by viewModel.idleImage.collectAsState()
     val focusRequester = remember { FocusRequester() }
 
@@ -174,7 +174,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
                     uploadsDir = viewModel.uploadsDir,
                     backgroundColor = uiState.backgroundColor,
                     serverIp = settings.serverIpAddress,
-                    animationState = animationState,
+                    activeSpecialEffect = activeSpecialEffect,
                     window = window,
                     isAudienceCheckForced = viewModel.isAudienceCheckForced.collectAsState().value,
                     displayedImageName = displayedImageName,
