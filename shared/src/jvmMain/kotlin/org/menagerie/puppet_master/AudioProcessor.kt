@@ -7,6 +7,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.apache.commons.math3.transform.DftNormalization
+import org.apache.commons.math3.transform.FastFourierTransformer
+import org.apache.commons.math3.transform.TransformType
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.DataLine
@@ -30,8 +33,9 @@ actual class AudioProcessor actual constructor(context: Any) {
      * The audio processing is done in a background coroutine.
      *
      * @param onLevelChange A callback that receives the audio level as a Float between 0.0 and 1.0.
+     * @param onFrequencyData An optional callback that receives the frequency spectrum as a FloatArray.
      */
-    actual fun start(onLevelChange: (Float) -> Unit) {
+    actual fun start(onLevelChange: (Float) -> Unit, onFrequencyData: ((FloatArray) -> Unit)?) {
         audioJob?.cancel()
         audioJob = audioScope.launch {
             var dataLine: TargetDataLine? = null
@@ -43,12 +47,18 @@ actual class AudioProcessor actual constructor(context: Any) {
                 dataLine.start()
 
                 val buffer = ByteArray(BUFFER_SIZE)
+                val fft = if (onFrequencyData != null) FastFourierTransformer(DftNormalization.STANDARD) else null
 
                 while (isActive) {
                     val bytesRead = dataLine.read(buffer, 0, buffer.size)
                     if (bytesRead > 0) {
                         val level = calculateAudioLevel(buffer, bytesRead)
                         onLevelChange(level)
+
+                        if (onFrequencyData != null && fft != null) {
+                            val frequencyData = performFFT(buffer, bytesRead, fft)
+                            onFrequencyData(frequencyData)
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -67,6 +77,28 @@ actual class AudioProcessor actual constructor(context: Any) {
     actual fun stop() {
         audioJob?.cancel()
         // The coroutine's finally block will handle resource cleanup.
+    }
+
+    private fun performFFT(audioData: ByteArray, bytesRead: Int, fft: FastFourierTransformer): FloatArray {
+        val numSamples = bytesRead / 2
+        val fftBuffer = DoubleArray(numSamples)
+
+        for (i in 0 until numSamples) {
+            val byteIndex = i * 2
+            // Little-endian conversion from 2 bytes to a short
+            val sample = ((audioData[byteIndex + 1].toInt() shl 8) or (audioData[byteIndex].toInt() and 0xFF)).toShort()
+            fftBuffer[i] = sample.toDouble()
+        }
+
+        // Perform FFT
+        val result = fft.transform(fftBuffer, TransformType.FORWARD)
+
+        // Calculate magnitudes
+        val magnitudes = FloatArray(numSamples / 2)
+        for (i in 0 until numSamples / 2) {
+            magnitudes[i] = result[i].abs().toFloat()
+        }
+        return magnitudes
     }
 
     /**

@@ -60,6 +60,7 @@ fun NodeCanvas(
     val wireDragInfo by editorViewModel.wireDragInfo.collectAsState()
     val draggedWireEndPosition by editorViewModel.draggedWireEndPosition.collectAsState()
     var canvasCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var expandedNodes by remember { mutableStateOf(setOf<NodeId>()) }
 
     val activeNodes by editorViewModel.activeNodes.collectAsState()
     val activeWires by editorViewModel.activeWires.collectAsState()
@@ -216,9 +217,19 @@ fun NodeCanvas(
                                 )
 
                                 is ConditionalNode -> RenderConditionalNode(
-                                    node,
-                                    editorViewModel,
-                                    it
+                                    node = node,
+                                    mainViewModel = mainViewModel,
+                                    editorViewModel = editorViewModel,
+                                    canvasCoordinates = it,
+                                    expanded = node.id in expandedNodes,
+                                    onExpandedChange = {
+                                        expandedNodes = if (it) {
+                                            expandedNodes + node.id
+                                        } else {
+                                            expandedNodes - node.id
+                                        }
+                                    },
+                                    onPeaksDetected = { peaks -> mainViewModel.onPeaksDetected(peaks) }
                                 )
 
                                 is BehaviouralNode -> RenderBehaviouralNode(
@@ -459,7 +470,15 @@ private fun RenderBehaviouralNode(
 }
 
 @Composable
-private fun RenderConditionalNode(node: ConditionalNode, editorViewModel: NodeEditorViewModel, canvasCoordinates: LayoutCoordinates) {
+private fun RenderConditionalNode(
+    node: ConditionalNode,
+    mainViewModel: MainViewModel,
+    editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    onPeaksDetected: (List<Pair<Float, Float>>) -> Unit
+) {
     when (node) {
         is VolumeThresholdNode -> {
             VolumeThresholdNodeView(
@@ -480,6 +499,17 @@ private fun RenderConditionalNode(node: ConditionalNode, editorViewModel: NodeEd
                 },
                 editorViewModel = editorViewModel,
                 canvasCoordinates = canvasCoordinates
+            )
+        }
+
+        is PhonemeMatchNode -> {
+            PhonemeMatchNodeView(
+                node = node,
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates,
+                expanded = expanded,
+                onExpandedChange = onExpandedChange,
+                onPeaksDetected = onPeaksDetected
             )
         }
     }

@@ -12,7 +12,8 @@ data class GraphExecutionContext(
     val hotKeyPressed: Hotkey? = null,
     val toggledOnNodes: Set<NodeId> = emptySet(),
     val puppetId: String? = null,
-    val lastProcessedHotkey: Hotkey? = null // We need to know if a key press has already been handled
+    val lastProcessedHotkey: Hotkey? = null, // We need to know if a key press has already been handled
+    val frequencyPeaks: List<Pair<Float, Float>> = emptyList()
 )
 
 /**
@@ -54,26 +55,35 @@ class GraphExecutor(private val graph: NodeGraph) {
         var currentNode: Node? = startNode
         var executionContext = context
         var branchEffect: SpecialEffect? = null
+        println("--- Executing new branch from ${startNode.id} ---")
 
         while (currentNode != null) {
+            println("Executing node: ${currentNode.id} of type ${currentNode::class.simpleName}")
+
             val resumeTime = delayedNodes[currentNode.id]
             if (resumeTime != null) { // Node is in delayedNodes
+                println("Node ${currentNode.id} is in delayedNodes. Resume time: $resumeTime")
                 if (System.currentTimeMillis() < resumeTime) {
+                    println("Still waiting for node ${currentNode.id}. Returning null.")
                     // Still waiting, for any kind of delayed node.
                     return null
                 }
 
+                println("Delay over for node ${currentNode.id}.")
                 // Time is up.
                 if (currentNode is GoThroughStateNode) {
+                    println("Node ${currentNode.id} is a GoThroughStateNode.")
                     // For GoThroughStateNode, we don't remove it from delayedNodes. We just try to move to the next node.
                     val nextNodeId = currentNode.findNextNodeId(graph, "out")
                     if (nextNodeId != null) {
+                        println("Found next node for GoThroughStateNode: $nextNodeId")
                         val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
                         wire?.let { activeWires.add(it) }
                         activeNodes.add(nextNodeId)
                         currentNode = graph.nodes[nextNodeId]
                         continue // loop to process next node
                     } else {
+                        println("GoThroughStateNode ${currentNode.id} is terminal. Returning null.")
                         // It's a terminal GoThroughStateNode, delay is over.
                         // We do nothing and just stop this branch.
                         // Because it's still in delayedNodes, next tick will also pass through here and stop.
@@ -81,88 +91,110 @@ class GraphExecutor(private val graph: NodeGraph) {
                     }
                 }
 
+                println("Removing node ${currentNode.id} from delayedNodes.")
                 // For other types of delayed nodes (e.g. from RequestDelay), we remove them so they can be re-triggered.
                 delayedNodes.remove(currentNode.id)
             }
 
             if (currentNode is WithEffectNode) {
+                println("Node ${currentNode.id} is a WithEffectNode.")
                 branchEffect = currentNode.effect
                 val nextNodeId = currentNode.findNextNodeId(graph, "out")
                 if (nextNodeId != null) {
+                    println("Found next node for WithEffectNode: $nextNodeId")
                     val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
                     wire?.let { activeWires.add(it) }
                     activeNodes.add(nextNodeId)
                     currentNode = graph.nodes[nextNodeId]
                     continue
                 } else {
+                    println("WithEffectNode ${currentNode.id} is terminal. Breaking loop.")
                     break
                 }
             }
             
             // This part is for nodes NOT in delayedNodes, or for nodes whose delay just finished and were removed.
             if (currentNode is GoThroughStateNode) {
+                println("Node ${currentNode.id} is a GoThroughStateNode (and not in delayedNodes).")
                 // This will only be reached if the node was not in delayedNodes.
                 delayedNodes[currentNode.id] = System.currentTimeMillis() + currentNode.delay
                 val finalPuppetId = currentNode.puppetId ?: executionContext.puppetId
+                println("Returning SetState action for GoThroughStateNode ${currentNode.id}.")
                 return GraphAction.SetState(currentNode.stateName, finalPuppetId, branchEffect)
             }
 
             if (currentNode is DelayTimerNode) {
+                println("Node ${currentNode.id} is a DelayTimerNode.")
                 val now = System.currentTimeMillis()
                 val triggerTime = delayTimerNodeTimers.getOrPut(currentNode.id) { now + currentNode.delay }
 
                 if (now >= triggerTime) {
+                    println("DelayTimerNode ${currentNode.id} finished. Continuing to next node.")
                     // Timer is done, continue to the next node.
                     val nextNodeId = currentNode.findNextNodeId(graph, "out")
                     if (nextNodeId != null) {
+                        println("Found next node for DelayTimerNode: $nextNodeId")
                         val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
                         wire?.let { activeWires.add(it) }
                         activeNodes.add(nextNodeId)
                         currentNode = graph.nodes[nextNodeId]
                         continue
                     } else {
+                        println("DelayTimerNode ${currentNode.id} is terminal. Breaking loop.")
                         // No next node, branch ends.
                         break
                     }
                 } else {
+                    println("DelayTimerNode ${currentNode.id} is still waiting. Returning null.")
                     // Still waiting for the timer to finish. Stop this branch.
                     return null
                 }
             }
 
             if (currentNode is SetPuppetNode) {
+                println("Node ${currentNode.id} is a SetPuppetNode. Updating context.")
                 executionContext = executionContext.copy(puppetId = currentNode.puppetId)
             }
 
             if (currentNode is SetStateNode && currentNode.puppetId == null) {
+                println("Node ${currentNode.id} is a SetStateNode with null puppetId. Updating puppetId from context.")
                 currentNode = currentNode.copy(puppetId = executionContext.puppetId)
             }
 
             if (currentNode is TriggerOnWaitNode) {
+                println("Node ${currentNode.id} is a TriggerOnWaitNode.")
                 val now = System.currentTimeMillis()
                 val triggerTime = waitNodeTimers.getOrPut(currentNode.id) { now + currentNode.waitMillis }
 
+                println("Executing TriggerOnWaitNode ${currentNode.id} to get result.")
                 val result = currentNode.execute(context, graph)
                 val nextNodeId = if (now >= triggerTime) {
+                    println("Wait time is over. Using nextNodeId: ${result.nextNodeId}")
                     result.nextNodeId
                 } else {
+                    println("Still waiting. Using alternativeNextNodeId: ${result.alternativeNextNodeId}")
                     result.alternativeNextNodeId
                 }
 
                 if (nextNodeId != null) {
+                    println("Found next node for TriggerOnWaitNode: $nextNodeId")
                     val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
                     wire?.let { activeWires.add(it) }
                     activeNodes.add(nextNodeId)
                     currentNode = graph.nodes[nextNodeId]
                     continue
                 } else {
+                    println("TriggerOnWaitNode ${currentNode.id} is terminal. Breaking loop.")
                     break
                 }
             }
 
+            println(">>> Calling execute() on node ${currentNode.id} of type ${currentNode::class.simpleName} <<<")
             val result = currentNode.execute(executionContext, graph)
+            println("<<< execute() returned for node ${currentNode.id}. Result has action: ${result.action != null}, nextNodeId: ${result.nextNodeId}")
 
             if (result.action != null) {
+                println("Node ${currentNode.id} returned an action: ${result.action::class.simpleName}")
                 when (val action = result.action) {
                     is GraphAction.SetState -> return action.copy(effect = branchEffect)
                     is GraphAction.SetGraphStart -> {
@@ -192,14 +224,17 @@ class GraphExecutor(private val graph: NodeGraph) {
             }
 
             if (result.nextNodeId != null) {
+                println("Node ${currentNode.id} has nextNodeId: ${result.nextNodeId}. Continuing loop.")
                 val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == result.nextNodeId }
                 wire?.let { activeWires.add(it) }
                 activeNodes.add(result.nextNodeId)
                 currentNode = graph.nodes[result.nextNodeId]
             } else {
+                println("Node ${currentNode.id} has no nextNodeId. Breaking loop.")
                 break
             }
         }
+        println("--- Branch execution finished. ---")
         return null
     }
 

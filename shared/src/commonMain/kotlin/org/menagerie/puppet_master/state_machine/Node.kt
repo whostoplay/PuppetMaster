@@ -2,6 +2,7 @@ package org.menagerie.puppet_master.state_machine
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.modules.SerializersModule
+import kotlinx.serialization.modules.contextual
 import kotlinx.serialization.modules.polymorphic
 import kotlinx.serialization.modules.subclass
 import org.menagerie.puppet_master.SerializableOffset
@@ -22,7 +23,9 @@ val nodeSerializersModule = SerializersModule {
         subclass(DelayTimerNode::class)
         subclass(TriggerOnWaitNode::class)
         subclass(WithEffectNode::class)
+        subclass(PhonemeMatchNode::class)
     }
+    contextual(ClosedFloatRangeSerializer)
 }
 
 @Serializable
@@ -73,6 +76,7 @@ sealed interface Node {
      * This is essential for reordering branches in the UI.
      */
     fun copyNodeWithNewPriority(priority: Int): Node
+
 
     /**
      * Executes the node's specific logic.

@@ -39,6 +39,9 @@ class PuppetStateController(
     private val _audioLevel = MutableStateFlow(0f)
     val audioLevel: StateFlow<Float> = _audioLevel.asStateFlow()
 
+    private val _frequencyData = MutableStateFlow(FloatArray(0))
+    val frequencyData: StateFlow<FloatArray> = _frequencyData.asStateFlow()
+
     private var clientBlinkingJob: Job? = null
     private var returnToIdleJob: Job? = null
     private var hotkeyStateActive = false
@@ -153,47 +156,53 @@ class PuppetStateController(
 
     private fun startListening() {
         _isListening.value = true
-        audioProcessor.start { rawLevel ->
-            _rawAudioLevel.value = rawLevel
+        audioProcessor.start(
+            onLevelChange = { rawLevel ->
+                _rawAudioLevel.value = rawLevel
 
-            val amplifiedLevel = (rawLevel * SENSITIVITY).coerceIn(0f, 1f)
-            smoothedLevel += (amplifiedLevel - smoothedLevel) * SMOOTHING_FACTOR
-            _audioLevel.value = smoothedLevel
+                val amplifiedLevel = (rawLevel * SENSITIVITY).coerceIn(0f, 1f)
+                smoothedLevel += (amplifiedLevel - smoothedLevel) * SMOOTHING_FACTOR
+                _audioLevel.value = smoothedLevel
 
-            if (hotkeyStateActive) return@start
+                if (hotkeyStateActive) return@start
 
-            val isControlling = operatingMode == OperatingMode.OFFLINE || isPublishing
+                val isControlling = operatingMode == OperatingMode.OFFLINE || isPublishing
 
-            if (isControlling && controlMode == ControlMode.DIRECT) {
-                val scaledLevel = rawLevel.pow(0.5f)
-                val sortedThresholds = thresholds.value.entries.sortedBy { it.key }
-                val activeThresholdIndex = sortedThresholds.indexOfLast { scaledLevel >= it.key }
+                if (isControlling && controlMode == ControlMode.DIRECT) {
+                    val scaledLevel = rawLevel.pow(0.5f)
+                    val sortedThresholds = thresholds.value.entries.sortedBy { it.key }
+                    val activeThresholdIndex = sortedThresholds.indexOfLast { scaledLevel >= it.key }
 
-                if (activeThresholdIndex != -1) {
-                    returnToIdleJob?.cancel()
-                    var state: PuppetStateInfo? = null
-                    for (i in activeThresholdIndex downTo 0) {
-                        if (sortedThresholds[i].value != null) {
-                            state = sortedThresholds[i].value
-                            break
+                    if (activeThresholdIndex != -1) {
+                        returnToIdleJob?.cancel()
+                        var state: PuppetStateInfo? = null
+                        for (i in activeThresholdIndex downTo 0) {
+                            if (sortedThresholds[i].value != null) {
+                                state = sortedThresholds[i].value
+                                break
+                            }
                         }
-                    }
-                    if (state != null) {
-                        _activeState.value = state
+                        if (state != null) {
+                            _activeState.value = state
+                        } else {
+                            returnToIdle()
+                        }
                     } else {
                         returnToIdle()
                     }
-                } else {
-                    returnToIdle()
                 }
+            },
+            onFrequencyData = {
+                _frequencyData.value = it
             }
-        }
+        )
     }
 
     private fun stopListening() {
         _isListening.value = false
         _audioLevel.value = 0f
         _rawAudioLevel.value = 0f
+        _frequencyData.value = FloatArray(0)
         audioProcessor.stop()
     }
 

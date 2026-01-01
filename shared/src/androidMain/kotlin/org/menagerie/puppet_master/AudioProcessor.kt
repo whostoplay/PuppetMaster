@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.media.audiofx.Visualizer
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -15,10 +16,11 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.hypot
 import kotlin.math.sqrt
 
 /**
- * Processes audio from the microphone to detect volume levels.
+ * Processes audio from the microphone to detect volume levels and frequency data.
  * This is the Android implementation.
  *
  * @param context The Android [Context] used to check for audio permissions.
@@ -28,23 +30,23 @@ actual class AudioProcessor actual constructor(private val context: Any) {
     private val audioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var audioJob: Job? = null
     private var smoothedLevel: Float = 0f
+    private var visualizer: Visualizer? = null
 
     /**
-     * Starts listening to the microphone and reporting audio levels.
+     * Starts listening to the microphone and reporting audio levels and frequency data.
      * The audio processing is done in a background coroutine.
      *
      * If the `RECORD_AUDIO` permission is not granted, this function will not start listening.
      *
      * @param onLevelChange A callback that receives the audio level as a Float between 0.0 and 1.0.
+     * @param onFrequencyData An optional callback that receives the frequency spectrum as a FloatArray.
      */
     @SuppressLint("MissingPermission")
-    actual fun start(onLevelChange: (Float) -> Unit) {
+    actual fun start(onLevelChange: (Float) -> Unit, onFrequencyData: ((FloatArray) -> Unit)?) {
         audioJob?.cancel()
 
         val androidContext = context as Context
         if (ContextCompat.checkSelfPermission(androidContext, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            // It's better to handle the permission request UI outside of this class.
-            // For now, we just print an error and return.
             println("RECORD_AUDIO permission not granted.")
             return
         }
@@ -61,6 +63,28 @@ actual class AudioProcessor actual constructor(private val context: Any) {
                     AUDIO_FORMAT,
                     minBufferSize
                 )
+
+                if (onFrequencyData != null) {
+                    try {
+                        visualizer = Visualizer(audioRecord.audioSessionId).apply {
+                            captureSize = Visualizer.getCaptureSizeRange()[1]
+                            setDataCaptureListener(object : Visualizer.OnDataCaptureListener {
+                                override fun onWaveFormDataCapture(visualizer: Visualizer?, waveform: ByteArray?, samplingRate: Int) {}
+
+                                override fun onFftDataCapture(visualizer: Visualizer?, fft: ByteArray?, samplingRate: Int) {
+                                    if (fft != null) {
+                                        onFrequencyData(processFftData(fft))
+                                    }
+                                }
+                            }, Visualizer.getMaxCaptureRate() / 2, false, true)
+                            enabled = true
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        visualizer = null
+                    }
+                }
+
                 audioRecord.startRecording()
 
                 val buffer = ShortArray(minBufferSize)
@@ -73,11 +97,12 @@ actual class AudioProcessor actual constructor(private val context: Any) {
                     }
                 }
             } catch (e: Exception) {
-                // TODO: Implement a proper error handling strategy, e.g., using a callback.
                 e.printStackTrace()
             } finally {
                 audioRecord?.stop()
                 audioRecord?.release()
+                visualizer?.release()
+                visualizer = null
             }
         }
     }
@@ -88,6 +113,16 @@ actual class AudioProcessor actual constructor(private val context: Any) {
     actual fun stop() {
         audioJob?.cancel()
         // The coroutine's finally block will handle resource cleanup.
+    }
+
+    private fun processFftData(fft: ByteArray): FloatArray {
+        val magnitudes = FloatArray(fft.size / 2)
+        for (i in 0 until fft.size / 2) {
+            val real = fft[i * 2].toFloat()
+            val imag = fft[i * 2 + 1].toFloat()
+            magnitudes[i] = hypot(real, imag)
+        }
+        return magnitudes
     }
 
     /**

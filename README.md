@@ -120,3 +120,40 @@ Puppet Master an Open Source PNG-Tuber tool. Host a whole troupe of puppets, con
 - Puppet Master Android on my phone. Instead of running anything but OBS on my stream box, I can use my phone for puppet master and set it right beside my Snowball microphone. My phone controls the puppet state while my stream box can focus on just running OBS and displaying the capture card output.
 - Alternatively, I run Puppet Master desktop directly on my streaming box, and use my Snowball's input instead to control everything. 
 - Puppet Master Desktop on my laptop in case I need to quickly make some changes without risking messing up stream. I can update my puppet locally, then quickly publish to the server and let my phone receive the latest troupe info.
+
+### Viseme Detection Flow
+
+1.  **START → Input Audio Frame**
+    *   Get the latest `frequencyData` array from the microphone.
+
+2.  **Volume Gate**
+    *   Is the total energy below your `SILENCE_THRESHOLD`?
+        *   **YES:** Set viseme to `Neutral / Closed`. → **END**
+        *   **NO:** Proceed to analysis.
+
+3.  **Viseme Analysis (In Order of Priority)**
+    *   **A. Check for Hissing Fricatives ('S', 'Sh')**
+        *   *Look for a strong band of high-frequency noise.*
+        *   If found between **4000-8000 Hz**: Set viseme to `Fricative / Hiss` ('S' sound). → **END**
+        *   If found between **2000-4000 Hz**: Set viseme to `Fricative / Hiss` ('Sh' sound). → **END**
+    *   **B. Check for Wide / Smile ('Ee')**
+        *   *Look for a "split peak" signature.*
+        *   If you see a peak around **~300 Hz** AND another peak around **~2200 Hz**: Set viseme to `Wide / Smile`. → **END**
+    *   **C. Check for Lip Bite ('F', 'V')**
+        *   *Look for a soft, wide band of noise from 1500-7000 Hz.*
+        *   If found **WITH** a low-frequency voicing hum (~150 Hz): Set viseme to `Lip Bite` ('V' sound). → **END**
+        *   If found **WITHOUT** a low-frequency hum: Set viseme to `Lip Bite` ('F' sound). → **END**
+    *   **D. Check for Pucker / Narrow ('Oo')**
+        *   *Look for a single, clean peak in the low frequencies.*
+        *   If found around **250-400 Hz** with little energy elsewhere: Set viseme to `Pucker / Narrow`. → **END**
+    *   **E. Check for Open Vowels ('Ah', 'O')**
+        *   *Look for strong, clear peaks in the mid-range.*
+        *   If the strongest peak is **~700-1200 Hz**: Set viseme to `Open` ('Ah' sound). → **END**
+        *   If the strongest peak is **~400-800 Hz**: Set viseme to `Open` ('O' sound). → **END**
+    *   **F. Check for Tongue-to-Teeth ('L', 'Th')**
+        *   *Look for a sustained, weaker peak in the low-mid range.*
+        *   If found: Set viseme to `Tongue to Teeth`. → **END**
+
+4.  **Fallback / Default**
+    *   If no other rules have matched, the sound is likely an indistinct vowel or a quick consonant like 'M', 'B', or 'P'.
+    *   **Default to:** `Neutral / Closed`. → **END**

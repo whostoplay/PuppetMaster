@@ -4,6 +4,11 @@ plugins {
     application
 }
 
+repositories {
+    mavenCentral()
+    google()
+}
+
 group = "org.menagerie.puppet_master"
 version = "1.0.0"
 application {
@@ -24,6 +29,7 @@ dependencies {
     implementation(libs.ktor.server.cors)
     implementation(libs.gson)
     implementation(libs.ktor.client.cio)
+    implementation("org.apache.commons:commons-math3:3.6.1")
     testImplementation(libs.ktor.serverTestHost)
     testImplementation(libs.kotlin.testJunit)
 }

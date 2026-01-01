@@ -93,15 +93,12 @@ fun LivePreview(
         if (activeSpecialEffect != null) {
             while (true) {
                 val vibrationOffset = activeSpecialEffect.getVibrationOffset(1920f / 20f)
-                val pathOffset = activeSpecialEffect.getPathOffset()
                 animationState = AnimationState(
                     rotation = activeSpecialEffect.getRotation(),
                     scaleX = activeSpecialEffect.getScaleX(),
                     scaleY = activeSpecialEffect.getScaleY(),
                     translationX = vibrationOffset.x,
                     translationY = vibrationOffset.y,
-                    pathTranslationX = pathOffset.x,
-                    pathTranslationY = pathOffset.y,
                     glowColor = activeSpecialEffect.getGlowColor(),
                     glowIntensity = activeSpecialEffect.getGlow()
                 )

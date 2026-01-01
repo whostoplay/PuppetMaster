@@ -29,5 +29,4 @@ data class SpecialEffect(
     val scaleSpeed: Float = 0f,
     val spinSpeed: Float = 0f,
     val spinDirection: Int = 1,
-    val followPath: FollowPath? = null
 )

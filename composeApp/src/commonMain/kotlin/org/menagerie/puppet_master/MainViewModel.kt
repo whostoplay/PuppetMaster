@@ -114,8 +114,9 @@ class MainViewModel(context: Any) : ScreenModel {
     private val _thresholds = MutableStateFlow<Map<Float, PuppetStateInfo?>>(emptyMap())
     val thresholds: StateFlow<Map<Float, PuppetStateInfo?>> = _thresholds.asStateFlow()
 
+    private val audioProcessor = AudioProcessor(context)
     private val stateController = PuppetStateController(
-        screenModelScope, dataManager, AudioProcessor(context),
+        screenModelScope, dataManager, audioProcessor,
         getUiState = { uiState.value },
         thresholds = thresholds
     )
@@ -153,6 +154,10 @@ class MainViewModel(context: Any) : ScreenModel {
 
     private val _sensitivity = MutableStateFlow(1.0f)
     val sensitivity: StateFlow<Float> = _sensitivity.asStateFlow()
+
+    val frequencyData: StateFlow<FloatArray> = stateController.frequencyData
+    private val _frequencyPeaks = MutableStateFlow<List<Pair<Float, Float>>>(emptyList())
+    val frequencyPeaks: StateFlow<List<Pair<Float, Float>>> = _frequencyPeaks.asStateFlow()
 
     private val client = HttpClient {
         install(WebSockets) {
@@ -225,7 +230,11 @@ class MainViewModel(context: Any) : ScreenModel {
                     while (true) {
                         val level = audioLevel.value
                         val hotkey = _lastPressedKey.value
-                        val context = GraphExecutionContext(microphoneVolume = level, hotKeyPressed = hotkey)
+                        val context = GraphExecutionContext(
+                            microphoneVolume = level,
+                            hotKeyPressed = hotkey,
+                            frequencyPeaks = _frequencyPeaks.value
+                        )
                         val action = graphExecutor?.tick(context)
                         if (action is GraphAction.SetState) {
                             action.puppetId?.let { puppetId ->
@@ -306,6 +315,11 @@ class MainViewModel(context: Any) : ScreenModel {
                 }
             }
         }
+    }
+
+    fun onPeaksDetected(peaks: List<Pair<Float, Float>>) {
+        _frequencyPeaks.value = peaks
+        println(peaks.count())
     }
 
     fun updateSettings(newSettings: SettingsModel) {
