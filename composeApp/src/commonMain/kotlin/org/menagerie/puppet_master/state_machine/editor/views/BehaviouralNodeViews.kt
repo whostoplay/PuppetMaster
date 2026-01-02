@@ -1,14 +1,18 @@
 package org.menagerie.puppet_master.state_machine.editor.views
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -16,6 +20,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -33,18 +38,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.ActiveSpecialEffect
+import org.menagerie.puppet_master.ImagePickerDialog
+import org.menagerie.puppet_master.Layer
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
+import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.controls.ColorGrid
+import org.menagerie.puppet_master.decodeToImageBitmap
+import org.menagerie.puppet_master.localisation.Strings
+import org.menagerie.puppet_master.navigation.combinedEyeGestures
 import org.menagerie.puppet_master.previews.LivePreview
 import org.menagerie.puppet_master.state_machine.GoThroughStateNode
 import org.menagerie.puppet_master.state_machine.WithEffectNode
+import org.menagerie.puppet_master.state_machine.WithLayerNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 @Composable
@@ -252,6 +269,177 @@ fun WithEffectNodeView(
                 }
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, contentDescription = "Expand")
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+fun WithLayerNodeView(
+    node: WithLayerNode,
+    editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates,
+    puppetStates: List<PuppetStateInfo>?,
+    layerImage: ImageBitmap?,
+    stateImage: ImageBitmap?,
+    uploadsDir: String,
+    selectedStateName: String,
+    onStateSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var showImagePicker by remember { mutableStateOf(false) }
+    var stateSelectorExpanded by remember { mutableStateOf(false) }
+    // TODO: Add TroupeLayersPopup logic
+
+    if (showImagePicker) {
+        ImagePickerDialog(
+            initialDirectory = uploadsDir,
+            show = showImagePicker,
+            title = Strings.getString(Strings.Keys.GET_LAYER),
+            multiSelect = false,
+            onCancel = {showImagePicker = false},
+            onFolderSelected = {},
+            onResult =  { newImage ->
+            editorViewModel.updateNode(node.copy(layer = node.layer.copy(imageName = newImage.first().second)))
+            showImagePicker = false
+        }
+        )
+    }
+
+    NodeView(
+        node = node,
+        title = "With Layer",
+        editorViewModel = editorViewModel,
+        canvasCoordinates = canvasCoordinates,
+        expanded = expanded
+    ) {
+        Column(modifier = Modifier.padding(8.dp).fillMaxWidth()) {
+            if (expanded) {
+                // State Selector
+                Box {
+                    Row(
+                        modifier = Modifier.clickable { stateSelectorExpanded = true },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(selectedStateName.ifEmpty { "Select State For Preview" })
+                        Icon(Icons.Default.ArrowDropDown, contentDescription = "Dropdown")
+                    }
+
+                    DropdownMenu(
+                        expanded = stateSelectorExpanded,
+                        onDismissRequest = { stateSelectorExpanded = false }
+                    ) {
+                        puppetStates?.forEach { state ->
+                            DropdownMenuItem(
+                                text = { Text(state.name) },
+                                onClick = {
+                                    onStateSelected(state.name)
+                                    stateSelectorExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Buttons
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    Button(onClick = { showImagePicker = true }) {
+                        Text("Select Image")
+                    }
+                    Button(onClick = { /* TODO: Show TroupeLayersPopup */ }) {
+                        Text("Load Layer")
+                    }
+                }
+
+                // Canvas
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(
+                    (node.expandedSize?.height?.dp?.minus(200.dp)) ?: 150.dp
+                ).background(Color.DarkGray)) {
+                    val density = LocalDensity.current
+
+                    stateImage?.let {
+                        Image(
+                            bitmap = it,
+                            contentDescription = "State Image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+
+                    layerImage?.let {
+                        Image(
+                            bitmap = it,
+                            contentDescription = "Layer Image",
+                            modifier = Modifier
+                                .offset {
+                                    IntOffset(
+                                        (node.layer.position.x * constraints.maxWidth).roundToInt(),
+                                        (node.layer.position.y * constraints.maxHeight).roundToInt()
+                                    )
+                                }
+                                .graphicsLayer(
+                                    scaleX = node.layer.scaleX,
+                                    scaleY = node.layer.scaleY
+                                )
+                                .fillMaxSize()
+                                .combinedEyeGestures(
+                                    onDrag = { dragAmount ->
+                                        val newPosition = SerializableOffset(
+                                            node.layer.position.x + dragAmount.x / constraints.maxWidth,
+                                            node.layer.position.y + dragAmount.y / constraints.maxHeight
+                                        )
+                                        editorViewModel.updateNode(node.copy(layer = node.layer.copy(position = newPosition)))
+                                    },
+                                    onScale = { scaleFactor ->
+                                        val scaleSensitivity = 0.01f
+                                        val newScaleX = (node.layer.scaleX + scaleFactor.x * scaleSensitivity).coerceAtLeast(0.1f)
+                                        val newScaleY = (node.layer.scaleY + scaleFactor.y * scaleSensitivity).coerceAtLeast(0.1f)
+                                        if (newScaleX.isFinite() && newScaleY.isFinite()) {
+                                            editorViewModel.updateNode(node.copy(layer = node.layer.copy(scaleX = newScaleX, scaleY = newScaleY)))
+                                        }
+                                    },
+                                    onRadiusChange = { _ -> /* Not used for layers */ }
+                                )
+                        )
+                    }
+                }
+
+            } else {
+                Box(modifier = Modifier.fillMaxWidth().height(node.size.height.dp - 100.dp)) {
+                    val originalState = puppetStates?.find { it.name == selectedStateName }
+
+                    val previewState = originalState?.copy(
+                        layers = originalState.layers + node.layer
+                    )
+
+                    stateImage?.let {
+                        LivePreview(
+                            operatingMode = OperatingMode.OFFLINE,
+                            puppetState = previewState,
+                            isBlinking = false,
+                            uploadsDir = uploadsDir,
+                            backgroundColor = Color.Transparent,
+                            serverIp = "",
+                            activeSpecialEffect = null,
+                            isAudienceCheckForced = false,
+                            window = null,
+                            displayedImageName = previewState?.imageName,
+                            idleImage = it,
+                            onFocusPointUpdate = {}
+                        )
+                    }
+                }
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, contentDescription = "Expand")

@@ -9,10 +9,20 @@ import androidx.compose.ui.graphics.toComposeImageBitmap
 import org.jetbrains.skia.Image
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
+import java.io.File
 import javax.imageio.ImageIO
 
 actual fun decodeToImageBitmap(byteArray: ByteArray): ImageBitmap {
     return Image.makeFromEncoded(byteArray).toComposeImageBitmap()
+}
+
+actual fun readFileAsByteArray(directory: String, filename: String): ByteArray? {
+    val file = File(directory, filename)
+    return if (file.exists()) {
+        file.readBytes()
+    } else {
+        null
+    }
 }
 
 /**

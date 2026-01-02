@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -37,6 +38,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.menagerie.puppet_master.MainViewModel
+import org.menagerie.puppet_master.decodeToImageBitmap
+import org.menagerie.puppet_master.readFileAsByteArray
 import org.menagerie.puppet_master.state_machine.*
 import org.menagerie.puppet_master.state_machine.editor.views.*
 import org.menagerie.puppet_master.toOffset
@@ -189,7 +192,8 @@ fun NodeCanvas(
                         .offset {
                             val offset = node.position.toOffset()
                             IntOffset(offset.x.roundToInt(), offset.y.roundToInt())
-                        }.pointerInput(node.id) {
+                        }
+                        .pointerInput(node.id) {
                             detectTapGestures(
                                 onPress = { editorViewModel.bringNodeToFront(node.id) }
                             )
@@ -234,7 +238,6 @@ fun NodeCanvas(
 
                                 is BehaviouralNode -> RenderBehaviouralNode(
                                     node,
-                                    mainViewModel,
                                     editorViewModel,
                                     it
                                 )
@@ -420,13 +423,12 @@ private fun RenderStateNode(node: StateNode, mainViewModel: MainViewModel, edito
 @Composable
 private fun RenderBehaviouralNode(
     node: BehaviouralNode,
-    mainViewModel: MainViewModel,
     editorViewModel: NodeEditorViewModel,
     canvasCoordinates: LayoutCoordinates
 ) {
-    val troupe by mainViewModel.troupe.collectAsState()
+    val troupe by editorViewModel.mainViewModel.troupe.collectAsState()
     val puppets = troupe?.puppets ?: emptyList()
-    val idleImage by mainViewModel.idleImage.collectAsState()
+    val idleImage by editorViewModel.mainViewModel.idleImage.collectAsState()
     val graph by editorViewModel.nodeGraph.collectAsState()
     val startNode = graph.nodes[graph.startNodeId] as? StartNode
     val contextualPuppetId = startNode?.puppetId
@@ -445,7 +447,7 @@ private fun RenderBehaviouralNode(
                     onStateNameChanged = { editorViewModel.updateNode(node.copy(stateName = it)) },
                     idleImage = bitmap,
                     editorViewModel = editorViewModel,
-                    uploadsDir = mainViewModel.uploadsDir,
+                    uploadsDir = editorViewModel.mainViewModel.uploadsDir,
                     canvasCoordinates = canvasCoordinates
                 )
             }
@@ -462,9 +464,44 @@ private fun RenderBehaviouralNode(
                     canvasCoordinates = canvasCoordinates,
                     puppetState = stateInfo,
                     idleImage = bitmap,
-                    uploadsDir = mainViewModel.uploadsDir
+                    uploadsDir = editorViewModel.mainViewModel.uploadsDir
                 )
             }
+        }
+
+        is WithLayerNode -> {
+            val puppet = puppets.find { it.name == (node.puppetId ?: contextualPuppetId) }
+            val puppetStates = puppet?.states ?: emptyList()
+            val stateInfo = puppetStates.find { it.name == node.previewStateName }
+            val uploadsDir = editorViewModel.mainViewModel.uploadsDir
+            val layerImage by produceState<ImageBitmap?>(initialValue = null, node.layer.imageName) {
+                if (node.layer.imageName.isNotEmpty()) {
+                    val byteArray = readFileAsByteArray(uploadsDir, node.layer.imageName)
+                    if (byteArray != null) {
+                        value = decodeToImageBitmap(byteArray)
+                    }
+                }
+            }
+
+            val stateImage by produceState<ImageBitmap?>(initialValue = null, stateInfo?.imageName) {
+                if (stateInfo?.imageName?.isNotEmpty() == true) {
+                    val byteArray = readFileAsByteArray(uploadsDir, stateInfo.imageName)
+                    if (byteArray != null) {
+                        value = decodeToImageBitmap(byteArray)
+                    }
+                }
+            }
+            WithLayerNodeView(
+                node = node,
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates,
+                puppetStates = puppetStates,
+                layerImage = layerImage,
+                stateImage = stateImage,
+                uploadsDir = editorViewModel.mainViewModel.uploadsDir,
+                selectedStateName = node.previewStateName,
+                onStateSelected = { editorViewModel.updateNode(node.copy(previewStateName = it)) }
+            )
         }
     }
 }

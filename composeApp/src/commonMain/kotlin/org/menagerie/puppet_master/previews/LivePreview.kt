@@ -35,6 +35,7 @@ import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.AnimationState
 import org.menagerie.puppet_master.Constants
 import org.menagerie.puppet_master.Eye
+import org.menagerie.puppet_master.Layer
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SerializableOffset
@@ -139,17 +140,17 @@ fun LivePreview(
             val audienceCheckDuration = eyeState?.eyes?.audienceCheckDuration ?: 0
             if (audienceCheckRate > 0 && audienceCheckDuration > 0) {
                 while (true) {
-                    kotlinx.coroutines.delay(audienceCheckRate)
+                    delay(audienceCheckRate)
                     if (loadedBlinkBody != null) {
                         audienceCheckBlink = true
-                        kotlinx.coroutines.delay(100)
+                        delay(100)
                         audienceCheckBlink = false
                     }
                     isCheckingAudience = true
-                    kotlinx.coroutines.delay(audienceCheckDuration)
+                    delay(audienceCheckDuration)
                     if (loadedBlinkBody != null) {
                         audienceCheckBlink = true
-                        kotlinx.coroutines.delay(100)
+                        delay(100)
                         audienceCheckBlink = false
                     }
                     isCheckingAudience = false
@@ -169,7 +170,7 @@ fun LivePreview(
                     x = (cos(randomAngle) * randomRadius).toFloat(),
                     y = (sin(randomAngle) * randomRadius).toFloat()
                 )
-                kotlinx.coroutines.delay(250)
+                delay(250)
             }
         } else {
             jitter = Offset.Zero
@@ -244,6 +245,31 @@ fun LivePreview(
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.FillBounds
             )
+
+            puppetState?.layers?.forEach { layer ->
+                val loadedLayerImage = getImageUrl(layer.imageName)?.let { rememberImageFromUrl(it) }
+                loadedLayerImage?.let { layerBitmap ->
+                    val layerModifier = Modifier
+                        .offset {
+                            IntOffset(
+                                (layer.position.x * scaledWidthPx).roundToInt(),
+                                (layer.position.y * scaledHeightPx).roundToInt()
+                            )
+                        }
+                        .graphicsLayer(
+                            scaleX = layer.scaleX,
+                            scaleY = layer.scaleY,
+                            transformOrigin = TransformOrigin(0f, 0f)
+                        )
+
+                    Image(
+                        bitmap = layerBitmap,
+                        contentDescription = "Layer ${layer.imageName}",
+                        modifier = layerModifier,
+                        colorFilter = if (glowIntensity > 0) ColorFilter.colorMatrix(colorMatrix) else null
+                    )
+                }
+            }
 
             eyeState?.let { eyeData ->
                 val leftEye = eyeData.eyes.left

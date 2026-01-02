@@ -134,6 +134,7 @@ object English : LocalizedStrings {
         Keys.STATE_HOTKEY to "State Hotkey",
         Keys.LANGUAGE to "Language",
         Keys.STATE_GRAPH_BUTTON to "Puppeteering",
-        Keys.HIGHLIGHT_ON to "Highlight"
+        Keys.HIGHLIGHT_ON to "Highlight",
+        Keys.GET_LAYER to "Select Layer Item"
     )
 }

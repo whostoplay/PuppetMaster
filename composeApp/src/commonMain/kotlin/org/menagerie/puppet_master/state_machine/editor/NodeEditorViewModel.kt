@@ -460,6 +460,17 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
                         val newWire = Wire(dragInfo.fromNodeId, fromHandle.id, toNode.id, toHandle.id)
                         val newWires = newGraph.wires + newWire
                         newGraph = newGraph.copy(wires = newWires)
+
+                        val puppetId = when (fromNode) {
+                            is StartNode -> fromNode.puppetId
+                            is SetPuppetNode -> fromNode.puppetId
+                            else -> getPuppetIdFromGraph(fromNode.id)
+                        }
+
+                        if (puppetId != null) {
+                            propagatePuppetId(toNode.id, puppetId, newNodes)
+                            newGraph = newGraph.copy(nodes = newNodes) // Capture updates from propagation
+                        }
                     }
                 }
                 wireDragInfoForMenu = null

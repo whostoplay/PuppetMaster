@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.state_machine
 
 import kotlinx.serialization.Serializable
+import org.menagerie.puppet_master.Layer
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.SerializableSize
@@ -61,9 +62,36 @@ data class WithEffectNode(
     }
 }
 
+@Serializable
+data class WithLayerNode(
+    override val id: NodeId,
+    override val position: SerializableOffset,
+    override val size: SerializableSize = SerializableSize(250f, 350f),
+    override val expandedSize: SerializableSize? = SerializableSize(800f, 1200f),
+    val layer: Layer = Layer(""),
+    override val branchPriority: Int = 0,
+    val puppetId: String? = null,
+    val previewStateName: String = ""
+) : BehaviouralNode {
+
+    override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
+        val nextNodeId = findNextNodeId(graph, "out")
+        return ExecuteResult(nextNodeId = nextNodeId)
+    }
+
+    override fun copyNode(id: NodeId, position: SerializableOffset): Node {
+        return copy(id = id, position = position)
+    }
+
+    override fun copyNodeWithNewPriority(priority: Int): Node {
+        return copy(branchPriority = priority)
+    }
+}
+
 fun getAvailableBehaviouralNodes(): List<Node> {
     return listOf(
         GoThroughStateNode("", SerializableOffset(0f, 0f)),
-        WithEffectNode("", SerializableOffset(0f, 0f))
+        WithEffectNode("", SerializableOffset(0f, 0f)),
+        WithLayerNode("", SerializableOffset(0f, 0f))
     )
 }

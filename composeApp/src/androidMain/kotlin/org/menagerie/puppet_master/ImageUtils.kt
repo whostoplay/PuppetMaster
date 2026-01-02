@@ -7,6 +7,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
+import java.io.File
 
 /**
  * Decodes a [ByteArray] into an [ImageBitmap].
@@ -15,6 +16,15 @@ import android.graphics.Color as AndroidColor
  */
 actual fun decodeToImageBitmap(byteArray: ByteArray): ImageBitmap {
     return BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size).asImageBitmap()
+}
+
+actual fun readFileAsByteArray(directory: String, filename: String): ByteArray? {
+    val file = File(directory, filename)
+    return if (file.exists()) {
+        file.readBytes()
+    } else {
+        null
+    }
 }
 
 /**

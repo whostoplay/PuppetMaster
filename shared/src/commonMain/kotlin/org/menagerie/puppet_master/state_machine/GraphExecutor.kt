@@ -1,6 +1,7 @@
 package org.menagerie.puppet_master.state_machine
 
 import org.menagerie.puppet_master.Hotkey
+import org.menagerie.puppet_master.Layer
 import org.menagerie.puppet_master.SpecialEffect
 
 /**
@@ -20,7 +21,7 @@ data class GraphExecutionContext(
  * Represents an action that the UI should take based on the graph's execution.
  */
 sealed interface GraphAction {
-    data class SetState(val stateName: String, val puppetId: String? = null, val effect: SpecialEffect? = null) : GraphAction
+    data class SetState(val stateName: String, val puppetId: String? = null, val effect: SpecialEffect? = null, val layers: List<Layer> = emptyList()) : GraphAction
     data class SetGraphStart(val nodeId: NodeId) : GraphAction
     object ResetGraphStart : GraphAction
     // This is an internal action for the executor to handle, requested by a node
@@ -55,6 +56,7 @@ class GraphExecutor(private val graph: NodeGraph) {
         var currentNode: Node? = startNode
         var executionContext = context
         var branchEffect: SpecialEffect? = null
+        val branchLayers = mutableListOf<Layer>()
         println("--- Executing new branch from ${startNode.id} ---")
 
         while (currentNode != null) {
@@ -99,6 +101,9 @@ class GraphExecutor(private val graph: NodeGraph) {
             if (currentNode is WithEffectNode) {
                 println("Node ${currentNode.id} is a WithEffectNode.")
                 branchEffect = currentNode.effect
+                if (currentNode.puppetId != null) {
+                    executionContext = executionContext.copy(puppetId = currentNode.puppetId)
+                }
                 val nextNodeId = currentNode.findNextNodeId(graph, "out")
                 if (nextNodeId != null) {
                     println("Found next node for WithEffectNode: $nextNodeId")
@@ -112,7 +117,27 @@ class GraphExecutor(private val graph: NodeGraph) {
                     break
                 }
             }
-            
+
+            if (currentNode is WithLayerNode) {
+                println("Node ${currentNode.id} is a WithLayerNode.")
+                branchLayers.add(currentNode.layer)
+                if (currentNode.puppetId != null) {
+                    executionContext = executionContext.copy(puppetId = currentNode.puppetId)
+                }
+                val nextNodeId = currentNode.findNextNodeId(graph, "out")
+                if (nextNodeId != null) {
+                    println("Found next node for WithLayerNode: $nextNodeId")
+                    val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
+                    wire?.let { activeWires.add(it) }
+                    activeNodes.add(nextNodeId)
+                    currentNode = graph.nodes[nextNodeId]
+                    continue
+                } else {
+                    println("WithLayerNode ${currentNode.id} is terminal. Breaking loop.")
+                    break
+                }
+            }
+
             // This part is for nodes NOT in delayedNodes, or for nodes whose delay just finished and were removed.
             if (currentNode is GoThroughStateNode) {
                 println("Node ${currentNode.id} is a GoThroughStateNode (and not in delayedNodes).")
@@ -120,7 +145,7 @@ class GraphExecutor(private val graph: NodeGraph) {
                 delayedNodes[currentNode.id] = System.currentTimeMillis() + currentNode.delay
                 val finalPuppetId = currentNode.puppetId ?: executionContext.puppetId
                 println("Returning SetState action for GoThroughStateNode ${currentNode.id}.")
-                return GraphAction.SetState(currentNode.stateName, finalPuppetId, branchEffect)
+                return GraphAction.SetState(currentNode.stateName, finalPuppetId, branchEffect, branchLayers)
             }
 
             if (currentNode is DelayTimerNode) {
@@ -196,7 +221,13 @@ class GraphExecutor(private val graph: NodeGraph) {
             if (result.action != null) {
                 println("Node ${currentNode.id} returned an action: ${result.action::class.simpleName}")
                 when (val action = result.action) {
-                    is GraphAction.SetState -> return action.copy(effect = branchEffect)
+                    is GraphAction.SetState -> {
+                        println(branchLayers)
+                        return action.copy(
+                            effect = branchEffect,
+                            layers = (action.layers + branchLayers).distinct()
+                        )
+                    }
                     is GraphAction.SetGraphStart -> {
                         overrideStartNodeId = action.nodeId
                         return action

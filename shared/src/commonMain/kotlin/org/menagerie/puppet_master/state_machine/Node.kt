@@ -24,6 +24,7 @@ val nodeSerializersModule = SerializersModule {
         subclass(TriggerOnWaitNode::class)
         subclass(WithEffectNode::class)
         subclass(PhonemeMatchNode::class)
+        subclass(WithLayerNode::class)
     }
     contextual(ClosedFloatRangeSerializer)
 }
