@@ -27,6 +27,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalFocusManager
 import kotlinx.coroutines.delay
 import org.menagerie.puppet_master.Constants.UI.CONTROLS_VISIBILITY_DELAY_MS
 import org.menagerie.puppet_master.Constants.UI.DEFAULT_PANEL_WIDTH_FRACTION
@@ -69,6 +70,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
     val activeSpecialEffect by viewModel.activeSpecialEffect.collectAsState()
     val idleImage by viewModel.idleImage.collectAsState()
     val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
 
     var showPermissionRequest by remember { mutableStateOf(false) }
     if (showPermissionRequest) {
@@ -146,6 +148,7 @@ fun AppContent(viewModel: MainViewModel, window: Any?) {
             .windowInsetsPadding(WindowInsets.safeDrawing)
             .pointerInput(Unit) {
                 detectTapGestures(
+                    onPress = { focusManager.clearFocus() },
                     onDoubleTap = { controlsLocked = !controlsLocked },
                     onTap = { showControls = true } // Always show on single tap
                 )
