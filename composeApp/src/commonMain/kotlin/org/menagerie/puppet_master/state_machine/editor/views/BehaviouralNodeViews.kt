@@ -38,6 +38,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
@@ -48,12 +49,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.ImagePickerDialog
-import org.menagerie.puppet_master.Layer
 import org.menagerie.puppet_master.OperatingMode
 import org.menagerie.puppet_master.PuppetStateInfo
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.controls.ColorGrid
-import org.menagerie.puppet_master.decodeToImageBitmap
 import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.navigation.combinedEyeGestures
 import org.menagerie.puppet_master.previews.LivePreview
@@ -61,6 +60,7 @@ import org.menagerie.puppet_master.state_machine.GoThroughStateNode
 import org.menagerie.puppet_master.state_machine.WithEffectNode
 import org.menagerie.puppet_master.state_machine.WithLayerNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
@@ -357,62 +357,83 @@ fun WithLayerNodeView(
                 }
 
                 // Canvas
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(
-                    (node.expandedSize?.height?.dp?.minus(200.dp)) ?: 150.dp
-                ).background(Color.DarkGray)) {
-                    val density = LocalDensity.current
+                BoxWithConstraints(
+                    modifier = Modifier.fillMaxWidth().height(
+                        (node.expandedSize?.height?.dp?.minus(200.dp)) ?: 150.dp
+                    ).background(Color.DarkGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    stateImage?.let { stateBitmap ->
+                        // Calculate the scale factor to fit the image within the constraints while maintaining aspect ratio
+                        val imageScaleFactor = if (stateBitmap.width > 0 && stateBitmap.height > 0) {
+                            min(constraints.maxWidth.toFloat() / stateBitmap.width, constraints.maxHeight.toFloat() / stateBitmap.height)
+                        } else {
+                            1.0f
+                        }
 
-                    stateImage?.let {
-                        Image(
-                            bitmap = it,
-                            contentDescription = "State Image",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
+                        val scaledWidthPx = stateBitmap.width * imageScaleFactor
+                        val scaledHeightPx = stateBitmap.height * imageScaleFactor
 
-                    layerImage?.let {
-                        Image(
-                            bitmap = it,
-                            contentDescription = "Layer Image",
-                            modifier = Modifier
-                                .offset {
-                                    IntOffset(
-                                        (node.layer.position.x * constraints.maxWidth).roundToInt(),
-                                        (node.layer.position.y * constraints.maxHeight).roundToInt()
-                                    )
-                                }
-                                .graphicsLayer(
-                                    scaleX = node.layer.scaleX,
-                                    scaleY = node.layer.scaleY
-                                )
-                                .fillMaxSize()
-                                .combinedEyeGestures(
-                                    onDrag = { dragAmount ->
-                                        val newPosition = SerializableOffset(
-                                            node.layer.position.x + dragAmount.x / constraints.maxWidth,
-                                            node.layer.position.y + dragAmount.y / constraints.maxHeight
-                                        )
-                                        editorViewModel.updateNode(node.copy(layer = node.layer.copy(position = newPosition)))
-                                    },
-                                    onScale = { scaleFactor ->
-                                        val scaleSensitivity = 0.01f
-                                        val newScaleX = (node.layer.scaleX + scaleFactor.x * scaleSensitivity).coerceAtLeast(0.1f)
-                                        val newScaleY = (node.layer.scaleY + scaleFactor.y * scaleSensitivity).coerceAtLeast(0.1f)
-                                        if (newScaleX.isFinite() && newScaleY.isFinite()) {
-                                            editorViewModel.updateNode(node.copy(layer = node.layer.copy(scaleX = newScaleX, scaleY = newScaleY)))
+                        val density = LocalDensity.current
+                        val scaledWidth = with(density) { scaledWidthPx.toDp() }
+                        val scaledHeight = with(density) { scaledHeightPx.toDp() }
+
+                        // This box now has the exact size of the fitted state image
+                        Box(modifier = Modifier.size(scaledWidth, scaledHeight)) {
+                            Image(
+                                bitmap = stateBitmap,
+                                contentDescription = "State Image",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.FillBounds // Fill the box that is already correctly sized
+                            )
+
+                            layerImage?.let { layerBitmap ->
+                                Image(
+                                    bitmap = layerBitmap,
+                                    contentDescription = "Layer Image",
+                                    modifier = Modifier
+                                        .offset {
+                                            IntOffset(
+                                                (node.layer.position.x * scaledWidthPx).roundToInt(),
+                                                (node.layer.position.y * scaledHeightPx).roundToInt()
+                                            )
                                         }
-                                    },
-                                    onRadiusChange = { _ -> /* Not used for layers */ }
+                                        .graphicsLayer(
+                                            scaleX = node.layer.scaleX * imageScaleFactor,
+                                            scaleY = node.layer.scaleY * imageScaleFactor,
+                                            transformOrigin = TransformOrigin(0f, 0f)
+                                        )
+                                        .combinedEyeGestures(
+                                            onDrag = { dragAmount ->
+                                                if (scaledWidthPx > 0 && scaledHeightPx > 0) {
+                                                    val newPosition = SerializableOffset(
+                                                        x = node.layer.position.x + dragAmount.x / scaledWidthPx,
+                                                        y = node.layer.position.y + dragAmount.y / scaledHeightPx
+                                                    )
+                                                    editorViewModel.updateNode(node.copy(layer = node.layer.copy(position = newPosition)))
+                                                }
+                                            },
+                                            onScale = { scaleFactor ->
+                                                val scaleSensitivity = 0.01f
+                                                val newScaleX = (node.layer.scaleX + scaleFactor.x * scaleSensitivity).coerceAtLeast(0.1f)
+                                                val newScaleY = (node.layer.scaleY + scaleFactor.y * scaleSensitivity).coerceAtLeast(0.1f)
+                                                if (newScaleX.isFinite() && newScaleY.isFinite()) {
+                                                    editorViewModel.updateNode(node.copy(layer = node.layer.copy(scaleX = newScaleX, scaleY = newScaleY)))
+                                                }
+                                            },
+                                            onRadiusChange = { _ -> /* Not used for layers */ }
+                                        )
                                 )
-                        )
+                            }
+                        }
+                    } ?: Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Select a state for preview")
                     }
                 }
 
             } else {
                 Box(modifier = Modifier.fillMaxWidth().height(node.size.height.dp - 100.dp)) {
                     val originalState = puppetStates?.find { it.name == selectedStateName }
-
                     val previewState = originalState?.copy(
                         layers = originalState.layers + node.layer
                     )

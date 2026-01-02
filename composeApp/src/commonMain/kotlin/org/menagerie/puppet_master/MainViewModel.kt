@@ -243,9 +243,9 @@ class MainViewModel(context: Any) : ScreenModel {
                                 }
                             }
                             if(action.effect != null) {
-                                stateController.setStateByNameWithEffect(action.stateName, action.effect)
+                                stateController.setStateByNameWithEffect(action.stateName, action.effect, action.layers)
                             } else {
-                                stateController.setStateByName(action.stateName)
+                                stateController.setStateByName(action.stateName, action.layers)
                             }
                         }
                         kotlinx.coroutines.delay(16) // roughly 60 fps

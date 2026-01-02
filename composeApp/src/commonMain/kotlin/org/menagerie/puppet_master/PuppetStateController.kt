@@ -206,19 +206,19 @@ class PuppetStateController(
         audioProcessor.stop()
     }
 
-    fun setStateByName(stateName: String) {
+    fun setStateByName(stateName: String, layers: List<Layer> = emptyList()) {
         val puppet = dataManager.activePuppet.value ?: return
         val stateToSet = puppet.states.find { it.name == stateName }
         if (stateToSet != null) {
-            _activeState.value = stateToSet
+            _activeState.value = stateToSet.copy(layers = stateToSet.layers + layers)
         }
     }
 
-    fun setStateByNameWithEffect(stateName: String, effect: SpecialEffect?) {
+    fun setStateByNameWithEffect(stateName: String, effect: SpecialEffect?, layers: List<Layer> = emptyList()) {
         val puppet = dataManager.activePuppet.value ?: return
         val stateToSet = puppet.states.find { it.name == stateName }
         if (stateToSet != null) {
-            _activeState.value = stateToSet.copy(appliedEffect = effect)
+            _activeState.value = stateToSet.copy(appliedEffect = effect, layers = stateToSet.layers + layers)
         }
     }
 

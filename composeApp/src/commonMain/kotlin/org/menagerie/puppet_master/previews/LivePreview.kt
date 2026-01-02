@@ -257,8 +257,8 @@ fun LivePreview(
                             )
                         }
                         .graphicsLayer(
-                            scaleX = layer.scaleX,
-                            scaleY = layer.scaleY,
+                            scaleX = layer.scaleX * imageScaleFactor,
+                            scaleY = layer.scaleY * imageScaleFactor,
                             transformOrigin = TransformOrigin(0f, 0f)
                         )
 
