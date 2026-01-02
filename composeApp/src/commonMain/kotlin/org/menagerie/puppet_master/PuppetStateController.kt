@@ -16,7 +16,8 @@ class PuppetStateController(
     private val dataManager: PuppetDataManager,
     private val audioProcessor: AudioProcessor,
     private val getUiState: () -> UiState,
-    private val thresholds: StateFlow<Map<Float, PuppetStateInfo?>>
+    private val thresholds: StateFlow<Map<Float, PuppetStateInfo?>>,
+    private val sensitivity: StateFlow<Float>
 ) {
     private val _activeState = MutableStateFlow<PuppetStateInfo?>(null)
     val activeState: StateFlow<PuppetStateInfo?> = _activeState.asStateFlow()
@@ -158,9 +159,10 @@ class PuppetStateController(
         _isListening.value = true
         audioProcessor.start(
             onLevelChange = { rawLevel ->
+                if(!_isListening.value) return@start
                 _rawAudioLevel.value = rawLevel
 
-                val amplifiedLevel = (rawLevel * SENSITIVITY).coerceIn(0f, 1f)
+                val amplifiedLevel = (rawLevel * sensitivity.value).coerceIn(0f, 1f)
                 smoothedLevel += (amplifiedLevel - smoothedLevel) * SMOOTHING_FACTOR
                 _audioLevel.value = smoothedLevel
 
@@ -200,10 +202,11 @@ class PuppetStateController(
 
     private fun stopListening() {
         _isListening.value = false
+        audioProcessor.stop()
         _audioLevel.value = 0f
         _rawAudioLevel.value = 0f
         _frequencyData.value = FloatArray(0)
-        audioProcessor.stop()
+        forceReturnToIdle()
     }
 
     fun setStateByName(stateName: String, layers: List<Layer> = emptyList()) {
@@ -232,6 +235,11 @@ class PuppetStateController(
         }
     }
 
+    fun forceReturnToIdle() {
+        returnToIdleJob?.cancel()
+        _activeState.value = dataManager.activePuppet.value?.states?.find { it.name == "idle" }
+    }
+
     fun setServerImage(imageName: String) {
         _displayedImageName.value = imageName
         val newActiveState = dataManager.activePuppet.value?.states?.find { it.imageName == imageName || it.blinkImageName == imageName }
@@ -253,7 +261,6 @@ class PuppetStateController(
     }
 
     companion object {
-        private const val SENSITIVITY = 10f
         private const val SMOOTHING_FACTOR = 0.1f
     }
 }

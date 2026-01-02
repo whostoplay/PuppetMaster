@@ -108,18 +108,13 @@ class MainViewModel(context: Any) : ScreenModel {
     val language: StateFlow<Strings.Language> = settings.map { it.language }
         .stateIn(screenModelScope, SharingStarted.Eagerly, settings.value.language)
 
-    private val dataManager = PuppetDataManager(screenModelScope, context)
+    internal val dataManager = PuppetDataManager(screenModelScope, context)
     val uploadsDir = dataManager.uploadsDir
 
     private val _thresholds = MutableStateFlow<Map<Float, PuppetStateInfo?>>(emptyMap())
     val thresholds: StateFlow<Map<Float, PuppetStateInfo?>> = _thresholds.asStateFlow()
 
     private val audioProcessor = AudioProcessor(context)
-    private val stateController = PuppetStateController(
-        screenModelScope, dataManager, audioProcessor,
-        getUiState = { uiState.value },
-        thresholds = thresholds
-    )
     private val settingsRepository = SettingsRepository(context)
 
     val troupe: StateFlow<PuppetTroupe?> = dataManager.troupe
@@ -128,11 +123,6 @@ class MainViewModel(context: Any) : ScreenModel {
     private val _idleImage = MutableStateFlow<ImageBitmap?>(null)
     val idleImage: StateFlow<ImageBitmap?> = _idleImage.asStateFlow()
 
-    val isListening: StateFlow<Boolean> = stateController.isListening
-    val rawAudioLevel: StateFlow<Float> = stateController.rawAudioLevel
-    val audioLevel: StateFlow<Float> = stateController.audioLevel
-    val isBlinking: StateFlow<Boolean> = stateController.isBlinking
-    val connectionState: StateFlow<ConnectionState> = dataManager.connectionState
 
     private val _serverState = MutableStateFlow<ServerState?>(null)
     private val serverState: StateFlow<ServerState?> = _serverState.asStateFlow()
@@ -154,6 +144,19 @@ class MainViewModel(context: Any) : ScreenModel {
 
     private val _sensitivity = MutableStateFlow(1.0f)
     val sensitivity: StateFlow<Float> = _sensitivity.asStateFlow()
+
+
+    private val stateController = PuppetStateController(
+        screenModelScope, dataManager, audioProcessor,
+        getUiState = { uiState.value },
+        thresholds = thresholds,
+        sensitivity = sensitivity
+    )
+    val isListening: StateFlow<Boolean> = stateController.isListening
+    val rawAudioLevel: StateFlow<Float> = stateController.rawAudioLevel
+    val audioLevel: StateFlow<Float> = stateController.audioLevel
+    val isBlinking: StateFlow<Boolean> = stateController.isBlinking
+    val connectionState: StateFlow<ConnectionState> = dataManager.connectionState
 
     val frequencyData: StateFlow<FloatArray> = stateController.frequencyData
     private val _frequencyPeaks = MutableStateFlow<List<Pair<Float, Float>>>(emptyList())
@@ -409,6 +412,7 @@ class MainViewModel(context: Any) : ScreenModel {
 
         if (mode == ControlMode.DIRECT) {
             graphExecutor?.reset()
+            stateController.forceReturnToIdle()
         }
 
         _controlMode.value = mode

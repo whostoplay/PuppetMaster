@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,6 +48,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import org.menagerie.puppet_master.ActiveSpecialEffect
 import org.menagerie.puppet_master.ImagePickerDialog
 import org.menagerie.puppet_master.OperatingMode
@@ -165,10 +167,14 @@ fun WithEffectNodeView(
         AlertDialog(
             modifier = Modifier.size(300.dp),
             onDismissRequest = { showGlowColorPicker = false },
-            text = { Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { ColorGrid{ color ->
-                editorViewModel.updateNode(node.copy(effect = node.effect.copy(glowColor = color.toArgb())))
-                showGlowColorPicker = false
-            } } },
+            text = { 
+                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) { 
+                    ColorGrid { color ->
+                        editorViewModel.updateNode(node.copy(effect = node.effect.copy(glowColor = color.toArgb())))
+                        showGlowColorPicker = false
+                    } 
+                } 
+            },
             confirmButton = { }
         )
     }
@@ -202,7 +208,7 @@ fun WithEffectNodeView(
                 )
 
                 // Glow
-                node.effect.glowIntensity?.let {
+                node.effect.glowIntensity?.let { glowIntensity ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
@@ -212,10 +218,10 @@ fun WithEffectNodeView(
                                 .clickable { showGlowColorPicker = true }
                         )
                         Spacer(modifier = Modifier.weight(.125f))
-                        Text("Glow Intensity: $it")
+                        Text("Glow Intensity: $glowIntensity")
                     }
                     Slider(
-                        value = it,
+                        value = glowIntensity,
                         onValueChange = { editorViewModel.updateNode(node.copy(effect = node.effect.copy(glowIntensity = it))) },
                         valueRange = 0f..6f
                     )
@@ -294,6 +300,7 @@ fun WithLayerNodeView(
     var expanded by remember { mutableStateOf(false) }
     var showImagePicker by remember { mutableStateOf(false) }
     var stateSelectorExpanded by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
     // TODO: Add TroupeLayersPopup logic
 
     if (showImagePicker) {
@@ -302,12 +309,18 @@ fun WithLayerNodeView(
             show = showImagePicker,
             title = Strings.getString(Strings.Keys.GET_LAYER),
             multiSelect = false,
-            onCancel = {showImagePicker = false},
+            onCancel = { showImagePicker = false },
             onFolderSelected = {},
-            onResult =  { newImage ->
-            editorViewModel.updateNode(node.copy(layer = node.layer.copy(imageName = newImage.first().second)))
-            showImagePicker = false
-        }
+            onResult = { newImages ->
+                if (newImages.isNotEmpty()) {
+                    val (bytes, name) = newImages.first()
+                    coroutineScope.launch {
+                        editorViewModel.mainViewModel.dataManager.saveImage(name, bytes)
+                        editorViewModel.updateNode(node.copy(layer = node.layer.copy(imageName = name)))
+                    }
+                }
+                showImagePicker = false
+            }
         )
     }
 
