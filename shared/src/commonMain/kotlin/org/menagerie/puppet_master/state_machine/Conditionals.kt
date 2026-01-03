@@ -1,14 +1,10 @@
 package org.menagerie.puppet_master.state_machine
 
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.descriptors.SerialDescriptor
-import kotlinx.serialization.encoding.Decoder
-import kotlinx.serialization.encoding.Encoder
 import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.SerializableSize
+import org.menagerie.puppet_master.state_machine.ConditionType
 
 /**
  * A node that branches based on the audio volume.
@@ -40,23 +36,7 @@ data class VolumeThresholdNode(
     }
 }
 
-object ClosedFloatRangeSerializer : KSerializer<ClosedFloatingPointRange<Float>> {
-    @Serializable
-    @SerialName("ClosedFloatRange")
-    private data class ClosedFloatRangeSurrogate(val start: Float, val endInclusive: Float)
 
-    override val descriptor: SerialDescriptor = ClosedFloatRangeSurrogate.serializer().descriptor
-
-    override fun serialize(encoder: Encoder, value: ClosedFloatingPointRange<Float>) {
-        val surrogate = ClosedFloatRangeSurrogate(value.start, value.endInclusive)
-        encoder.encodeSerializableValue(ClosedFloatRangeSurrogate.serializer(), surrogate)
-    }
-
-    override fun deserialize(decoder: Decoder): ClosedFloatingPointRange<Float> {
-        val surrogate = decoder.decodeSerializableValue(ClosedFloatRangeSurrogate.serializer())
-        return surrogate.start..surrogate.endInclusive
-    }
-}
 
 /**
  * A node that branches based on a user-defined sound.
@@ -66,13 +46,9 @@ data class PhonemeMatchNode(
     override val id: NodeId,
     override val position: SerializableOffset,
     override val branchPriority: Int = 0,
-    @Serializable(with = ClosedFloatRangeSerializer::class)
-    val frequencyRange: ClosedFloatingPointRange<Float> = 0f..0f,
-    @Serializable(with = ClosedFloatRangeSerializer::class)
-    val magnitudeRange: ClosedFloatingPointRange<Float> = 0f..0f,
-    val minPeaks: Int = 8,
+    val rule: VisemeRule? = null,
     override val size: SerializableSize = SerializableSize(250f, 200f),
-    override val expandedSize: SerializableSize? = SerializableSize(600f, 600f)
+    override val expandedSize: SerializableSize? = SerializableSize(1000f, 800f)
 ) : ConditionalNode {
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
@@ -81,14 +57,35 @@ data class PhonemeMatchNode(
         return this.copy(branchPriority = priority)
     }
 
+
+    /**
+     * Executes the logic for this node.
+     * It checks if the incoming audio peaks satisfy all the 'AND' conditions
+     * and none of the 'NOT' conditions in the rule.
+     */
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        val hitCount = context.frequencyPeaks.count { (freq, mag) ->
-            freq in frequencyRange && mag in magnitudeRange
+        // If there's no rule or the rule has no conditions, it can't match.
+        if (rule?.conditions.isNullOrEmpty()) {
+            return ExecuteResult(null)
         }
 
-        println(hitCount)
+        // Check if all conditions in the rule are met by the current frequency peaks.
+        val allConditionsMet = rule.conditions.all { condition ->
+            // Count how many of the current audio peaks fall within this condition's box.
+            val hitCount = context.frequencyPeaks.count { (freq, mag) ->
+                freq in condition.frequencyRange && mag in condition.magnitudeRange
+            }
 
-        val nextNodeId = if (hitCount >= minPeaks) {
+            // Check the condition based on its type.
+            when (condition.type) {
+                // For an 'AND' condition, we must have at least the required number of hits.
+                ConditionType.AND -> hitCount >= condition.requiredHits
+                // For a 'NOT' condition, we must have zero hits.
+                ConditionType.NOT -> hitCount == 0
+            }
+        }
+
+        val nextNodeId = if (allConditionsMet) {
             findNextNodeId(graph, "true")
         } else {
             null

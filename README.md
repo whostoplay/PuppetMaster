@@ -123,37 +123,79 @@ Puppet Master an Open Source PNG-Tuber tool. Host a whole troupe of puppets, con
 
 ### Viseme Detection Flow
 
-1.  **START → Input Audio Frame**
-    *   Get the latest `frequencyData` array from the microphone.
+The viseme detection system uses the microphone's frequency data to determine the most likely facial shape (viseme) for a given sound. The core of this system is a powerful rule editor that allows you to visually define the acoustic properties of each phoneme, moving beyond simple volume detection.
+ 
+1. **The Rule Editor**
+   * For each PhonemeMatchNode in your puppet's state machine, you can define a VisemeRule. This rule is a collection of conditions, which are represented by boxes drawn on the frequency graph.
+  
+   * AND Boxes (White): These define the frequencies and volumes that must contain audio energy (a "peak") for the rule to be considered a match. You can have multiple AND boxes to define complex sounds with multiple formants (e.g., the 'Ee' sound). By default, if a rule has one or fewer conditions, drawing a new box will replace the old one.
+   
+   * Adding to a Rule: By selecting the + (Add) tool, you can draw additional AND boxes to an existing rule. If a rule already has multiple conditions, the tool will smartly default to ADD mode to prevent you from accidentally deleting your work.
+   
+   * NOT Boxes (Red): These define areas that must not contain any audio energy. They act as a veto or a "cutout" tool, allowing you to refine your rules and prevent similar-sounding phonemes from being incorrectly triggered. You can create these by selecting the - (Subtract) tool.
+   
+   * Editing Conditions: Click on any existing AND or NOT box to select it. This will allow you to modify its Required Hits count or delete it entirely.
 
-2.  **Volume Gate**
-    *   Is the total energy below your `SILENCE_THRESHOLD`?
-        *   **YES:** Set viseme to `Neutral / Closed`. → **END**
-        *   **NO:** Proceed to analysis.
+2. **Intersection Logic: "The Smaller Box Wins"**
+   * When AND and NOT boxes overlap, the system uses an intuitive "smaller box wins" logic to resolve conflicts. This allows for incredibly detailed rule creation, similar to boolean operations in 3D modeling or vector art software.
+   
+   * Cutouts: If you draw a small NOT box inside a larger AND box, the NOT box takes precedence in that intersection. This is perfect for creating "dead zones" in your rule, like for the silence between phonemes in a sound like "LAH".
+   
+   * Refinements: If you draw a small AND box inside a larger NOT box, the AND box wins. This allows you to exclude a broad range of frequencies while specifically targeting a very narrow, precise sound within that range.
+   
+3. **Real-time Visualization**
 
-3.  **Viseme Analysis (In Order of Priority)**
-    *   **A. Check for Hissing Fricatives ('S', 'Sh')**
-        *   *Look for a strong band of high-frequency noise.*
-        *   If found between **4000-8000 Hz**: Set viseme to `Fricative / Hiss` ('S' sound). → **END**
-        *   If found between **2000-4000 Hz**: Set viseme to `Fricative / Hiss` ('Sh' sound). → **END**
-    *   **B. Check for Wide / Smile ('Ee')**
-        *   *Look for a "split peak" signature.*
-        *   If you see a peak around **~300 Hz** AND another peak around **~2200 Hz**: Set viseme to `Wide / Smile`. → **END**
-    *   **C. Check for Lip Bite ('F', 'V')**
-        *   *Look for a soft, wide band of noise from 1500-7000 Hz.*
-        *   If found **WITH** a low-frequency voicing hum (~150 Hz): Set viseme to `Lip Bite` ('V' sound). → **END**
-        *   If found **WITHOUT** a low-frequency hum: Set viseme to `Lip Bite` ('F' sound). → **END**
-    *   **D. Check for Pucker / Narrow ('Oo')**
-        *   *Look for a single, clean peak in the low frequencies.*
-        *   If found around **250-400 Hz** with little energy elsewhere: Set viseme to `Pucker / Narrow`. → **END**
-    *   **E. Check for Open Vowels ('Ah', 'O')**
-        *   *Look for strong, clear peaks in the mid-range.*
-        *   If the strongest peak is **~700-1200 Hz**: Set viseme to `Open` ('Ah' sound). → **END**
-        *   If the strongest peak is **~400-800 Hz**: Set viseme to `Open` ('O' sound). → **END**
-    *   **F. Check for Tongue-to-Teeth ('L', 'Th')**
-        *   *Look for a sustained, weaker peak in the low-mid range.*
-        *   If found: Set viseme to `Tongue to Teeth`. → **END**
+   * The frequency graph provides rich, real-time feedback to help you tune your rules:
+   
+   * Gray Dots: Background audio peaks that are not currently matching any part of your rule.
+   
+   * Green Path: When peaks fall inside an AND box, they are connected by a solid green line. This instantly shows you the shape of the sound your rule is capturing.
+   
+   * Magenta Dots: When a peak falls inside a NOT box, it is drawn as a prominent magenta dot. This clearly indicates that a "veto" condition has been met.
+   
+4. **Execution Flow**
+   1. Volume Gate: If the total volume is below the SILENCE_THRESHOLD, the viseme is immediately set to Neutral / Closed.
+   
+   2. Peak Detection: The system analyzes the frequency data to find all significant peaks of audio energy.
+   3. Rule Evaluation: A rule is considered a match if, and only if:
+         * For every AND box in the rule, at least the Required Hits number of peaks are found inside it.
+         * For every NOT box in the rule, zero peaks are found inside it.
+         * The "Smaller Box Wins" logic is used to resolve any overlaps between AND and NOT boxes before the final count.
 
-4.  **Fallback / Default**
-    *   If no other rules have matched, the sound is likely an indistinct vowel or a quick consonant like 'M', 'B', or 'P'.
-    *   **Default to:** `Neutral / Closed`. → **END**
+5. **Priority & Fallback:** 
+   * If multiple rules match simultaneously, the one with the higher "Branch Priority" (set in the state editor) is chosen.
+
+6. **Viseme Analysis (Encouraged Priority)**
+   * A. Hissing Fricatives ('S', 'Sh')
+       * 'S': Use a single, large AND box in the high-frequency range **(4000-8000 Hz)**.
+       * 'Sh': Use a single AND box in the mid-high range **(2000-4000 Hz)**. To prevent 'S' from triggering it, add a NOT box in the 'S' range above **(4000 Hz)**.
+
+   * B. Lip Bite ('F', 'V')
+       * This is a great use of AND and NOT. Start by creating a rule for 'F': draw one large AND box for the soft, noisy fricative sound from **(1500-7000 Hz)**.
+       * Now create a separate rule for 'V'. Use the same large AND box **(1500-7000 Hz)**, but use the + tool to add a second, small AND box to catch the low-frequency voicing hum around ~150 Hz. The 'V' rule will only trigger if both the hiss and the hum are present.
+
+   * C. Closed Mouth / Murmur ('M')
+       * Draw a tight AND box in the very low "hum" frequencies **(100-250 Hz)**.
+       * To ensure it's a closed-mouth sound, draw a large NOT box covering all the mid-to-high frequencies **(e.g., 500-8000 Hz)**. This prevents open-mouth vowels from triggering the 'M' rule.
+       * *Note: The 'M' sound is often sustained. Connect the output of this Node to a DelayTimerNode with a short delay **(e.g., 100-200ms)**. This creates a "sustained M" detector that won't fire on quick, non-M sounds that happen to have low-frequency energy.*
+   
+   * D. Wide / Smile ('Ee')
+      * This is the classic example for multiple AND boxes. Draw one AND box for the low-frequency peak **(~300 Hz)** and a second AND box for the high-frequency peak **(~2200 Hz)**. The rule will only match if peaks are found in both boxes simultaneously.
+
+   * E. Pucker / Narrow ('Oo')
+     * Start with an AND box in the low frequencies **(250-400 Hz)**.
+     * To refine it and prevent confusion with 'W'/'R', add a NOT box in the mid-range **(800-1300 Hz)**. This ensures the sound is a pure, single low-frequency peak.
+
+   * F. Rounded Lips ('W', 'R')
+     * Create a rule with two AND boxes: one in the low range **(250-400 Hz)** and another in the mid-range (800-1300 Hz). This explicitly looks for the two-peak signature that separates it from 'Oo'.
+
+   * G. Open Vowels ('Ah', 'O')
+     * 'Ah': Create a rule with one large AND box targeting the strong mid-range peak between **(~700-1200)** Hz.
+     * 'O': Create a separate rule with an AND box targeting the lower-mid range peak between **(~400-800)** Hz.
+     * *You can use NOT boxes in each rule to exclude the other's primary range and increase accuracy.*
+   
+   * H. Tongue-to-Teeth ('L', 'Th') - Detecting Sustained Tones
+     * The 'L' and 'Th' sounds are defined by being sustained.
+     * Create a PhonemeMatchNode with a single AND box in the low-mid range **(300-800 Hz)**. 
+     * *Add a Delay. Connect the output of the PhonemeMatchNode to the input of a DelayTimerNode. Set a short delay, like 200ms.*
+

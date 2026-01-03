@@ -166,8 +166,6 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                                         if (wasDraggingWire && isPointerUp) {
                                             editorViewModel.onWireDragEnd()
                                         }
-
-                                        //TODO close context menu if we tap outside it
                                     }
                                 }
                             }
