@@ -42,9 +42,11 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.round
 import cafe.adriel.voyager.core.model.rememberScreenModel
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -74,6 +76,7 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
 
         val horizontalScrollState = rememberScrollState()
         val verticalScrollState = rememberScrollState()
+        var canvasOffset by remember { mutableStateOf(IntOffset.Zero) }
 
         LaunchedEffect(Unit) {
             focusRequester.requestFocus()
@@ -82,7 +85,12 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
             }
         }
 
-        ContextMenuWrapper(editorViewModel) {
+        ContextMenuWrapper(
+            editorViewModel = editorViewModel,
+            horizontalScrollState = horizontalScrollState,
+            verticalScrollState = verticalScrollState,
+            canvasOffset = canvasOffset
+        ) {
             Scaffold(
                 topBar = {
                     TopAppBar(
@@ -141,24 +149,18 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                         editorViewModel = editorViewModel
                     )
 
-                    var pointerPosition by remember { mutableStateOf(Offset.Zero) }
-                    var boxCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
                     val gridSize = 40f
                     val canvasSize = 30000.dp
 
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .onGloballyPositioned { boxCoordinates = it }
+                            .onGloballyPositioned { canvasOffset = it.positionInWindow().round() }
                             .pointerInput(Unit) {
                                 awaitPointerEventScope {
                                     while (true) {
                                         val event = awaitPointerEvent()
                                         val change = event.changes.first()
-                                        pointerPosition = change.position + Offset(
-                                            horizontalScrollState.value.toFloat(),
-                                            verticalScrollState.value.toFloat()
-                                        )
 
                                         val wasDraggingWire = wireDragInfo != null
                                         val isPointerUp = event.changes.any { !it.pressed }
