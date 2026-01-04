@@ -502,6 +502,14 @@ private fun RenderBehaviouralNode(
                 onStateSelected = { editorViewModel.updateNode(node.copy(previewStateName = it)) }
             )
         }
+
+        is RandomNode -> {
+            RandomNodeView(
+                node = node,
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates
+            )
+        }
     }
 }
 

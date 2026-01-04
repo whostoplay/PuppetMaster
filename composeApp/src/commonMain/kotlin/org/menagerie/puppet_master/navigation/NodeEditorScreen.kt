@@ -16,10 +16,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -77,6 +80,28 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
         val horizontalScrollState = rememberScrollState()
         val verticalScrollState = rememberScrollState()
         var canvasOffset by remember { mutableStateOf(IntOffset.Zero) }
+        var showClearConfirmationDialog by remember { mutableStateOf(false) }
+
+        if (showClearConfirmationDialog) {
+            AlertDialog(
+                onDismissRequest = { showClearConfirmationDialog = false },
+                title = { Text("Clear Graph?") },
+                text = { Text("Are you sure you want to delete all nodes and wires? This action cannot be undone.") },
+                confirmButton = {
+                    Button(onClick = {
+                        editorViewModel.clearGraph()
+                        showClearConfirmationDialog = false
+                    }) {
+                        Text("Yes")
+                    }
+                },
+                dismissButton = {
+                    Button(onClick = { showClearConfirmationDialog = false }) {
+                        Text("No")
+                    }
+                }
+            )
+        }
 
         LaunchedEffect(Unit) {
             focusRequester.requestFocus()
@@ -104,6 +129,9 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                             }
                         },
                         actions = {
+                            IconButton(onClick = { showClearConfirmationDialog = true }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Clear Graph")
+                            }
                             IconButton(onClick = { editorViewModel.sortNodes() }) {
                                 Icon(Icons.Default.SwapVert, contentDescription = "Sort Nodes")
                             }

@@ -46,6 +46,7 @@ class GraphExecutor(private val graph: NodeGraph) {
     private val waitNodeTimers = mutableMapOf<NodeId, Long>()
     private val delayedNodes = mutableMapOf<NodeId, Long>()
     private val delayTimerNodeTimers = mutableMapOf<NodeId, Long>()
+    private val randomNodeOrders = mutableMapOf<NodeId, Pair<List<NodeId>, Long>>()
     private val phonemeMatchStates = mutableMapOf<NodeId, PhonemeMatchState>()
 
     fun getActiveNodes(): Set<NodeId> = activeNodes.toSet()
@@ -62,6 +63,42 @@ class GraphExecutor(private val graph: NodeGraph) {
         val branchLayers = mutableListOf<Layer>()
 
         while (currentNode != null) {
+            if (currentNode is RandomNode) {
+                val childrenOfRandom = graph.wires
+                    .filter { it.fromNodeId == currentNode.id }
+                    .mapNotNull { wire -> graph.nodes[wire.toNodeId]?.let { node -> wire to node } }
+
+                val now = System.currentTimeMillis()
+                val (shuffledIds, expiry) = randomNodeOrders[currentNode.id] ?: (null to 0L)
+
+                val orderedChildren = if (shuffledIds != null && now < expiry) {
+                    val childrenMap = childrenOfRandom.associateBy { (_, node) -> node.id }
+                    shuffledIds.mapNotNull { id -> childrenMap[id] }
+                } else {
+                    val priorities = (1..childrenOfRandom.size).shuffled()
+                    val shuffled = childrenOfRandom
+                        .zip(priorities)
+                        .sortedBy { it.second }
+                        .map { it.first }
+
+                    val newOrder = shuffled.map { it.second.id }
+                    randomNodeOrders[currentNode.id] = newOrder to now + currentNode.retainOrderDelay
+                    shuffled
+                }
+
+                for ((wire, childNode) in orderedChildren) {
+                    activeWires.add(wire)
+                    activeNodes.add(childNode.id)
+                    val action = executeFromNode(childNode, executionContext) // Recursive call
+                    if (action != null) {
+                        return action
+                    }
+                    if (activeNodes.any { delayedNodes.containsKey(it) || delayTimerNodeTimers.containsKey(it) }) {
+                        return null
+                    }
+                }
+                return null
+            }
 
             val resumeTime = delayedNodes[currentNode.id]
             if (resumeTime != null) { // Node is in delayedNodes
@@ -251,7 +288,8 @@ class GraphExecutor(private val graph: NodeGraph) {
             val childrenOfStart = graph.wires
                 .filter { it.fromNodeId == startNode.id }
                 .mapNotNull { wire -> graph.nodes[wire.toNodeId]?.let { node -> wire to node } }
-                .sortedBy { it.second.branchPriority }
+
+            val orderedChildren = childrenOfStart.sortedBy { it.second.branchPriority }
 
             var executionContext = context.copy(
                 toggledOnNodes = toggledOnNodes,
@@ -262,7 +300,7 @@ class GraphExecutor(private val graph: NodeGraph) {
                 executionContext = executionContext.copy(puppetId = startNode.puppetId)
             }
 
-            for ((wire, childNode) in childrenOfStart) {
+            for ((wire, childNode) in orderedChildren) {
                 activeWires.add(wire)
                 activeNodes.add(childNode.id)
                 val action = executeFromNode(childNode, executionContext)
@@ -319,5 +357,6 @@ class GraphExecutor(private val graph: NodeGraph) {
         delayedNodes.clear()
         delayTimerNodeTimers.clear()
         phonemeMatchStates.clear()
+        randomNodeOrders.clear()
     }
 }

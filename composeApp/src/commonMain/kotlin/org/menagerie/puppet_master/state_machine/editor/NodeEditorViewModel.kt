@@ -267,6 +267,10 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
         }
     }
 
+    fun clearGraph() {
+        commitGraphUpdate(NodeGraph.createInitialGraph())
+    }
+
     fun toggleSimulation() {
         if (isSimulating.value) {
             stopSimulation()

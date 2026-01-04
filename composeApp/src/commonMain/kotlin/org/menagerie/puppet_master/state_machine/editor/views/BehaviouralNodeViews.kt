@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -59,6 +60,7 @@ import org.menagerie.puppet_master.localisation.Strings
 import org.menagerie.puppet_master.navigation.combinedEyeGestures
 import org.menagerie.puppet_master.previews.LivePreview
 import org.menagerie.puppet_master.state_machine.GoThroughStateNode
+import org.menagerie.puppet_master.state_machine.RandomNode
 import org.menagerie.puppet_master.state_machine.WithEffectNode
 import org.menagerie.puppet_master.state_machine.WithLayerNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
@@ -328,7 +330,7 @@ fun WithLayerNodeView(
 
     NodeView(
         node = node,
-        title = "With Layer",
+        title = if (node.layer.imageName.isNotEmpty()) "With: ${node.layer.imageName.removeSuffix(".png")}" else "With Layer",
         editorViewModel = editorViewModel,
         canvasCoordinates = canvasCoordinates,
         expanded = expanded
@@ -482,6 +484,37 @@ fun WithLayerNodeView(
                 }
                 Spacer(modifier = Modifier.weight(1f))
             }
+        }
+    }
+}
+
+@Composable
+fun RandomNodeView(
+    node: RandomNode,
+    editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates
+) {
+    NodeView(
+        node = node,
+        title = "Random",
+        editorViewModel = editorViewModel,
+        canvasCoordinates = canvasCoordinates,
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Icon(Icons.Default.Shuffle, contentDescription = "Random", modifier = Modifier.size(48.dp), tint = Color.White)
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Retain Order: %.2f s".format(node.retainOrderDelay / 1000f))
+            Slider(
+                value = node.retainOrderDelay.toFloat(),
+                onValueChange = {
+                    editorViewModel.updateNode(node.copy(retainOrderDelay = it.roundToLong()))
+                },
+                valueRange = 0f..10000f // 0 to 10 seconds
+            )
         }
     }
 }

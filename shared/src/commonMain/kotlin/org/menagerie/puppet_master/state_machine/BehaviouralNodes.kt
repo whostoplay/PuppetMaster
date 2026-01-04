@@ -88,10 +88,34 @@ data class WithLayerNode(
     }
 }
 
+@Serializable
+data class RandomNode(
+    override val id: NodeId,
+    override val position: SerializableOffset,
+    override val size: SerializableSize = SerializableSize(250f, 250f),
+    override val expandedSize: SerializableSize? = null,
+    val retainOrderDelay: Long = 0,
+    override val branchPriority: Int = 0,
+) : BehaviouralNode {
+    override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
+        val nextNodeId = findNextNodeId(graph, "out")
+        return ExecuteResult(nextNodeId = nextNodeId)
+    }
+
+    override fun copyNode(id: NodeId, position: SerializableOffset): Node {
+        return copy(id = id, position = position)
+    }
+
+    override fun copyNodeWithNewPriority(priority: Int): Node {
+        return copy(branchPriority = priority)
+    }
+}
+
 fun getAvailableBehaviouralNodes(): List<Node> {
     return listOf(
         GoThroughStateNode("", SerializableOffset(0f, 0f)),
         WithEffectNode("", SerializableOffset(0f, 0f)),
-        WithLayerNode("", SerializableOffset(0f, 0f))
+        WithLayerNode("", SerializableOffset(0f, 0f)),
+        RandomNode("", SerializableOffset(0f, 0f))
     )
 }

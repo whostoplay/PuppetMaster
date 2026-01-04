@@ -240,7 +240,7 @@ fun PhonemeMatchNodeView(
                     }
                 }
                 Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                    Text("Trigger Threshold: ${node.triggerThreshold}")
+                    Text("Confidence (Consistency) Threshold: ${node.triggerThreshold}")
                     Slider(
                         value = node.triggerThreshold.toFloat(),
                         onValueChange = {
