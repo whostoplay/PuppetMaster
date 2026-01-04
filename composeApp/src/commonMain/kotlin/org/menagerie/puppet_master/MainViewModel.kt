@@ -159,8 +159,6 @@ class MainViewModel(context: Any) : ScreenModel {
     val connectionState: StateFlow<ConnectionState> = dataManager.connectionState
 
     val frequencyData: StateFlow<FloatArray> = stateController.frequencyData
-    private val _frequencyPeaks = MutableStateFlow<List<Pair<Float, Float>>>(emptyList())
-    val frequencyPeaks: StateFlow<List<Pair<Float, Float>>> = _frequencyPeaks.asStateFlow()
 
     private val client = HttpClient {
         install(WebSockets) {
@@ -236,7 +234,7 @@ class MainViewModel(context: Any) : ScreenModel {
                         val context = GraphExecutionContext(
                             microphoneVolume = level,
                             hotKeyPressed = hotkey,
-                            frequencyPeaks = _frequencyPeaks.value
+                            frequencyData = frequencyData.value
                         )
                         val action = graphExecutor?.tick(context)
                         if (action is GraphAction.SetState) {
@@ -318,11 +316,6 @@ class MainViewModel(context: Any) : ScreenModel {
                 }
             }
         }
-    }
-
-    fun onPeaksDetected(peaks: List<Pair<Float, Float>>) {
-        _frequencyPeaks.value = peaks
-        println(peaks.count())
     }
 
     fun updateSettings(newSettings: SettingsModel) {

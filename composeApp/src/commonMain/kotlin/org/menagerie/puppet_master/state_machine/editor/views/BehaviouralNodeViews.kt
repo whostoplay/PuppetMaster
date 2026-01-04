@@ -305,12 +305,14 @@ fun WithLayerNodeView(
 
     if (showImagePicker) {
         ImagePickerDialog(
-            initialDirectory = uploadsDir,
+            initialDirectory = editorViewModel.mainViewModel.settings.value.lastImageFolder ?: uploadsDir,
             show = showImagePicker,
             title = Strings.getString(Strings.Keys.GET_LAYER),
             multiSelect = false,
             onCancel = { showImagePicker = false },
-            onFolderSelected = {},
+            onFolderSelected = {
+                editorViewModel.mainViewModel.setLastImageFolder(it)
+            },
             onResult = { newImages ->
                 if (newImages.isNotEmpty()) {
                     val (bytes, name) = newImages.first()

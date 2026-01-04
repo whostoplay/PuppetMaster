@@ -23,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -44,6 +45,7 @@ import org.menagerie.puppet_master.state_machine.HotKeyNode
 import org.menagerie.puppet_master.state_machine.PhonemeMatchNode
 import org.menagerie.puppet_master.state_machine.VolumeThresholdNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
+import org.menagerie.puppet_master.state_machine.editor.viewmodels.PhonemeViewModel
 
 @Composable
 fun VolumeThresholdNodeView(
@@ -105,11 +107,9 @@ fun PhonemeMatchNodeView(
     editorViewModel: NodeEditorViewModel,
     canvasCoordinates: LayoutCoordinates,
     expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onPeaksDetected: (List<Pair<Float, Float>>) -> Unit
+    onExpandedChange: (Boolean) -> Unit
 ) {
     val frequencyData by editorViewModel.mainViewModel.frequencyData.collectAsState()
-    var currentPeakCount by remember { mutableStateOf(0) }
     var drawMode by remember(node.rule?.conditions?.size) {
         val initialMode = if ((node.rule?.conditions?.size ?: 0) > 1) {
             DrawMode.ADD
@@ -120,11 +120,23 @@ fun PhonemeMatchNodeView(
     }
 
     var selectedConditionIndex by remember { mutableStateOf<Int?>(null) }
+    val phonemeViewModel: PhonemeViewModel = remember { PhonemeViewModel() }
 
     LaunchedEffect(node.rule?.conditions?.size) {
         if (selectedConditionIndex != null && selectedConditionIndex!! >= (node.rule?.conditions?.size ?: 0)) {
             selectedConditionIndex = null
         }
+    }
+
+    val significantPeaks = remember(frequencyData) {
+        node.processFrequencyData(frequencyData)
+    }
+
+    val currentPeakCount = significantPeaks.count { (freq, mag) ->
+        node.rule?.conditions?.any { condition ->
+            condition.type == org.menagerie.puppet_master.state_machine.ConditionType.AND &&
+                    freq in condition.frequencyRange && mag in condition.magnitudeRange
+        } ?: false
     }
 
     NodeView(
@@ -136,13 +148,11 @@ fun PhonemeMatchNodeView(
     ) {
         Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
             if (expanded) {
-                // Toolbar for drawing modes goes on top for better UX
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // This is a small, self-contained composable for the buttons
                     @Composable
                     fun ModeToggleButton(mode: DrawMode, selected: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
                         IconToggleButton(checked = selected, onCheckedChange = { if (it) onClick() }) {
@@ -177,62 +187,50 @@ fun PhonemeMatchNodeView(
                     onRuleChanged = { newRule ->
                         editorViewModel.updateNode(node.copy(rule = newRule))
                     },
-                    onPeaksDetected = { peaks ->
-                        onPeaksDetected(peaks)
-                        // UPDATED: Count hits across all conditions in the rule
-                        currentPeakCount = peaks.count { (freq, mag) ->
-                            node.rule?.conditions?.any { condition ->
-                                // Only count hits for positive (AND) conditions
-                                condition.type == org.menagerie.puppet_master.state_machine.ConditionType.AND &&
-                                        freq in condition.frequencyRange && mag in condition.magnitudeRange
-                            } ?: false
-                        }
-                    },
+                    onPeaksDetected = { /* No-op, handled by the node now */ },
                     drawMode = drawMode,
                     selectedConditionIndex = selectedConditionIndex,
                     onConditionSelected = { index ->
                         selectedConditionIndex = index
-                    }
+                    },
+                    viewModel = phonemeViewModel
                 )
-                val currentRule = node.rule // Create a local, stable variable
+                val currentRule = node.rule
                 if (selectedConditionIndex != null && currentRule != null) {
                     val selectedIndex = selectedConditionIndex!!
-                    val selectedCondition = currentRule.conditions.getOrNull(selectedIndex) // Use currentRule
+                    val selectedCondition = currentRule.conditions.getOrNull(selectedIndex)
                     if (selectedCondition != null) {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Required Hits controls
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("Required Hits:")
                                 IconButton(onClick = {
                                     val newHits = (selectedCondition.requiredHits - 1).coerceAtLeast(0)
-                                    val newConditions = currentRule.conditions.toMutableList() // Use currentRule
+                                    val newConditions = currentRule.conditions.toMutableList()
                                     newConditions[selectedIndex] = selectedCondition.copy(requiredHits = newHits)
-                                    editorViewModel.updateNode(node.copy(rule = currentRule.copy(conditions = newConditions))) // Use currentRule
+                                    editorViewModel.updateNode(node.copy(rule = currentRule.copy(conditions = newConditions)))
                                 }) {
                                     Icon(Icons.Default.Remove, "Decrement Hits")
                                 }
                                 Text("${selectedCondition.requiredHits}")
                                 IconButton(onClick = {
                                     val newHits = selectedCondition.requiredHits + 1
-                                    val newConditions = currentRule.conditions.toMutableList() // Use currentRule
+                                    val newConditions = currentRule.conditions.toMutableList()
                                     newConditions[selectedIndex] = selectedCondition.copy(requiredHits = newHits)
-                                    editorViewModel.updateNode(node.copy(rule = currentRule.copy(conditions = newConditions))) // Use currentRule
+                                    editorViewModel.updateNode(node.copy(rule = currentRule.copy(conditions = newConditions)))
                                 }) {
                                     Icon(Icons.Default.Add, "Increment Hits")
                                 }
                             }
 
-                            // Delete button
                             Button(
                                 onClick = {
-                                    val newConditions = currentRule.conditions.toMutableList() // Use currentRule
+                                    val newConditions = currentRule.conditions.toMutableList()
                                     newConditions.removeAt(selectedIndex)
-                                    editorViewModel.updateNode(node.copy(rule = currentRule.copy(conditions = newConditions))) // Use currentRule
-                                    // The LaunchedEffect will handle setting selectedConditionIndex to null
+                                    editorViewModel.updateNode(node.copy(rule = currentRule.copy(conditions = newConditions)))
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                             ) {
@@ -241,21 +239,38 @@ fun PhonemeMatchNodeView(
                         }
                     }
                 }
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    Text("Trigger Threshold: ${node.triggerThreshold}")
+                    Slider(
+                        value = node.triggerThreshold.toFloat(),
+                        onValueChange = {
+                            editorViewModel.updateNode(node.copy(triggerThreshold = it.toInt()))
+                        },
+                        valueRange = 1f..20f,
+                        steps = 19
+                    )
+                    Text("Confidence Decay Rate: ${node.confidenceDecayRate}")
+                    Slider(
+                        value = node.confidenceDecayRate.toFloat(),
+                        onValueChange = {
+                            editorViewModel.updateNode(node.copy(confidenceDecayRate = it.toInt()))
+                        },
+                        valueRange = 1f..5f,
+                        steps = 4
+                    )
+                }
 
-                // UPDATED: Display information relevant to the new rule system
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
                 ) {
                     val conditionCount = node.rule?.conditions?.size ?: 0
                     Text("Conditions: $conditionCount", modifier = Modifier.weight(1f))
-                    // The old "Min Peaks" UI is removed as it's now part of each RuleCondition
                     Spacer(modifier = Modifier.weight(1f))
                     Text("Live Hits: $currentPeakCount")
                 }
 
             } else {
-                // UPDATED: Display a summary of the rule when collapsed
                 val conditionCount = node.rule?.conditions?.size ?: 0
                 val andConditions = node.rule?.conditions?.count { it.type == org.menagerie.puppet_master.state_machine.ConditionType.AND } ?: 0
                 val notConditions = node.rule?.conditions?.count { it.type == org.menagerie.puppet_master.state_machine.ConditionType.NOT } ?: 0
@@ -269,15 +284,17 @@ fun PhonemeMatchNodeView(
                 }
             }
 
-            // This expand/collapse button is common to both states
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Spacer(modifier = Modifier.weight(1f))
                 IconButton(onClick = { onExpandedChange(!expanded) }) {
-                    Icon(if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown, contentDescription = "Expand")
+                    if (expanded) {
+                        Icon(Icons.Default.ArrowDropUp, "Collapse")
+                    } else {
+                        Icon(Icons.Default.ArrowDropDown, "Expand")
+                    }
                 }
                 Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
 }
-

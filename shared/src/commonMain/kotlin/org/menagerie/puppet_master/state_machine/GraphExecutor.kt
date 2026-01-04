@@ -4,17 +4,18 @@ import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.Layer
 import org.menagerie.puppet_master.SpecialEffect
 
+
 /**
- * A data container that provides the live values that a graph needs to execute its logic.
- * This object is created and updated by the MainViewModel.
+ * Represents the live data context for a single execution of the graph.
  */
 data class GraphExecutionContext(
-    val microphoneVolume: Float = 0f,
+    val microphoneVolume: Float = 0.0f,
     val hotKeyPressed: Hotkey? = null,
     val toggledOnNodes: Set<NodeId> = emptySet(),
     val puppetId: String? = null,
     val lastProcessedHotkey: Hotkey? = null, // We need to know if a key press has already been handled
-    val frequencyPeaks: List<Pair<Float, Float>> = emptyList()
+    val frequencyData: FloatArray = FloatArray(0),
+    val phonemeMatchStates: Map<NodeId, PhonemeMatchState> = emptyMap()
 )
 
 /**
@@ -27,6 +28,7 @@ sealed interface GraphAction {
     // This is an internal action for the executor to handle, requested by a node
     data class RequestToggle(val nodeId: NodeId) : GraphAction
     data class RequestDelay(val nextNodeId: NodeId, val delay: Long) : GraphAction
+    data class UpdatePhonemeMatchState(val nodeId: NodeId, val state: PhonemeMatchState) : GraphAction
 }
 
 /**
@@ -44,6 +46,7 @@ class GraphExecutor(private val graph: NodeGraph) {
     private val waitNodeTimers = mutableMapOf<NodeId, Long>()
     private val delayedNodes = mutableMapOf<NodeId, Long>()
     private val delayTimerNodeTimers = mutableMapOf<NodeId, Long>()
+    private val phonemeMatchStates = mutableMapOf<NodeId, PhonemeMatchState>()
 
     fun getActiveNodes(): Set<NodeId> = activeNodes.toSet()
     fun getActiveWires(): Set<Wire> = activeWires.toSet()
@@ -176,10 +179,8 @@ class GraphExecutor(private val graph: NodeGraph) {
 
 
             if (result.action != null) {
-
                 when (val action = result.action) {
                     is GraphAction.SetState -> {
-                        println(branchLayers)
                         return action.copy(
                             effect = branchEffect,
                             layers = (action.layers + branchLayers).distinct()
@@ -206,6 +207,9 @@ class GraphExecutor(private val graph: NodeGraph) {
                         wire?.let { activeWires.add(it) }
                         activeNodes.add(action.nextNodeId)
                         return null
+                    }
+                    is GraphAction.UpdatePhonemeMatchState -> {
+                        phonemeMatchStates[action.nodeId] = action.state
                     }
                     else -> return action
                 }
@@ -251,7 +255,8 @@ class GraphExecutor(private val graph: NodeGraph) {
 
             var executionContext = context.copy(
                 toggledOnNodes = toggledOnNodes,
-                lastProcessedHotkey = lastProcessedHotkey
+                lastProcessedHotkey = lastProcessedHotkey,
+                phonemeMatchStates = phonemeMatchStates
             )
             if (startNode is StartNode) {
                 executionContext = executionContext.copy(puppetId = startNode.puppetId)
@@ -313,5 +318,6 @@ class GraphExecutor(private val graph: NodeGraph) {
         waitNodeTimers.clear()
         delayedNodes.clear()
         delayTimerNodeTimers.clear()
+        phonemeMatchStates.clear()
     }
 }

@@ -232,8 +232,7 @@ fun NodeCanvas(
                                         } else {
                                             expandedNodes - node.id
                                         }
-                                    },
-                                    onPeaksDetected = { peaks -> mainViewModel.onPeaksDetected(peaks) }
+                                    }
                                 )
 
                                 is BehaviouralNode -> RenderBehaviouralNode(
@@ -513,8 +512,7 @@ private fun RenderConditionalNode(
     editorViewModel: NodeEditorViewModel,
     canvasCoordinates: LayoutCoordinates,
     expanded: Boolean,
-    onExpandedChange: (Boolean) -> Unit,
-    onPeaksDetected: (List<Pair<Float, Float>>) -> Unit
+    onExpandedChange: (Boolean) -> Unit
 ) {
     when (node) {
         is VolumeThresholdNode -> {
@@ -545,8 +543,7 @@ private fun RenderConditionalNode(
                 editorViewModel = editorViewModel,
                 canvasCoordinates = canvasCoordinates,
                 expanded = expanded,
-                onExpandedChange = onExpandedChange,
-                onPeaksDetected = onPeaksDetected
+                onExpandedChange = onExpandedChange
             )
         }
     }

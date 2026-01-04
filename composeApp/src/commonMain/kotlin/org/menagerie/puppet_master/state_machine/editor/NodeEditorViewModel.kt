@@ -299,7 +299,7 @@ class NodeEditorViewModel(val mainViewModel: MainViewModel) : ScreenModel {
                 val context = GraphExecutionContext(
                     microphoneVolume = mainViewModel.audioLevel.value,
                     hotKeyPressed = _lastPressedKey.value,
-                    frequencyPeaks = mainViewModel.frequencyPeaks.value
+                    frequencyData = mainViewModel.frequencyData.value
                 )
                 graphExecutor?.tick(context)
                 _activeNodes.value = graphExecutor?.getActiveNodes() ?: emptySet()

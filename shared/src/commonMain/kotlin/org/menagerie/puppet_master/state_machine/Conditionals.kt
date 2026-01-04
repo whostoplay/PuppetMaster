@@ -4,7 +4,9 @@ import kotlinx.serialization.Serializable
 import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.SerializableSize
-import org.menagerie.puppet_master.state_machine.ConditionType
+
+private const val SAMPLE_RATE = 16000f
+private const val MIN_FREQUENCY_HZ = 80f
 
 /**
  * A node that branches based on the audio volume.
@@ -36,8 +38,6 @@ data class VolumeThresholdNode(
     }
 }
 
-
-
 /**
  * A node that branches based on a user-defined sound.
  */
@@ -47,9 +47,42 @@ data class PhonemeMatchNode(
     override val position: SerializableOffset,
     override val branchPriority: Int = 0,
     val rule: VisemeRule? = null,
+    val triggerThreshold: Int = 10,
+    val confidenceDecayRate: Int = 3,
     override val size: SerializableSize = SerializableSize(250f, 200f),
     override val expandedSize: SerializableSize? = SerializableSize(1000f, 800f)
 ) : ConditionalNode {
+
+    fun processFrequencyData(frequencyData: FloatArray): List<Pair<Float, Float>> {
+        val peaks = mutableListOf<Pair<Float, Float>>()
+        if (frequencyData.isEmpty()) {
+            return peaks
+        }
+
+        val startingBin = (MIN_FREQUENCY_HZ / (SAMPLE_RATE / 2) * frequencyData.size).toInt().coerceAtLeast(4)
+
+        for (index in startingBin until frequencyData.size - 4) {
+            val magnitude = frequencyData[index]
+
+            val isPeak = magnitude > 1500 &&
+                    magnitude > frequencyData[index - 1] &&
+                    magnitude > frequencyData[index + 1] &&
+                    magnitude > frequencyData[index - 2] &&
+                    magnitude > frequencyData[index + 2] &&
+                    magnitude > frequencyData[index - 3] &&
+                    magnitude > frequencyData[index + 3] &&
+                    magnitude > frequencyData[index - 4] &&
+                    magnitude > frequencyData[index + 4]
+
+            if (isPeak) {
+                val frequency = index * (SAMPLE_RATE / 2) / frequencyData.size
+                if (frequency > 0) {
+                    peaks.add(Pair(frequency, magnitude))
+                }
+            }
+        }
+        return peaks
+    }
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
 
@@ -57,40 +90,56 @@ data class PhonemeMatchNode(
         return this.copy(branchPriority = priority)
     }
 
-
-    /**
-     * Executes the logic for this node.
-     * It checks if the incoming audio peaks satisfy all the 'AND' conditions
-     * and none of the 'NOT' conditions in the rule.
-     */
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        // If there's no rule or the rule has no conditions, it can't match.
+        val currentState = context.phonemeMatchStates[id] ?: PhonemeMatchState()
+
         if (rule?.conditions.isNullOrEmpty()) {
-            return ExecuteResult(null)
+            return ExecuteResult(null, if (currentState.confidence != 0 || currentState.isActive) {
+                GraphAction.UpdatePhonemeMatchState(id, PhonemeMatchState(0, false))
+            } else {
+                null
+            })
         }
 
-        // Check if all conditions in the rule are met by the current frequency peaks.
+        val significantPeaks = processFrequencyData(context.frequencyData)
+
         val allConditionsMet = rule.conditions.all { condition ->
-            // Count how many of the current audio peaks fall within this condition's box.
-            val hitCount = context.frequencyPeaks.count { (freq, mag) ->
+            val hitCount = significantPeaks.count { (freq, mag) ->
                 freq in condition.frequencyRange && mag in condition.magnitudeRange
             }
-
-            // Check the condition based on its type.
             when (condition.type) {
-                // For an 'AND' condition, we must have at least the required number of hits.
                 ConditionType.AND -> hitCount >= condition.requiredHits
-                // For a 'NOT' condition, we must have zero hits.
-                ConditionType.NOT -> hitCount == 0
+                ConditionType.NOT -> hitCount <= condition.requiredHits
             }
         }
 
-        val nextNodeId = if (allConditionsMet) {
+        val newConfidence = if (allConditionsMet) {
+            (currentState.confidence + 1).coerceAtMost(triggerThreshold)
+        } else {
+            (currentState.confidence - confidenceDecayRate).coerceAtLeast(0)
+        }
+
+        val newIsActive = if (newConfidence >= triggerThreshold) {
+            true
+        } else if (newConfidence == 0) {
+            false
+        } else {
+            currentState.isActive
+        }
+
+        val action = if (newConfidence != currentState.confidence || newIsActive != currentState.isActive) {
+            GraphAction.UpdatePhonemeMatchState(id, PhonemeMatchState(newConfidence, newIsActive))
+        } else {
+            null
+        }
+
+        val nextNodeId = if (newIsActive) {
             findNextNodeId(graph, "true")
         } else {
             null
         }
-        return ExecuteResult(nextNodeId)
+
+        return ExecuteResult(nextNodeId, action)
     }
 }
 
