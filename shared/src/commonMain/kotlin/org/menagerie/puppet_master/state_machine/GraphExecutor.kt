@@ -15,7 +15,8 @@ data class GraphExecutionContext(
     val puppetId: String? = null,
     val lastProcessedHotkey: Hotkey? = null, // We need to know if a key press has already been handled
     val frequencyData: FloatArray = FloatArray(0),
-    val phonemeMatchStates: Map<NodeId, PhonemeMatchState> = emptyMap()
+    val phonemeMatchStates: Map<NodeId, PhonemeMatchState> = emptyMap(),
+    val volumeHistory: Map<NodeId, List<Float>> = emptyMap()
 )
 
 /**
@@ -48,6 +49,7 @@ class GraphExecutor(private val graph: NodeGraph) {
     private val delayTimerNodeTimers = mutableMapOf<NodeId, Long>()
     private val randomNodeOrders = mutableMapOf<NodeId, Pair<List<NodeId>, Long>>()
     private val phonemeMatchStates = mutableMapOf<NodeId, PhonemeMatchState>()
+    private val volumeHistory = mutableMapOf<NodeId, MutableList<Float>>()
 
     fun getActiveNodes(): Set<NodeId> = activeNodes.toSet()
     fun getActiveWires(): Set<Wire> = activeWires.toSet()
@@ -275,6 +277,15 @@ class GraphExecutor(private val graph: NodeGraph) {
         activeNodes.clear()
         activeWires.clear()
 
+        // Update volume history for all volume threshold nodes
+        graph.nodes.values.filterIsInstance<VolumeThresholdNode>().forEach { node ->
+            val history = volumeHistory.getOrPut(node.id) { mutableListOf() }
+            history.add(context.microphoneVolume)
+            if (history.size > (node.spikeDetection.window).coerceAtLeast(100)) { // Limit history size
+                history.removeAt(0)
+            }
+        }
+
         try {
             val startNodeId = overrideStartNodeId ?: graph.startNodeId
             val startNode = startNodeId?.let { graph.nodes[it] }
@@ -294,7 +305,8 @@ class GraphExecutor(private val graph: NodeGraph) {
             var executionContext = context.copy(
                 toggledOnNodes = toggledOnNodes,
                 lastProcessedHotkey = lastProcessedHotkey,
-                phonemeMatchStates = phonemeMatchStates
+                phonemeMatchStates = phonemeMatchStates,
+                volumeHistory = volumeHistory
             )
             if (startNode is StartNode) {
                 executionContext = executionContext.copy(puppetId = startNode.puppetId)
@@ -358,5 +370,6 @@ class GraphExecutor(private val graph: NodeGraph) {
         delayTimerNodeTimers.clear()
         phonemeMatchStates.clear()
         randomNodeOrders.clear()
+        volumeHistory.clear()
     }
 }

@@ -8,6 +8,7 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.media.audiofx.Visualizer
+import android.os.Build
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -42,7 +43,12 @@ actual class AudioProcessor actual constructor(private val context: Any) {
      * @param onFrequencyData An optional callback that receives the frequency spectrum as a FloatArray.
      */
     @SuppressLint("MissingPermission")
-    actual fun start(onLevelChange: (Float) -> Unit, onFrequencyData: ((FloatArray) -> Unit)?) {
+    actual fun start(
+        onLevelChange: (Float) -> Unit,
+        onFrequencyData: ((FloatArray) -> Unit)?,
+        mixerName: String?,
+        onError: (String) -> Unit,
+    ) {
         audioJob?.cancel()
 
         val androidContext = context as Context
@@ -97,6 +103,7 @@ actual class AudioProcessor actual constructor(private val context: Any) {
                     }
                 }
             } catch (e: Exception) {
+                onError("Error initializing audio: ${e.message}")
                 e.printStackTrace()
             } finally {
                 audioRecord?.stop()
@@ -144,9 +151,8 @@ actual class AudioProcessor actual constructor(private val context: Any) {
         val rms = sqrt(sumOfSquares / readSize)
         val normalizedRms = (rms / MAX_AMPLITUDE).toFloat()
 
-        // Amplify the sensitivity and apply smoothing
-        val amplifiedLevel = (normalizedRms * SENSITIVITY).coerceIn(0f, 1f)
-        smoothedLevel += (amplifiedLevel - smoothedLevel) * SMOOTHING_FACTOR
+        // Apply smoothing
+        smoothedLevel += (normalizedRms - smoothedLevel) * SMOOTHING_FACTOR
 
         return smoothedLevel
     }
@@ -164,7 +170,20 @@ actual class AudioProcessor actual constructor(private val context: Any) {
         private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
         private const val MAX_AMPLITUDE = 32767.0 // Max value for 16-bit signed audio
 
-        private const val SENSITIVITY = 10f // Increase this to make the audio level more sensitive
         private const val SMOOTHING_FACTOR = 0.1f // Increase for faster response, decrease for more smoothing
+
+        const val SOURCE_MIC = "MIC"
+        const val SOURCE_MEDIA = "MEDIA"
+        const val SOURCE_GAME = "GAME"
+
+        fun getAvailableInputs(): List<String> {
+            val inputs = mutableListOf(SOURCE_MIC)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                inputs.add(SOURCE_MEDIA)
+                inputs.add(SOURCE_GAME)
+            }
+            return inputs
+        }
+
     }
 }

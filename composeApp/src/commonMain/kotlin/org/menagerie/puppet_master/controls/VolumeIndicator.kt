@@ -97,7 +97,7 @@ fun VolumeIndicator(
         Slider(
             value = sensitivity,
             onValueChange = onSensitivityChange,
-            valueRange = 0.05f..5f,
+            valueRange = 0.05f..20f,
             modifier = Modifier.fillMaxWidth()
         )
     }
@@ -197,7 +197,7 @@ fun VolumeIndicator(
         Slider(
             value = sensitivity,
             onValueChange = onSensitivityChange,
-            valueRange = 0.05f..5f,
+            valueRange = 0.05f..20f,
             modifier = Modifier.fillMaxWidth()
         )
     }

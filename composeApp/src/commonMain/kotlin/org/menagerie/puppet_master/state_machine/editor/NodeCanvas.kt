@@ -530,7 +530,9 @@ private fun RenderConditionalNode(
                     editorViewModel.updateNode(node.copy(threshold = newThreshold))
                 },
                 editorViewModel = editorViewModel,
-                canvasCoordinates = canvasCoordinates
+                canvasCoordinates = canvasCoordinates,
+                expanded = expanded,
+                onExpandedChange = onExpandedChange
             )
         }
 

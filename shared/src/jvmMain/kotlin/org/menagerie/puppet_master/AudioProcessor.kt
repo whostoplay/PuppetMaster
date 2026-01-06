@@ -14,6 +14,7 @@ import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.DataLine
 import javax.sound.sampled.TargetDataLine
+import javax.sound.sampled.Mixer
 import kotlin.math.sqrt
 
 /**
@@ -35,14 +36,32 @@ actual class AudioProcessor actual constructor(context: Any) {
      * @param onLevelChange A callback that receives the audio level as a Float between 0.0 and 1.0.
      * @param onFrequencyData An optional callback that receives the frequency spectrum as a FloatArray.
      */
-    actual fun start(onLevelChange: (Float) -> Unit, onFrequencyData: ((FloatArray) -> Unit)?) {
+    actual fun start(
+        onLevelChange: (Float) -> Unit,
+        onFrequencyData: ((FloatArray) -> Unit)?,
+        mixerName: String?,
+        onError: (String) -> Unit,
+    ) {
         audioJob?.cancel()
         audioJob = audioScope.launch {
             var dataLine: TargetDataLine? = null
             try {
                 val format = AudioFormat(SAMPLE_RATE, SAMPLE_SIZE_IN_BITS, CHANNELS, IS_SIGNED, IS_BIG_ENDIAN)
                 val info = DataLine.Info(TargetDataLine::class.java, format)
-                dataLine = AudioSystem.getLine(info) as TargetDataLine
+
+
+                val dataLine = if (mixerName != null) {
+                    val mixer = getMixerByName(mixerName)
+                    if (mixer == null) {
+                        onError("Audio device not found: $mixerName. Using default.")
+                        AudioSystem.getLine(info) as TargetDataLine
+                    } else {
+                        mixer.getLine(info) as TargetDataLine
+                    }
+                } else {
+                    AudioSystem.getLine(info) as TargetDataLine
+                }
+
                 dataLine.open(format)
                 dataLine.start()
 
@@ -62,7 +81,7 @@ actual class AudioProcessor actual constructor(context: Any) {
                     }
                 }
             } catch (e: Exception) {
-                // TODO: Implement a proper error handling strategy, e.g., using a callback.
+                onError("Error initializing audio: ${e.message}")
                 e.printStackTrace()
             } finally {
                 dataLine?.stop()
@@ -125,8 +144,7 @@ actual class AudioProcessor actual constructor(context: Any) {
         val rms = sqrt(sumOfSquares / numSamples)
         val normalizedRms = (rms / MAX_AMPLITUDE).toFloat()
 
-        // Amplify the sensitivity and apply smoothing
-        val amplifiedLevel = (normalizedRms * SENSITIVITY).coerceIn(0f, 1f)
+        val amplifiedLevel = (normalizedRms).coerceIn(0f, 1f)
         smoothedLevel += (amplifiedLevel - smoothedLevel) * SMOOTHING_FACTOR
 
         return smoothedLevel
@@ -139,6 +157,12 @@ actual class AudioProcessor actual constructor(context: Any) {
         audioScope.cancel()
     }
 
+    private fun getMixerByName(name: String): Mixer? {
+        return AudioSystem.getMixerInfo()
+            .firstOrNull { it.name == name }
+            ?.let { AudioSystem.getMixer(it) }
+    }
+
     companion object {
         private const val SAMPLE_RATE = 16000f
         private const val SAMPLE_SIZE_IN_BITS = 16
@@ -148,7 +172,20 @@ actual class AudioProcessor actual constructor(context: Any) {
         private const val BUFFER_SIZE = 2048
         private const val MAX_AMPLITUDE = 32767.0 // Max value for 16-bit signed audio
 
-        private const val SENSITIVITY = 10f // Increase this to make the audio level more sensitive
         private const val SMOOTHING_FACTOR = 0.1f // Increase for faster response, decrease for more smoothing
+
+
+        /**
+         * Returns a list of available audio input device names.
+         */
+        fun getAvailableInputs(): List<String> {
+            val format = AudioFormat(SAMPLE_RATE, SAMPLE_SIZE_IN_BITS, CHANNELS, IS_SIGNED, IS_BIG_ENDIAN)
+            val info = DataLine.Info(TargetDataLine::class.java, format)
+            return AudioSystem.getMixerInfo()
+                .map { AudioSystem.getMixer(it) }
+                .filter { it.isLineSupported(info) }
+                .map { it.mixerInfo.name }
+        }
+
     }
 }

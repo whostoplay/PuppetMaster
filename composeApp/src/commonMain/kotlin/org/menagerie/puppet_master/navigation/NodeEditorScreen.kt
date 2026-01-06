@@ -138,8 +138,8 @@ data class NodeEditorScreen(private val mainViewModel: MainViewModel) : Screen {
                             IconButton(onClick = { editorViewModel.cycleArrangement() }) {
                                 when (arrangement) {
                                     Arrangement.SHUFFLE -> Icon(Icons.Default.Shuffle, contentDescription = "Shuffle")
-                                    Arrangement.UP -> Icon(Icons.Default.ArrowUpward, contentDescription = "Up")
-                                    Arrangement.DOWN -> Icon(Icons.Default.ArrowDownward, contentDescription = "Down")
+                                    Arrangement.UP -> Icon(Icons.Default.ArrowDownward, contentDescription = "Top To Bottom")
+                                    Arrangement.DOWN -> Icon(Icons.Default.ArrowUpward, contentDescription = "Bottom to Top")
                                 }
                             }
                             Row(

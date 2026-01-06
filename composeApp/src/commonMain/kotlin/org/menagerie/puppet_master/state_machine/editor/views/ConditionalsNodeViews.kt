@@ -24,6 +24,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,7 +53,9 @@ fun VolumeThresholdNodeView(
     node: VolumeThresholdNode,
     onThresholdChanged: (Float) -> Unit,
     editorViewModel: NodeEditorViewModel,
-    canvasCoordinates: LayoutCoordinates
+    canvasCoordinates: LayoutCoordinates,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit
 ) {
     val rawAudioLevel by editorViewModel.mainViewModel.rawAudioLevel.collectAsState()
 
@@ -60,7 +63,8 @@ fun VolumeThresholdNodeView(
         node = node,
         title = "Volume Threshold",
         editorViewModel = editorViewModel,
-        canvasCoordinates = canvasCoordinates
+        canvasCoordinates = canvasCoordinates,
+        expanded = expanded
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             VolumeIndicator(
@@ -73,6 +77,64 @@ fun VolumeThresholdNodeView(
                 },
                 modifier = Modifier.fillMaxWidth()
             )
+            if (expanded) {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Spike Detection")
+                        Switch(
+                            checked = node.spikeDetection.enabled,
+                            onCheckedChange = { isChecked ->
+                                editorViewModel.updateNode(node.copy(spikeDetection = node.spikeDetection.copy(enabled = isChecked)))
+                            }
+                        )
+                    }
+
+                    if (node.spikeDetection.enabled) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column {
+                            Text("Spike Threshold: %.2f".format(node.spikeDetection.threshold))
+                            Slider(
+                                value = node.spikeDetection.threshold,
+                                onValueChange = {
+                                    editorViewModel.updateNode(
+                                        node.copy(spikeDetection = node.spikeDetection.copy(threshold = it))
+                                    )
+                                },
+                                valueRange = 0.01f..1f
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Column {
+                            Text("Spike Window: ${node.spikeDetection.window}")
+                            Slider(
+                                value = node.spikeDetection.window.toFloat(),
+                                onValueChange = {
+                                    editorViewModel.updateNode(
+                                        node.copy(spikeDetection = node.spikeDetection.copy(window = it.toInt()))
+                                    )
+                                },
+                                valueRange = 2f..100f,
+                                steps = 98
+                            )
+                        }
+                    }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = { onExpandedChange(!expanded) }) {
+                    if (expanded) {
+                        Icon(Icons.Default.ArrowDropUp, "Collapse")
+                    } else {
+                        Icon(Icons.Default.ArrowDropDown, "Expand")
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
         }
     }
 }

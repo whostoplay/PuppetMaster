@@ -8,6 +8,13 @@ import org.menagerie.puppet_master.SerializableSize
 private const val SAMPLE_RATE = 16000f
 private const val MIN_FREQUENCY_HZ = 80f
 
+@Serializable
+data class SpikeDetection(
+    val enabled: Boolean = false,
+    val threshold: Float = 0.2f, // How much the volume must increase to be considered a spike
+    val window: Int = 5 // Over how many recent volume samples to check for a spike
+)
+
 /**
  * A node that branches based on the audio volume.
  */
@@ -18,8 +25,9 @@ data class VolumeThresholdNode(
     override val branchPriority: Int = 0,
     val threshold: Float = 0.5f,
     val sensitivity: Float = 1.0f,
-    override val size: SerializableSize = SerializableSize(200f, 180f),
-    override val expandedSize: SerializableSize? = null
+    val spikeDetection: SpikeDetection = SpikeDetection(),
+    override val size: SerializableSize = SerializableSize(200f, 210f),
+    override val expandedSize: SerializableSize? = SerializableSize(300f, 600f)
 ) : ConditionalNode {
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
@@ -29,7 +37,19 @@ data class VolumeThresholdNode(
     }
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        val nextNodeId = if (context.microphoneVolume > threshold) {
+        val volumeHistory = context.volumeHistory[id] ?: emptyList()
+        val trigger = if (spikeDetection.enabled) {
+            if (volumeHistory.size >= spikeDetection.window) {
+                val recentMax = volumeHistory.takeLast(spikeDetection.window).maxOrNull() ?: 0f
+                (context.microphoneVolume - recentMax) * sensitivity >= spikeDetection.threshold
+            } else {
+                false
+            }
+        } else {
+            context.microphoneVolume * sensitivity > threshold
+        }
+
+        val nextNodeId = if (trigger) {
             findNextNodeId(graph, "true")
         } else {
             null
