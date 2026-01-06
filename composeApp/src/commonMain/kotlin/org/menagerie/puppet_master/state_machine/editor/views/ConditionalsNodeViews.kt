@@ -44,6 +44,7 @@ import org.menagerie.puppet_master.controls.VolumeIndicator
 import org.menagerie.puppet_master.state_machine.DrawMode
 import org.menagerie.puppet_master.state_machine.HotKeyNode
 import org.menagerie.puppet_master.state_machine.PhonemeMatchNode
+import org.menagerie.puppet_master.state_machine.RhythmNode
 import org.menagerie.puppet_master.state_machine.VolumeThresholdNode
 import org.menagerie.puppet_master.state_machine.editor.NodeEditorViewModel
 import org.menagerie.puppet_master.state_machine.editor.viewmodels.PhonemeViewModel
@@ -71,9 +72,9 @@ fun VolumeThresholdNodeView(
                 level = rawAudioLevel,
                 threshold = node.threshold,
                 onThresholdChange = onThresholdChanged,
-                sensitivity = node.sensitivity,
-                onSensitivityChange = { newSensitivity ->
-                    editorViewModel.updateNode(node.copy(sensitivity = newSensitivity))
+                volumeGain = node.volumeGain,
+                onVolumeGainChange = { newGain ->
+                    editorViewModel.updateNode(node.copy(volumeGain = newGain))
                 },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -334,15 +335,121 @@ fun PhonemeMatchNodeView(
 
             } else {
                 val conditionCount = node.rule?.conditions?.size ?: 0
-                val andConditions = node.rule?.conditions?.count { it.type == org.menagerie.puppet_master.state_machine.ConditionType.AND } ?: 0
-                val notConditions = node.rule?.conditions?.count { it.type == org.menagerie.puppet_master.state_machine.ConditionType.NOT } ?: 0
+                val hits = node.rule?.conditions?.sumOf { it.requiredHits } ?: 0
+                Text("Rule with $conditionCount conditions and $hits total hits.")
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Spacer(modifier = Modifier.weight(1f))
+                IconButton(onClick = { onExpandedChange(!expanded) }) {
+                    if (expanded) {
+                        Icon(Icons.Default.ArrowDropUp, "Collapse")
+                    } else {
+                        Icon(Icons.Default.ArrowDropDown, "Expand")
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+            }
+        }
+    }
+}
 
-                if (conditionCount > 0) {
-                    Text("Rule: $conditionCount conditions")
-                    Text("  - $andConditions AND boxes")
-                    Text("  - $notConditions NOT boxes")
-                } else {
-                    Text("No rule defined.")
+@Composable
+fun RhythmNodeView(
+    node: RhythmNode,
+    editorViewModel: NodeEditorViewModel,
+    canvasCoordinates: LayoutCoordinates,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit
+) {
+    NodeView(
+        node = node,
+        title = "Rhythm Detection",
+        editorViewModel = editorViewModel,
+        canvasCoordinates = canvasCoordinates,
+        expanded = expanded
+    ) {
+        Column(modifier = Modifier.padding(16.dp).fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("BPM: ${node.beatDetection.bpm.toInt()}")
+                Switch(
+                    checked = node.beatDetection.enabled,
+                    onCheckedChange = { isChecked ->
+                        editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(enabled = isChecked)))
+                    }
+                )
+            }
+
+            if (expanded) {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // BPM Slider
+                Column {
+                    Text("BPM: ${node.beatDetection.bpm.toInt()}")
+                    Slider(
+                        value = node.beatDetection.bpm,
+                        onValueChange = {
+                            editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(bpm = it)))
+                        },
+                        valueRange = 60f..240f
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Tolerance Slider
+                Column {
+                    Text("Tolerance: %.2f".format(node.beatDetection.tolerance))
+                    Slider(
+                        value = node.beatDetection.tolerance,
+                        onValueChange = {
+                            editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(tolerance = it)))
+                        },
+                        valueRange = 0.05f..0.5f
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Required Beats
+                Column {
+                    Text("Required Beats: ${node.beatDetection.requiredBeats}")
+                    Slider(
+                        value = node.beatDetection.requiredBeats.toFloat(),
+                        onValueChange = {
+                            editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(requiredBeats = it.toInt())))
+                        },
+                        valueRange = 2f..10f,
+                        steps = 8
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Spike Threshold
+                Column {
+                    Text("Spike Threshold: %.2f".format(node.beatDetection.spikeThreshold))
+                    Slider(
+                        value = node.beatDetection.spikeThreshold,
+                        onValueChange = {
+                            editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(spikeThreshold = it)))
+                        },
+                        valueRange = 0.01f..0.5f
+                    )
+                }
+                 Spacer(modifier = Modifier.height(8.dp))
+
+                // Spike Window
+                Column {
+                    Text("Spike Window: ${node.beatDetection.spikeWindow}")
+                    Slider(
+                        value = node.beatDetection.spikeWindow.toFloat(),
+                        onValueChange = {
+                            editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(spikeWindow = it.toInt())))
+                        },
+                        valueRange = 2f..10f,
+                        steps = 8
+                    )
                 }
             }
 

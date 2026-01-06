@@ -26,6 +26,7 @@ val nodeSerializersModule = SerializersModule {
         subclass(PhonemeMatchNode::class)
         subclass(WithLayerNode::class)
         subclass(RandomNode::class)
+        subclass(RhythmNode::class)
     }
     contextual(ClosedFloatRangeSerializer)
 }

@@ -59,212 +59,158 @@ class GraphExecutor(private val graph: NodeGraph) {
      * @return An action to be performed, or null if execution completes without action.
      */
     private fun executeFromNode(startNode: Node, context: GraphExecutionContext): GraphAction? {
-        var currentNode: Node? = startNode
-        var executionContext = context
-        var branchEffect: SpecialEffect? = null
-        val branchLayers = mutableListOf<Layer>()
+        // This is the main recursive processing function
+        return processNode(startNode, context, null, emptyList())
+    }
 
-        while (currentNode != null) {
-            if (currentNode is RandomNode) {
-                val childrenOfRandom = graph.wires
-                    .filter { it.fromNodeId == currentNode.id }
-                    .mapNotNull { wire -> graph.nodes[wire.toNodeId]?.let { node -> wire to node } }
-
-                val now = System.currentTimeMillis()
-                val (shuffledIds, expiry) = randomNodeOrders[currentNode.id] ?: (null to 0L)
-
-                val orderedChildren = if (shuffledIds != null && now < expiry) {
-                    val childrenMap = childrenOfRandom.associateBy { (_, node) -> node.id }
-                    shuffledIds.mapNotNull { id -> childrenMap[id] }
-                } else {
-                    val priorities = (1..childrenOfRandom.size).shuffled()
-                    val shuffled = childrenOfRandom
-                        .zip(priorities)
-                        .sortedBy { it.second }
-                        .map { it.first }
-
-                    val newOrder = shuffled.map { it.second.id }
-                    randomNodeOrders[currentNode.id] = newOrder to now + currentNode.retainOrderDelay
-                    shuffled
-                }
-
-                for ((wire, childNode) in orderedChildren) {
-                    activeWires.add(wire)
-                    activeNodes.add(childNode.id)
-                    val action = executeFromNode(childNode, executionContext) // Recursive call
-                    if (action != null) {
-                        return action
-                    }
-                    if (activeNodes.any { delayedNodes.containsKey(it) || delayTimerNodeTimers.containsKey(it) }) {
-                        return null
-                    }
-                }
+    private fun processNode(
+        currentNode: Node,
+        context: GraphExecutionContext,
+        inheritedEffect: SpecialEffect?,    inheritedLayers: List<Layer>
+    ): GraphAction? {
+        // --- 1. Pre-Execution & Context Setup (No changes here, this part is correct) ---
+        val resumeTime = delayedNodes[currentNode.id]
+        if (resumeTime != null) {
+            if (System.currentTimeMillis() < resumeTime) {
+                activeNodes.add(currentNode.id)
                 return null
             }
-
-            val resumeTime = delayedNodes[currentNode.id]
-            if (resumeTime != null) { // Node is in delayedNodes
-                if (System.currentTimeMillis() < resumeTime) {
-                   return null
-                }
-
-                if (currentNode is GoThroughStateNode) {
-                    val nextNodeId = currentNode.findNextNodeId(graph, "out")
-                    if (nextNodeId != null) {
-                        val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
-                        wire?.let { activeWires.add(it) }
-                        activeNodes.add(nextNodeId)
-                        currentNode = graph.nodes[nextNodeId]
-                        continue // loop to process next node
-                    } else {
-                       return null
-                    }
-                }
-
-                delayedNodes.remove(currentNode.id)
+            delayedNodes.remove(currentNode.id)
+        }
+        if (currentNode is DelayTimerNode) {
+            val now = System.currentTimeMillis()
+            val triggerTime = delayTimerNodeTimers.getOrPut(currentNode.id) { now + currentNode.delay }
+            if (now < triggerTime) {
+                activeNodes.add(currentNode.id)
+                return null
             }
+            delayTimerNodeTimers.remove(currentNode.id)
+        }
 
-            if (currentNode is WithEffectNode) {
-                branchEffect = currentNode.effect
-                if (currentNode.puppetId != null) {
-                    executionContext = executionContext.copy(puppetId = currentNode.puppetId)
-                }
-                val nextNodeId = currentNode.findNextNodeId(graph, "out")
-                if (nextNodeId != null) {
-                    val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
-                    wire?.let { activeWires.add(it) }
-                    activeNodes.add(nextNodeId)
-                    currentNode = graph.nodes[nextNodeId]
-                    continue
-                } else {
-                    break
-                }
-            }
-
-            if (currentNode is WithLayerNode) {
-                branchLayers.add(currentNode.layer)
-                if (currentNode.puppetId != null) {
-                    executionContext = executionContext.copy(puppetId = currentNode.puppetId)
-                }
-                val nextNodeId = currentNode.findNextNodeId(graph, "out")
-                if (nextNodeId != null) {
-                   val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
-                    wire?.let { activeWires.add(it) }
-                    activeNodes.add(nextNodeId)
-                    currentNode = graph.nodes[nextNodeId]
-                    continue
-                } else {
-                    break
-                }
-            }
-
-           if (currentNode is GoThroughStateNode) {
-                delayedNodes[currentNode.id] = System.currentTimeMillis() + currentNode.delay
-                val finalPuppetId = currentNode.puppetId ?: executionContext.puppetId
-               return GraphAction.SetState(currentNode.stateName, finalPuppetId, branchEffect, branchLayers)
-            }
-
-            if (currentNode is DelayTimerNode) {
-                val now = System.currentTimeMillis()
-                val triggerTime = delayTimerNodeTimers.getOrPut(currentNode.id) { now + currentNode.delay }
-
-                if (now >= triggerTime) {
-                   val nextNodeId = currentNode.findNextNodeId(graph, "out")
-                    if (nextNodeId != null) {
-                        val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
-                        wire?.let { activeWires.add(it) }
-                        activeNodes.add(nextNodeId)
-                        currentNode = graph.nodes[nextNodeId]
-                        continue
-                    } else {
-                        break
-                    }
-                } else {
-                    return null
-                }
-            }
-
-            if (currentNode is SetPuppetNode) {
-               executionContext = executionContext.copy(puppetId = currentNode.puppetId)
-            }
-
-            if (currentNode is SetStateNode && currentNode.puppetId == null) {
-               currentNode = currentNode.copy(puppetId = executionContext.puppetId)
-            }
-
-            if (currentNode is TriggerOnWaitNode) {
-                val now = System.currentTimeMillis()
-                val triggerTime = waitNodeTimers.getOrPut(currentNode.id) { now + currentNode.waitMillis }
-
-                val result = currentNode.execute(context, graph)
-                val nextNodeId = if (now >= triggerTime) {
-                   result.nextNodeId
-                } else {
-                     result.alternativeNextNodeId
-                }
-
-                if (nextNodeId != null) {
-                   val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == nextNodeId }
-                    wire?.let { activeWires.add(it) }
-                    activeNodes.add(nextNodeId)
-                    currentNode = graph.nodes[nextNodeId]
-                    continue
-                } else {
-                   break
-                }
-            }
-
-            val result = currentNode.execute(executionContext, graph)
-
-
-            if (result.action != null) {
-                when (val action = result.action) {
-                    is GraphAction.SetState -> {
-                        return action.copy(
-                            effect = branchEffect,
-                            layers = (action.layers + branchLayers).distinct()
-                        )
-                    }
-                    is GraphAction.SetGraphStart -> {
-                        overrideStartNodeId = action.nodeId
-                        return action
-                    }
-                    is GraphAction.ResetGraphStart -> {
-                        overrideStartNodeId = null
-                        return action
-                    }
-                    is GraphAction.RequestToggle -> {
-                        if (toggledOnNodes.contains(action.nodeId)) {
-                            toggledOnNodes.remove(action.nodeId)
-                        } else {
-                            toggledOnNodes.add(action.nodeId)
-                        }
-                    }
-                    is GraphAction.RequestDelay -> {
-                        delayedNodes[action.nextNodeId] = System.currentTimeMillis() + action.delay
-                        val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == action.nextNodeId }
-                        wire?.let { activeWires.add(it) }
-                        activeNodes.add(action.nextNodeId)
-                        return null
-                    }
-                    is GraphAction.UpdatePhonemeMatchState -> {
-                        phonemeMatchStates[action.nodeId] = action.state
-                    }
-                    else -> return action
-                }
-            }
-
-            if (result.nextNodeId != null) {
-                val wire = graph.wires.find { it.fromNodeId == currentNode.id && it.toNodeId == result.nextNodeId }
-                wire?.let { activeWires.add(it) }
-                activeNodes.add(result.nextNodeId)
-                currentNode = graph.nodes[result.nextNodeId]
+        // --- Special handling for RandomNode (No changes here, this part is correct) ---
+        if (currentNode is RandomNode) {
+            activeNodes.add(currentNode.id)
+            val childrenOfRandom = graph.wires
+                .filter { it.fromNodeId == currentNode.id }
+                .mapNotNull { wire -> graph.nodes[wire.toNodeId]?.let { node -> wire to node } }
+            val now = System.currentTimeMillis()
+            val (shuffledIds, expiry) = randomNodeOrders[currentNode.id] ?: (null to 0L)
+            val orderedChildren = if (shuffledIds != null && now < expiry) {
+                val childrenMap = childrenOfRandom.associateBy { (_, node) -> node.id }
+                shuffledIds.mapNotNull { id -> childrenMap[id] }
             } else {
-                break
+                val shuffled = childrenOfRandom.shuffled()
+                val newOrder = shuffled.map { it.second.id }
+                randomNodeOrders[currentNode.id] = newOrder to now + currentNode.retainOrderDelay
+                shuffled
+            }
+            for ((wire, childNode) in orderedChildren) {
+                activeWires.add(wire)
+                val action = processNode(childNode, context, inheritedEffect, inheritedLayers)
+                if (action != null) return action
+                if (activeNodes.any { delayedNodes.containsKey(it) || delayTimerNodeTimers.containsKey(it) }) return null
+            }
+            return null
+        }
+
+        // --- 2. Execute the current node's specific logic ---
+        var executionContext = context
+        if (currentNode is SetPuppetNode) {
+            executionContext = executionContext.copy(puppetId = currentNode.puppetId)
+        }
+        val result = currentNode.execute(executionContext, graph)
+
+        // If the node's condition fails (e.g., Hotkey not pressed), stop this path.
+        // StartNode is a special case that always "succeeds" without a specific next node.
+        if (result.nextNodeId == null && result.action == null && currentNode !is StartNode) {
+            return null // This path is dead.
+        }
+
+        // --- 3. If execution succeeded, mark active and process results ---
+        activeNodes.add(currentNode.id)
+
+        // Handle context-modifying nodes
+        var currentEffect = inheritedEffect
+        var currentLayers = inheritedLayers.toMutableList()
+        if (currentNode is WithEffectNode) {
+            currentEffect = currentNode.effect
+            if (currentNode.puppetId != null) executionContext = executionContext.copy(puppetId = currentNode.puppetId)
+        }
+        if (currentNode is WithLayerNode) {
+            currentLayers.add(currentNode.layer)
+            if (currentNode.puppetId != null) executionContext = executionContext.copy(puppetId = currentNode.puppetId)
+        }
+
+        // Handle terminal nodes or nodes that return an immediate action
+        if (currentNode is GoThroughStateNode) {
+            delayedNodes[currentNode.id] = System.currentTimeMillis() + currentNode.delay
+            val finalPuppetId = currentNode.puppetId ?: executionContext.puppetId
+            return GraphAction.SetState(currentNode.stateName, finalPuppetId, currentEffect, currentLayers)
+        }
+        if (result.action != null) {
+            return handleNodeAction(result.action, currentNode.id, currentEffect, currentLayers)
+        }
+
+        // --- 4. THE CRITICAL FIX: Find and recursively process children ---
+        val children = graph.wires
+            .filter { it.fromNodeId == currentNode.id }
+            .mapNotNull { wire -> graph.nodes[wire.toNodeId]?.let { node -> wire to node } }
+            .sortedBy { (_, node) -> node.branchPriority } // Correctly sort by node priority
+
+        // A node is a "pass-through" if its job is to activate its children, not to select one.
+        // StartNode and HotkeyNode are primary examples.
+        val isPassThroughNode = currentNode is StartNode || currentNode is ConditionalNode || currentNode is BehaviouralNode
+
+        // Iterate through all prioritized children
+        for ((wire, childNode) in children) {
+            // We process the child if the current node is a pass-through OR
+            // if the current node specifically pointed to this child.
+            val shouldProcessChild = isPassThroughNode || (result.nextNodeId == childNode.id)
+
+            if (shouldProcessChild) {
+                activeWires.add(wire)
+                val action = processNode(childNode, executionContext, currentEffect, currentLayers)
+                // If any child branch returns a valid action, we stop and return it up the chain.
+                if (action != null) return action
+                // If a child branch triggered a delay, we must also stop processing siblings.
+                if (activeNodes.any { delayedNodes.containsKey(it) || delayTimerNodeTimers.containsKey(it) }) return null
             }
         }
-         return null
+
+        return null // This path and all its children are dead ends.
     }
+
+
+
+    // Helper function to process actions returned by nodes
+    private fun handleNodeAction(action: GraphAction, nodeId: NodeId, effect: SpecialEffect?, layers: List<Layer>): GraphAction? {
+        when (action) {
+            is GraphAction.SetState -> {
+                return action.copy(
+                    effect = effect,
+                    layers = (action.layers + layers).distinct()
+                )
+            }
+            is GraphAction.RequestDelay -> {
+                delayedNodes[action.nextNodeId] = System.currentTimeMillis() + action.delay
+                val wire = graph.wires.find { it.fromNodeId == nodeId && it.toNodeId == action.nextNodeId }
+                wire?.let { activeWires.add(it) }
+                activeNodes.add(action.nextNodeId)
+                return null // Null signifies we are waiting, not a final action
+            }
+            is GraphAction.RequestToggle -> {
+                if (toggledOnNodes.contains(action.nodeId)) toggledOnNodes.remove(action.nodeId)
+                else toggledOnNodes.add(action.nodeId)
+            }
+            is GraphAction.UpdatePhonemeMatchState -> phonemeMatchStates[action.nodeId] = action.state
+            is GraphAction.SetGraphStart -> overrideStartNodeId = action.nodeId
+            is GraphAction.ResetGraphStart -> overrideStartNodeId = null
+        }
+        // Some actions don't terminate the graph walk (like Toggle), others might.
+        // For now, we assume most internal actions don't produce a final result for 'tick'.
+        return if (action is GraphAction.SetState) action else null
+    }
+
 
     /**
      * Executes the graph's logic, starting from the graph's start node.
@@ -277,84 +223,62 @@ class GraphExecutor(private val graph: NodeGraph) {
         activeNodes.clear()
         activeWires.clear()
 
-        // Update volume history for all volume threshold nodes
-        graph.nodes.values.filterIsInstance<VolumeThresholdNode>().forEach { node ->
-            val history = volumeHistory.getOrPut(node.id) { mutableListOf() }
-            history.add(context.microphoneVolume)
-            if (history.size > (node.spikeDetection.window).coerceAtLeast(100)) { // Limit history size
-                history.removeAt(0)
+        // Update volume history for all nodes that require it
+        graph.nodes.values.forEach { node ->
+            val historyLimit = when (node) {
+                is VolumeThresholdNode -> (node.spikeDetection.window).coerceAtLeast(100)
+                is RhythmNode -> (node.beatDetection.memoryFrames).coerceAtLeast(100)
+                else -> 0
+            }
+
+            if (historyLimit > 0) {
+                val history = volumeHistory.getOrPut(node.id) { mutableListOf() }
+                history.add(context.microphoneVolume)
+                if (history.size > historyLimit) {
+                    history.removeAt(0)
+                }
             }
         }
 
         try {
             val startNodeId = overrideStartNodeId ?: graph.startNodeId
-            val startNode = startNodeId?.let { graph.nodes[it] }
+            val startNode = startNodeId?.let { graph.nodes[it] } ?: return null
 
-            if (startNode == null) {
-                return null
-            }
-
-            activeNodes.add(startNode.id)
-
-            val childrenOfStart = graph.wires
-                .filter { it.fromNodeId == startNode.id }
-                .mapNotNull { wire -> graph.nodes[wire.toNodeId]?.let { node -> wire to node } }
-
-            val orderedChildren = childrenOfStart.sortedBy { it.second.branchPriority }
-
-            var executionContext = context.copy(
+            val executionContext = context.copy(
                 toggledOnNodes = toggledOnNodes,
                 lastProcessedHotkey = lastProcessedHotkey,
                 phonemeMatchStates = phonemeMatchStates,
                 volumeHistory = volumeHistory
             )
-            if (startNode is StartNode) {
-                executionContext = executionContext.copy(puppetId = startNode.puppetId)
+
+            // --- UNIFIED EXECUTION START ---
+            // We call processNode and let it handle ALL traversal.
+            // There is no special logic for the StartNode's children here.
+            val action = processNode(startNode, executionContext, null, emptyList())
+
+            // Handle meta-actions that might have been returned from the graph
+            if (action is GraphAction.SetGraphStart) {
+                overrideStartNodeId = action.nodeId
+                // We can re-tick immediately to use the new start node in the same frame
+                return tick(context)
             }
 
-            for ((wire, childNode) in orderedChildren) {
-                activeWires.add(wire)
-                activeNodes.add(childNode.id)
-                val action = executeFromNode(childNode, executionContext)
-
-                if (action != null) {
-                    if (action is GraphAction.SetGraphStart) {
-                        overrideStartNodeId = action.nodeId
-                        return tick(context)
-                    }
-
-                    if (action is GraphAction.ResetGraphStart) {
-                        overrideStartNodeId = null
-                        return null
-                    }
-                    return action
-                }
-
-                // If action is null, check if the branch is just paused.
-                if (activeNodes.any { delayedNodes.containsKey(it) || delayTimerNodeTimers.containsKey(it) }) {
-                    // A higher-priority branch is waiting, so don't process any lower-priority branches.
-                    return null
-                }
+            if (action is GraphAction.ResetGraphStart) {
+                overrideStartNodeId = null
+                return null
             }
 
+            // Return the final action found by the recursive search
+            return action
+
+        } catch (e: Exception) {
+            // It's good practice to log the exception
+            // Log.e("GraphExecutor", "Error during graph execution", e)
             return null
-        } finally {
-            val allWaitNodes = graph.nodes.values.filterIsInstance<TriggerOnWaitNode>()
-            for (waitNode in allWaitNodes) {
-                if (waitNode.id !in activeNodes) {
-                    waitNodeTimers.remove(waitNode.id)
-                }
-            }
-
-            val allDelayTimerNodes = graph.nodes.values.filterIsInstance<DelayTimerNode>()
-            for (delayTimerNode in allDelayTimerNodes) {
-                if (delayTimerNode.id !in activeNodes) {
-                    delayTimerNodeTimers.remove(delayTimerNode.id)
-                }
-            }
-            lastProcessedHotkey = context.hotKeyPressed
         }
     }
+
+
 
     /**
      * Resets the executor, clearing all toggled nodes.

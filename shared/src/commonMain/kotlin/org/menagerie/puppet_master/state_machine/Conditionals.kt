@@ -4,8 +4,10 @@ import kotlinx.serialization.Serializable
 import org.menagerie.puppet_master.Hotkey
 import org.menagerie.puppet_master.SerializableOffset
 import org.menagerie.puppet_master.SerializableSize
+import kotlin.math.pow
 
 private const val SAMPLE_RATE = 16000f
+private const val AUDIO_BUFFER_SIZE = 2048f // Note: This should match AudioProcessor's buffer size for accurate timing
 private const val MIN_FREQUENCY_HZ = 80f
 
 @Serializable
@@ -24,7 +26,7 @@ data class VolumeThresholdNode(
     override val position: SerializableOffset,
     override val branchPriority: Int = 0,
     val threshold: Float = 0.5f,
-    val sensitivity: Float = 1.0f,
+    val volumeGain: Float = 1.0f,
     val spikeDetection: SpikeDetection = SpikeDetection(),
     override val size: SerializableSize = SerializableSize(200f, 210f),
     override val expandedSize: SerializableSize? = SerializableSize(300f, 600f)
@@ -41,12 +43,12 @@ data class VolumeThresholdNode(
         val trigger = if (spikeDetection.enabled) {
             if (volumeHistory.size >= spikeDetection.window) {
                 val recentMax = volumeHistory.takeLast(spikeDetection.window).maxOrNull() ?: 0f
-                (context.microphoneVolume - recentMax) * sensitivity >= spikeDetection.threshold
+                (context.microphoneVolume - recentMax) * volumeGain >= spikeDetection.threshold
             } else {
                 false
             }
         } else {
-            context.microphoneVolume * sensitivity > threshold
+            context.microphoneVolume.pow(0.5f) * volumeGain > threshold
         }
 
         val nextNodeId = if (trigger) {
@@ -213,6 +215,88 @@ data class HotKeyNode(
     }
 }
 
+@Serializable
+data class BeatDetection(
+    val enabled: Boolean = true,
+    val bpm: Float = 120f,
+    val tolerance: Float = 0.2f, // 20% tolerance in timing
+    val requiredBeats: Int = 3, // a run of 3 beats to trigger
+    val memoryFrames: Int = 40, // about 5 seconds of history
+    val spikeThreshold: Float = 0.1f, // volume increase needed to be a spike
+    val spikeWindow: Int = 3 // samples to look back for spike detection
+)
+
+/**
+ * A node that branches based on a detected rhythm in the audio input.
+ */
+@Serializable
+data class RhythmNode(
+    override val id: NodeId,
+    override val position: SerializableOffset,
+    override val branchPriority: Int = 0,
+    val beatDetection: BeatDetection = BeatDetection(),
+    override val size: SerializableSize = SerializableSize(250f, 200f),
+    override val expandedSize: SerializableSize? = SerializableSize(300f, 350f)
+) : ConditionalNode {
+
+    override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
+
+    override fun copyNodeWithNewPriority(priority: Int): Node {
+        return this.copy(branchPriority = priority)
+    }
+
+    override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
+        if (!beatDetection.enabled) {
+            return ExecuteResult(null)
+        }
+
+        val history = context.volumeHistory[id] ?: emptyList()
+
+        if (history.size < beatDetection.spikeWindow) { // Need a reasonable amount of history
+            return ExecuteResult(null)
+        }
+
+        // 1. Detect onsets (spikes) in the volume history
+        val spikeIndices = mutableListOf<Int>()
+        for (i in beatDetection.spikeWindow until history.size) {
+            val lookBehind = history.subList(i - beatDetection.spikeWindow, i)
+            if (lookBehind.isEmpty()) continue
+            val recentMax = lookBehind.maxOrNull() ?: 0f
+
+            if (history[i] > recentMax + beatDetection.spikeThreshold) {
+                // To avoid detecting multiple frames for the same beat, we check if the last detected spike is too close.
+                if (spikeIndices.isEmpty() || i - spikeIndices.last() > beatDetection.spikeWindow) {
+                    spikeIndices.add(i)
+                }
+            }
+        }
+
+        if (spikeIndices.size < beatDetection.requiredBeats) {
+            return ExecuteResult(null)
+        }
+
+        // 2. Check if the intervals between recent spikes match the BPM
+        val recentSpikes = spikeIndices.takeLast(beatDetection.requiredBeats)
+        val intervals = recentSpikes.zipWithNext { a, b -> b - a }
+
+        val framesPerSecond = SAMPLE_RATE / AUDIO_BUFFER_SIZE
+        val expectedFrameInterval = (60.0 / beatDetection.bpm) * framesPerSecond
+        val lowerBound = expectedFrameInterval * (1 - beatDetection.tolerance)
+        val upperBound = expectedFrameInterval * (1 + beatDetection.tolerance)
+
+        val rhythmDetected = intervals.all { it.toDouble() in lowerBound..upperBound }
+
+        val nextNodeId = if (rhythmDetected) {
+            findNextNodeId(graph, "true")
+        } else {
+            null
+        }
+
+        return ExecuteResult(nextNodeId)
+    }
+}
+
+
 /**
  * Provides a list of all available conditional nodes for the palette.
  */
@@ -220,6 +304,7 @@ fun getAvailableConditionalNodes(): List<Node> {
     return listOf(
         VolumeThresholdNode(id = "", position = SerializableOffset(0f, 0f)),
         HotKeyNode(id = "", position = SerializableOffset(0f, 0f)),
-        PhonemeMatchNode(id = "", position = SerializableOffset(0f, 0f))
+        PhonemeMatchNode(id = "", position = SerializableOffset(0f, 0f)),
+        RhythmNode(id = "", position = SerializableOffset(0f, 0f))
     )
 }

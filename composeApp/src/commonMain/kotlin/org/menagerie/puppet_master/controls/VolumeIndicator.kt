@@ -42,8 +42,8 @@ import kotlin.math.pow
  * @param onThresholdChange A callback that is invoked when the threshold is moved.
  * @param modifier The modifier to be applied to the indicator.
  * @param color The color of the indicator.
- * @param sensitivity The sensitivity of the indicator. Higher values will make the indicator more responsive to lower volume levels.
- * @param onSensitivityChange A callback that is invoked when the sensitivity is changed.
+ * @param volumeGain The sensitivity of the indicator. Higher values will make the indicator more responsive to lower volume levels.
+ * @param onVolumeGainChange A callback that is invoked when the sensitivity is changed.
  */
 @Composable
 fun VolumeIndicator(
@@ -52,10 +52,10 @@ fun VolumeIndicator(
     onThresholdChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
     color: Color = Color.Green,
-    sensitivity: Float = 1.0f,
-    onSensitivityChange: (Float) -> Unit
+    volumeGain: Float = 1.0f,
+    onVolumeGainChange: (Float) -> Unit
 ) {
-    val boostedLevel = (level.pow(0.5f) * sensitivity).coerceIn(0f, 1f)
+    val boostedLevel = (level.pow(0.5f) * volumeGain).coerceIn(0f, 1f)
 
     Column(modifier = modifier) {
         BoxWithConstraints(
@@ -93,10 +93,10 @@ fun VolumeIndicator(
                 Box(modifier = Modifier.align(Alignment.Center).width(1.dp).fillMaxHeight().background(Color.Red))
             }
         }
-        Text("Sensitivity:")
+        Text("Volume Gain:")
         Slider(
-            value = sensitivity,
-            onValueChange = onSensitivityChange,
+            value = volumeGain,
+            onValueChange = onVolumeGainChange,
             valueRange = 0.05f..20f,
             modifier = Modifier.fillMaxWidth()
         )
@@ -109,8 +109,8 @@ fun VolumeIndicator(
  * @param level The current volume level (a value between 0.0 and 1.0).
  * @param modifier The modifier to be applied to the indicator.
  * @param color The color of the indicator.
- * @param sensitivity The sensitivity of the indicator. Higher values will make the indicator more responsive to lower volume levels.
- * @param onSensitivityChange A callback that is invoked when the sensitivity is changed.
+ * @param volumeGain The sensitivity of the indicator. Higher values will make the indicator more responsive to lower volume levels.
+ * @param onVolumeGainChange A callback that is invoked when the sensitivity is changed.
  * @param thresholds A map of threshold values to puppet states. The key is a float between 0.0 and 1.0, representing the threshold position.
  * @param onAddThreshold A callback that is invoked when a new threshold is added (by double-tapping).
  * @param onUpdateThreshold A callback that is invoked when a threshold is moved.
@@ -121,14 +121,14 @@ fun VolumeIndicator(
     level: Float,
     modifier: Modifier = Modifier,
     color: Color = Color.Green,
-    sensitivity: Float = 1.0f,
-    onSensitivityChange: (Float) -> Unit,
+    volumeGain: Float = 1.0f,
+    onVolumeGainChange: (Float) -> Unit,
     thresholds: Map<Float, PuppetStateInfo?> = emptyMap(),
     onAddThreshold: (Float) -> Unit = {},
     onUpdateThreshold: (oldValue: Float, newValue: Float) -> Unit = { _, _ -> },
     onThresholdSelected: (Float) -> Unit = {}
 ) {
-    val boostedLevel = (level.pow(0.5f) * sensitivity).coerceIn(0f, 1f)
+    val boostedLevel = (level.pow(0.5f) * volumeGain).coerceIn(0f, 1f)
 
     fun getPosition(offset: Offset, size: IntSize): Float {
         return (offset.x / size.width).coerceIn(0f, 1f)
@@ -193,10 +193,10 @@ fun VolumeIndicator(
                 }
             }
         }
-        Text("Sensitivity:")
+        Text("Volume Gain:")
         Slider(
-            value = sensitivity,
-            onValueChange = onSensitivityChange,
+            value = volumeGain,
+            onValueChange = onVolumeGainChange,
             valueRange = 0.05f..20f,
             modifier = Modifier.fillMaxWidth()
         )

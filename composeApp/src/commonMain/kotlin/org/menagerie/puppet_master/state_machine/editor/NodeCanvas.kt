@@ -556,6 +556,16 @@ private fun RenderConditionalNode(
                 onExpandedChange = onExpandedChange
             )
         }
+
+        is RhythmNode -> {
+            RhythmNodeView(
+                node = node,
+                editorViewModel = editorViewModel,
+                canvasCoordinates = canvasCoordinates,
+                expanded = expanded,
+                onExpandedChange = onExpandedChange
+            )
+        }
     }
 }
 

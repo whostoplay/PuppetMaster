@@ -138,8 +138,8 @@ fun LandscapeLayout(
                         },
                         onUpdateThreshold = viewModel::updateThreshold,
                         onThresholdSelected = { viewModel.showStateAssignmentDialog(it) },
-                        sensitivity = sensitivity,
-                        onSensitivityChange = { viewModel.onSensitivityChange(it) }
+                        volumeGain = sensitivity,
+                        onVolumeGainChange = { viewModel.onSensitivityChange(it) }
                     )
                 }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
