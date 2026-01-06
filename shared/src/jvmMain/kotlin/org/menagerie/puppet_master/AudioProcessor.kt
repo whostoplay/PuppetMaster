@@ -7,6 +7,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.apache.commons.math3.complex.Complex
 import org.apache.commons.math3.transform.DftNormalization
 import org.apache.commons.math3.transform.FastFourierTransformer
 import org.apache.commons.math3.transform.TransformType
@@ -14,7 +15,6 @@ import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.DataLine
 import javax.sound.sampled.TargetDataLine
-import javax.sound.sampled.Mixer
 import kotlin.math.sqrt
 
 /**
@@ -28,6 +28,7 @@ actual class AudioProcessor actual constructor(context: Any) {
     private val audioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var audioJob: Job? = null
     private var smoothedLevel: Float = 0f
+    private var noiseProfile: FloatArray = floatArrayOf()
 
     /**
      * Starts listening to the microphone and reporting audio levels.
@@ -39,8 +40,6 @@ actual class AudioProcessor actual constructor(context: Any) {
     actual fun start(
         onLevelChange: (Float) -> Unit,
         onFrequencyData: ((FloatArray) -> Unit)?,
-        mixerName: String?,
-        onError: (String) -> Unit,
     ) {
         audioJob?.cancel()
         audioJob = audioScope.launch {
@@ -49,39 +48,88 @@ actual class AudioProcessor actual constructor(context: Any) {
                 val format = AudioFormat(SAMPLE_RATE, SAMPLE_SIZE_IN_BITS, CHANNELS, IS_SIGNED, IS_BIG_ENDIAN)
                 val info = DataLine.Info(TargetDataLine::class.java, format)
 
-
-                val dataLine = if (mixerName != null) {
-                    val mixer = getMixerByName(mixerName)
-                    if (mixer == null) {
-                        onError("Audio device not found: $mixerName. Using default.")
-                        AudioSystem.getLine(info) as TargetDataLine
-                    } else {
-                        mixer.getLine(info) as TargetDataLine
-                    }
-                } else {
-                    AudioSystem.getLine(info) as TargetDataLine
-                }
+                val dataLine = AudioSystem.getLine(info) as TargetDataLine
 
                 dataLine.open(format)
                 dataLine.start()
 
                 val buffer = ByteArray(BUFFER_SIZE)
-                val fft = if (onFrequencyData != null) FastFourierTransformer(DftNormalization.STANDARD) else null
+                val fft = FastFourierTransformer(DftNormalization.STANDARD)
+
+                val numSamples = BUFFER_SIZE / 2
+                noiseProfile = FloatArray(numSamples / 2 + 1)
 
                 while (isActive) {
                     val bytesRead = dataLine.read(buffer, 0, buffer.size)
                     if (bytesRead > 0) {
-                        val level = calculateAudioLevel(buffer, bytesRead)
+                        val currentNumSamples = bytesRead / 2
+                        if (currentNumSamples == 0) continue
+
+                        // 1. Convert byte buffer to double array for FFT
+                        val samples = DoubleArray(currentNumSamples) { i ->
+                            val byteIndex = i * 2
+                            ((buffer[byteIndex + 1].toInt() shl 8) or (buffer[byteIndex].toInt() and 0xFF)).toShort().toDouble()
+                        }
+
+                        // Pad with zeros if necessary to match BUFFER_SIZE for consistent FFT size
+                        val paddedSamples = if (samples.size < numSamples) {
+                            samples.copyOf(numSamples)
+                        } else {
+                            samples
+                        }
+
+                        // Calculate unfiltered level to decide on noise profile update
+                        val unfilteredRms = sqrt(paddedSamples.sumOf { it * it } / paddedSamples.size)
+                        val unfilteredNormalizedRms = (unfilteredRms / MAX_AMPLITUDE).toFloat()
+
+                        // 2. Perform forward FFT
+                        val spectrum = fft.transform(paddedSamples, TransformType.FORWARD)
+
+                        // 3. Get magnitudes
+                        val magnitudes = FloatArray(numSamples / 2 + 1) { i ->
+                            spectrum[i].abs().toFloat()
+                        }
+
+                        // 4. Update noise profile if signal is weak (likely just noise)
+                        if (unfilteredNormalizedRms < NOISE_LEARN_THRESHOLD) {
+                            for (i in noiseProfile.indices) {
+                                noiseProfile[i] = (1 - NOISE_PROFILE_ALPHA) * noiseProfile[i] + NOISE_PROFILE_ALPHA * magnitudes[i]
+                            }
+                        }
+
+                        // 5. Spectral subtraction
+                        val cleanedMagnitudes = FloatArray(magnitudes.size) { i ->
+                            val reduction = noiseProfile[i] * NOISE_REDUCTION_FACTOR
+                            (magnitudes[i] - reduction).coerceAtLeast(0f)
+                        }
+
+                        // 6. Reconstruct the complex spectrum with new magnitudes while preserving phase
+                        val cleanedSpectrum = Array(spectrum.size) { i ->
+                            val originalMagnitude = spectrum[i].abs()
+                            if (originalMagnitude > 0) {
+                                val magIndex = if (i <= spectrum.size / 2) i else spectrum.size - i
+                                val scale = cleanedMagnitudes[magIndex] / originalMagnitude.toFloat()
+                                spectrum[i].multiply(scale.toDouble())
+                            } else {
+                                Complex.ZERO
+                            }
+                        }
+
+                        // 7. Perform inverse FFT to get cleaned audio signal
+                        val cleanedSamplesComplex = fft.transform(cleanedSpectrum, TransformType.INVERSE)
+                        val cleanedSamples = DoubleArray(cleanedSamplesComplex.size) { i ->
+                            cleanedSamplesComplex[i].real
+                        }
+
+                        // 8. Calculate audio level from the cleaned samples
+                        val level = calculateAudioLevelFromSamples(cleanedSamples)
                         onLevelChange(level)
 
-                        if (onFrequencyData != null && fft != null) {
-                            val frequencyData = performFFT(buffer, bytesRead, fft)
-                            onFrequencyData(frequencyData)
-                        }
+                        // 9. Provide cleaned frequency data if requested
+                        onFrequencyData?.invoke(cleanedMagnitudes)
                     }
                 }
             } catch (e: Exception) {
-                onError("Error initializing audio: ${e.message}")
                 e.printStackTrace()
             } finally {
                 dataLine?.stop()
@@ -91,6 +139,28 @@ actual class AudioProcessor actual constructor(context: Any) {
     }
 
     /**
+     * Calculates the audio level from an array of cleaned audio samples.
+     * The level is the normalized and smoothed Root Mean Square (RMS) of the audio samples.
+     *
+     * @param samples The array of cleaned audio samples.
+     * @return The audio level, a float value between 0.0 and 1.0.
+     */
+    private fun calculateAudioLevelFromSamples(samples: DoubleArray): Float {
+        if (samples.isEmpty()) return 0f
+
+        val sumOfSquares = samples.sumOf { it * it }
+        val rms = sqrt(sumOfSquares / samples.size)
+
+        // Normalize, coerce, and smooth
+        val normalizedRms = (rms / MAX_AMPLITUDE).toFloat()
+        val amplifiedLevel = normalizedRms.coerceIn(0f, 1f)
+        smoothedLevel += (amplifiedLevel - smoothedLevel) * SMOOTHING_FACTOR
+
+        return smoothedLevel
+    }
+
+
+    /**
      * Stops listening to the microphone and releases audio resources.
      */
     actual fun stop() {
@@ -98,69 +168,11 @@ actual class AudioProcessor actual constructor(context: Any) {
         // The coroutine's finally block will handle resource cleanup.
     }
 
-    private fun performFFT(audioData: ByteArray, bytesRead: Int, fft: FastFourierTransformer): FloatArray {
-        val numSamples = bytesRead / 2
-        val fftBuffer = DoubleArray(numSamples)
-
-        for (i in 0 until numSamples) {
-            val byteIndex = i * 2
-            // Little-endian conversion from 2 bytes to a short
-            val sample = ((audioData[byteIndex + 1].toInt() shl 8) or (audioData[byteIndex].toInt() and 0xFF)).toShort()
-            fftBuffer[i] = sample.toDouble()
-        }
-
-        // Perform FFT
-        val result = fft.transform(fftBuffer, TransformType.FORWARD)
-
-        // Calculate magnitudes
-        val magnitudes = FloatArray(numSamples / 2)
-        for (i in 0 until numSamples / 2) {
-            magnitudes[i] = result[i].abs().toFloat()
-        }
-        return magnitudes
-    }
-
-    /**
-     * Calculates the audio level from a byte array of audio data.
-     * The level is the normalized Root Mean Square (RMS) of the audio samples.
-     * This implementation is optimized to avoid intermediate array allocation.
-     *
-     * @param audioData The byte array containing raw audio data.
-     * @param bytesRead The number of bytes read into the buffer.
-     * @return The audio level, a float value between 0.0 and 1.0.
-     */
-    private fun calculateAudioLevel(audioData: ByteArray, bytesRead: Int): Float {
-        val numSamples = bytesRead / 2
-        if (numSamples == 0) return 0f
-
-        val sumOfSquares = (0 until numSamples).sumOf { i ->
-            val byteIndex = i * 2
-            // Little-endian conversion from 2 bytes to a short
-            val sample = ((audioData[byteIndex + 1].toInt() shl 8) or (audioData[byteIndex].toInt() and 0xFF)).toShort()
-            val sampleAsDouble = sample.toDouble()
-            sampleAsDouble * sampleAsDouble
-        }
-
-        val rms = sqrt(sumOfSquares / numSamples)
-        val normalizedRms = (rms / MAX_AMPLITUDE).toFloat()
-
-        val amplifiedLevel = (normalizedRms).coerceIn(0f, 1f)
-        smoothedLevel += (amplifiedLevel - smoothedLevel) * SMOOTHING_FACTOR
-
-        return smoothedLevel
-    }
-
     /**
      * Cancels the audio processing coroutine scope. This should be called when the AudioProcessor is no longer needed.
      */
     fun release() {
         audioScope.cancel()
-    }
-
-    private fun getMixerByName(name: String): Mixer? {
-        return AudioSystem.getMixerInfo()
-            .firstOrNull { it.name == name }
-            ?.let { AudioSystem.getMixer(it) }
     }
 
     companion object {
@@ -174,18 +186,12 @@ actual class AudioProcessor actual constructor(context: Any) {
 
         private const val SMOOTHING_FACTOR = 0.1f // Increase for faster response, decrease for more smoothing
 
-
-        /**
-         * Returns a list of available audio input device names.
-         */
-        fun getAvailableInputs(): List<String> {
-            val format = AudioFormat(SAMPLE_RATE, SAMPLE_SIZE_IN_BITS, CHANNELS, IS_SIGNED, IS_BIG_ENDIAN)
-            val info = DataLine.Info(TargetDataLine::class.java, format)
-            return AudioSystem.getMixerInfo()
-                .map { AudioSystem.getMixer(it) }
-                .filter { it.isLineSupported(info) }
-                .map { it.mixerInfo.name }
-        }
-
+        // --- Noise Reduction Constants ---
+        // How quickly the noise profile adapts. Lower is slower.
+        private const val NOISE_PROFILE_ALPHA = 0.05f
+        // How aggressively to reduce noise. Higher values can cause more distortion.
+        private const val NOISE_REDUCTION_FACTOR = 1.5f
+        // Audio level below which we'll assume it's just noise and learn the profile.
+        private const val NOISE_LEARN_THRESHOLD = 0.05f
     }
 }

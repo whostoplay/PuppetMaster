@@ -46,8 +46,6 @@ actual class AudioProcessor actual constructor(private val context: Any) {
     actual fun start(
         onLevelChange: (Float) -> Unit,
         onFrequencyData: ((FloatArray) -> Unit)?,
-        mixerName: String?,
-        onError: (String) -> Unit,
     ) {
         audioJob?.cancel()
 

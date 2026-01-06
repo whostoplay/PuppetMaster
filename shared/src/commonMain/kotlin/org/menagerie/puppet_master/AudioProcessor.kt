@@ -13,8 +13,6 @@ expect class AudioProcessor(context: Any) {
     fun start(
         onLevelChange: (Float) -> Unit,
         onFrequencyData: ((FloatArray) -> Unit)? = null,
-        mixerName: String?,
-        onError: (String) -> Unit,
     )
 
 
