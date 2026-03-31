@@ -375,12 +375,6 @@ fun RhythmNodeView(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("BPM: ${node.beatDetection.bpm.toInt()}")
-                Switch(
-                    checked = node.beatDetection.enabled,
-                    onCheckedChange = { isChecked ->
-                        editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(enabled = isChecked)))
-                    }
-                )
             }
 
             if (expanded) {
@@ -394,7 +388,7 @@ fun RhythmNodeView(
                         onValueChange = {
                             editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(bpm = it)))
                         },
-                        valueRange = 60f..240f
+                        valueRange = 30f..300f
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
@@ -428,29 +422,16 @@ fun RhythmNodeView(
 
                 // Spike Threshold
                 Column {
-                    Text("Spike Threshold: %.2f".format(node.beatDetection.spikeThreshold))
+                    Text("Spike Threshold: %.2f".format(node.beatDetection.onsetFactor))
                     Slider(
-                        value = node.beatDetection.spikeThreshold,
+                        value = node.beatDetection.onsetFactor,
                         onValueChange = {
-                            editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(spikeThreshold = it)))
+                            editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(onsetFactor = it)))
                         },
-                        valueRange = 0.01f..0.5f
+                        valueRange = 1.1f..2.0f
                     )
                 }
                  Spacer(modifier = Modifier.height(8.dp))
-
-                // Spike Window
-                Column {
-                    Text("Spike Window: ${node.beatDetection.spikeWindow}")
-                    Slider(
-                        value = node.beatDetection.spikeWindow.toFloat(),
-                        onValueChange = {
-                            editorViewModel.updateNode(node.copy(beatDetection = node.beatDetection.copy(spikeWindow = it.toInt())))
-                        },
-                        valueRange = 2f..10f,
-                        steps = 8
-                    )
-                }
             }
 
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {

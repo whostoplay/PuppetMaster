@@ -217,17 +217,17 @@ data class HotKeyNode(
 
 @Serializable
 data class BeatDetection(
-    val enabled: Boolean = true,
     val bpm: Float = 120f,
-    val tolerance: Float = 0.2f, // 20% tolerance in timing
-    val requiredBeats: Int = 3, // a run of 3 beats to trigger
-    val memoryFrames: Int = 40, // about 5 seconds of history
-    val spikeThreshold: Float = 0.1f, // volume increase needed to be a spike
-    val spikeWindow: Int = 3 // samples to look back for spike detection
+    val tolerance: Float = 0.35f,
+    val requiredBeats: Int = 4,
+    val memoryFrames: Int = 40, // about 5 seconds of history\
+    val onsetFactor: Float = 1.60f, // Drastically raised to reject noise
+    val minEnergy: Float = 50000f
 )
 
 /**
  * A node that branches based on a detected rhythm in the audio input.
+ * This version uses full-spectrum energy analysis to detect onsets (beats).
  */
 @Serializable
 data class RhythmNode(
@@ -235,9 +235,15 @@ data class RhythmNode(
     override val position: SerializableOffset,
     override val branchPriority: Int = 0,
     val beatDetection: BeatDetection = BeatDetection(),
-    override val size: SerializableSize = SerializableSize(250f, 200f),
-    override val expandedSize: SerializableSize? = SerializableSize(300f, 350f)
+    override val size: SerializableSize = SerializableSize(250f, 210f),
+    override val expandedSize: SerializableSize? = SerializableSize(300f, 600f)
 ) : ConditionalNode {
+
+    @kotlinx.serialization.Transient
+    private val energyHistory = mutableListOf<Float>()
+
+    @kotlinx.serialization.Transient
+    private var decayCounter = 0
 
     override fun copyNode(id: NodeId, position: SerializableOffset): Node = this.copy(id = id, position = position)
 
@@ -246,56 +252,97 @@ data class RhythmNode(
     }
 
     override fun execute(context: GraphExecutionContext, graph: NodeGraph): ExecuteResult {
-        if (!beatDetection.enabled) {
-            return ExecuteResult(null)
+        val frequencyData = context.frequencyData
+
+        // --- DYNAMIC TIMING SETUP ---
+        val framesPerSecond = SAMPLE_RATE / AUDIO_BUFFER_SIZE
+        val expectedFrameInterval = (60.0 / beatDetection.bpm) * framesPerSecond
+        val dynamicOnsetWindow = (expectedFrameInterval / 2).toInt().coerceIn(2, 10)
+        val dynamicDebounce = (expectedFrameInterval / 4).toInt().coerceIn(2, 10)
+
+        // 1. Energy Check & History Update
+        val currentEnergy = frequencyData.sum()
+
+        // Silence/Low-noise gate
+        if (currentEnergy < beatDetection.minEnergy) {
+            decayCounter = (decayCounter - 1).coerceAtLeast(0)
+            return ExecuteResult(if (decayCounter >= beatDetection.requiredBeats) findNextNodeId(graph, "true") else null)
         }
 
-        val history = context.volumeHistory[id] ?: emptyList()
+        energyHistory.add(currentEnergy)
+        if (energyHistory.size > beatDetection.memoryFrames) energyHistory.removeAt(0)
+        if (energyHistory.size < dynamicOnsetWindow) return ExecuteResult(null)
 
-        if (history.size < beatDetection.spikeWindow) { // Need a reasonable amount of history
-            return ExecuteResult(null)
-        }
-
-        // 1. Detect onsets (spikes) in the volume history
+        // 2. Normalize & Detect Onsets
+        val maxHistoricalEnergy = energyHistory.maxOrNull()?.coerceAtLeast(1f) ?: 1f
+        val normalizedHistory = energyHistory.map { it / maxHistoricalEnergy }
         val spikeIndices = mutableListOf<Int>()
-        for (i in beatDetection.spikeWindow until history.size) {
-            val lookBehind = history.subList(i - beatDetection.spikeWindow, i)
-            if (lookBehind.isEmpty()) continue
-            val recentMax = lookBehind.maxOrNull() ?: 0f
 
-            if (history[i] > recentMax + beatDetection.spikeThreshold) {
-                // To avoid detecting multiple frames for the same beat, we check if the last detected spike is too close.
-                if (spikeIndices.isEmpty() || i - spikeIndices.last() > beatDetection.spikeWindow) {
+        for (i in dynamicOnsetWindow until normalizedHistory.size) {
+            val recentAverage = normalizedHistory.subList(i - dynamicOnsetWindow, i).average().toFloat().coerceAtLeast(0.001f)
+            if (normalizedHistory[i] > recentAverage * beatDetection.onsetFactor) {
+                if (spikeIndices.isEmpty() || i - spikeIndices.last() > dynamicDebounce) {
                     spikeIndices.add(i)
                 }
             }
         }
 
-        if (spikeIndices.size < beatDetection.requiredBeats) {
-            return ExecuteResult(null)
+        // 3. Tempo Analysis
+        var rhythmFoundThisTick = false
+        var dominantBpm = 0f
+        var topBpmHits = 0
+        var debugTopThree = ""
+
+        if (spikeIndices.size >= 2) {
+            val allIntervals = spikeIndices.zipWithNext { a, b -> b - a }.filter { it > 2 }
+            if (allIntervals.isNotEmpty()) {
+                val intervalCounts = allIntervals.groupingBy { it }.eachCount()
+                val dominantInterval = intervalCounts.maxByOrNull { it.value }?.key ?: 0
+
+                val sortedBpms = intervalCounts.map { (interval, hits) ->
+                    (60.0 / (interval / framesPerSecond)).toFloat() to hits
+                }.sortedByDescending { it.second }
+
+                if (dominantInterval > 0) {
+                    dominantBpm = (60.0 / (dominantInterval / framesPerSecond)).toFloat()
+                    val target = beatDetection.bpm
+                    rhythmFoundThisTick = isBpmMatch(dominantBpm, target, beatDetection.tolerance) ||
+                            isBpmMatch(dominantBpm, target * 2, beatDetection.tolerance) ||
+                            isBpmMatch(dominantBpm, target / 2, beatDetection.tolerance)
+
+                    topBpmHits = intervalCounts[dominantInterval] ?: 0
+                    debugTopThree = sortedBpms.take(3).joinToString { "[%.0f: %d]".format(it.first, it.second) }
+                }
+            }
         }
 
-        // 2. Check if the intervals between recent spikes match the BPM
-        val recentSpikes = spikeIndices.takeLast(beatDetection.requiredBeats)
-        val intervals = recentSpikes.zipWithNext { a, b -> b - a }
-
-        val framesPerSecond = SAMPLE_RATE / AUDIO_BUFFER_SIZE
-        val expectedFrameInterval = (60.0 / beatDetection.bpm) * framesPerSecond
-        val lowerBound = expectedFrameInterval * (1 - beatDetection.tolerance)
-        val upperBound = expectedFrameInterval * (1 + beatDetection.tolerance)
-
-        val rhythmDetected = intervals.all { it.toDouble() in lowerBound..upperBound }
-
-        val nextNodeId = if (rhythmDetected) {
-            findNextNodeId(graph, "true")
+        // 4. Confidence/Decay
+        if (rhythmFoundThisTick) {
+            decayCounter = (decayCounter + 2).coerceAtMost(10)
         } else {
-            null
+            decayCounter = (decayCounter - 1).coerceAtLeast(0)
         }
 
-        return ExecuteResult(nextNodeId)
-    }
-}
+        val isBeatActive = decayCounter >= beatDetection.requiredBeats
 
+        // --- CLEAN LOGGING ---
+        if (spikeIndices.size > 0) {
+            val status = if (rhythmFoundThisTick) "MATCH" else "SEARCHING"
+            println("Rhythm [Target: ${beatDetection.bpm.toInt()}] -> Confidence: $decayCounter/${beatDetection.requiredBeats} | Spikes: ${spikeIndices.size} | Dominant: %.1f BPM (%d hits) | Top: $debugTopThree | $status".format(dominantBpm, topBpmHits))
+        }
+
+        return ExecuteResult(if (isBeatActive) findNextNodeId(graph, "true") else null)
+    }
+
+
+    private fun isBpmMatch(detected: Float, target: Float, tolerance: Float): Boolean {
+        if (target <= 0 || detected <= 0) return false
+        val lowerBound = target * (1 - tolerance)
+        val upperBound = target * (1 + tolerance)
+        return detected in lowerBound..upperBound
+    }
+
+}
 
 /**
  * Provides a list of all available conditional nodes for the palette.

@@ -122,7 +122,7 @@ actual class AudioProcessor actual constructor(context: Any) {
                         }
 
                         // 8. Calculate audio level from the cleaned samples
-                        val level = calculateAudioLevelFromSamples(cleanedSamples)
+                        val level = calculateAudioLevelFromSamples(paddedSamples)
                         onLevelChange(level)
 
                         // 9. Provide cleaned frequency data if requested
@@ -184,7 +184,7 @@ actual class AudioProcessor actual constructor(context: Any) {
         private const val BUFFER_SIZE = 2048
         private const val MAX_AMPLITUDE = 32767.0 // Max value for 16-bit signed audio
 
-        private const val SMOOTHING_FACTOR = 0.1f // Increase for faster response, decrease for more smoothing
+        private const val SMOOTHING_FACTOR = 1f // Increase for faster response, decrease for more smoothing
 
         // --- Noise Reduction Constants ---
         // How quickly the noise profile adapts. Lower is slower.
